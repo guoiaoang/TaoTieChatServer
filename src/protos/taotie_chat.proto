@@ -5,13 +5,14 @@ package TaoTieChat;
 // 服务器在线状态及用户在线状态检查
 service StatusChecker {
   // GetStatus 返回给定请求的状态信息。
-  rpc GetStatus (stream StatusRequest) returns (stream StatusReply) {}
+  rpc GetStatus (StatusRequest) returns (StatusReply) {}
 }
 
 // StatusRequest 要检查的用户或服务器 ID
 message StatusRequest {
-  string id = 1;
-  string token = 2; // 可选的认证令牌字段
+  string target_id          = 1; // 被查询的用户 ID 或服务器 ID
+  string request_user_id    = 2; // 查询者的用户 ID（可选，某些请求可能不需要）
+  string request_user_token = 3; // 查询者的认证令牌（可选，某些请求可能不需要）
 }
 
 // 成功状态码

@@ -52,6 +52,6 @@ include_directories(${PROTO_HEADERS_DIR})
 
 target_link_libraries(${PROJECT_NAME} PRIVATE lib_proto_taotie_chat)
 
-subdirs(src/helloworld)
+# subdirs(src/helloworld)
 
 subdirs(src/test)

@@ -163,5 +163,6 @@
     //         "source": "Git Bash"
     //     }
     // },
-    "commentTranslate.hover.enabled": true
+    "commentTranslate.hover.enabled": true,
+    "workbench.tree.renderIndentGuides": "always"
 }
