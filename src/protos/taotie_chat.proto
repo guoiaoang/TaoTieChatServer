@@ -1,0 +1,70 @@
+syntax = "proto3";
+
+package TaoTieChat;
+
+// 服务器在线状态及用户在线状态检查
+service StatusChecker {
+  // GetStatus 返回给定请求的状态信息。
+  rpc GetStatus (stream StatusRequest) returns (stream StatusReply) {}
+}
+
+// StatusRequest 要检查的用户或服务器 ID
+message StatusRequest {
+  string id = 1;
+  string token = 2; // 可选的认证令牌字段
+}
+
+// 成功状态码
+enum SuccessCode {
+  OK       = 0;
+  CREATED  = 1; // 已创建
+  ACCEPTED = 2; // 已接受处理
+  ALREADY_EXISTS = 3; // 业务层定义的已存在（非报错）
+}
+
+// 在线状态
+enum OnlineStatus {
+  ONLINE  = 0; // 在线
+  OFFLINE = 1; // 离线
+  UNKNOWN = 2; // 未知状态
+}
+
+// 成功时返回的具体业务数据
+message SuccessInfo {
+  oneof code {
+    SuccessCode  success_code  = 1;
+    OnlineStatus online_status = 2;
+    int32        other_code    = 3; // 自定义的成功返回值
+  }
+  string message = 4; // 自定义成功描述
+  // 这里可以放你原本想返回的业务数据
+}
+
+// 失败/错误状态码
+enum ErrorCode {
+  ERROR            = 0; // 错误/失败
+  INVALID_ARGUMENT = 1; // 无效的参数
+  INVALID_ID       = 2; // 无效的 ID
+  INVALID_TOKEN    = 3; // 无效的认证令牌
+  ACCESS_DENIED    = 4; // 权限不足
+  NOT_FOUND        = 5; // 未找到用户或服务器
+}
+
+// 失败时返回的具体错误信息
+message ErrorInfo {
+  oneof code {
+    ErrorCode  error_code  = 1; // 错误码字段
+    int32      other_code  = 3; // 自定义的失败返回值
+  }
+  string message = 4; // 可选的错误消息字段
+}
+
+// 最终的状态响应消息
+message StatusReply {
+  optional StatusRequest request = 1; // 可选的原始请求信息字段
+  // 使用 oneof 确保成功和失败的消息互斥，且节省空间
+  oneof result {
+    SuccessInfo success = 2;
+    ErrorInfo   error   = 3;
+  }
+}

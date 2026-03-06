@@ -1,0 +1,38 @@
+{
+    "version": 10,
+    "configurePresets": [
+        {
+            "$comment":[
+                "request : msvc 2022 with cmake, qt 6.8.3 msvc 2022, vcpkg, cmake",
+                "qt 6 cmake toolchain file : C:/app/dev/Qt/6.8.3/msvc2022_64/lib/cmake/Qt6/qt.toolchain.cmake",
+                "vcpkg cmake toolchain file : C:/a/t/vcpkg/scripts/buildsystems/vcpkg.cmake",
+                "vcpkg root : C:/a/t/vcpkg",
+                "vcpkg triplet : x64-windows",
+                "vcpkg generator : Visual Studio 17 2022",
+                "vcpkg install qt6:x64-windows",
+                "vcpkg install grpc:x64-windows",
+                "vcpkg install protobuf:x64-windows"
+            ],
+            "name": "qt683_msvs_config",
+            "displayName": "x64 debug",
+            "condition": {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Windows"
+            },
+            "description": "vcpkg + qt6.8.3 + cmake with msvc 2022 x64 debug config on windows",
+            "generator": "Visual Studio 17 2022",
+            "binaryDir": "${sourceDir}/out/build/${presetName}",
+            "installDir": "${sourceDir}/out/install/${presetName}",
+            "toolchainFile": "C:/a/t/vcpkg/scripts/buildsystems/vcpkg.cmake",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "CMAKE_PREFIX_PATH": "C:/app/dev/Qt/6.8.3/msvc2022_64/lib/cmake"
+            },
+            "environment": {
+                "VCPKG_ROOT": "C:/a/t/vcpkg",
+                "PATH": "C:/a/t/vcpkg;$penv{PATH}"
+            }
+        }
+    ]
+}
