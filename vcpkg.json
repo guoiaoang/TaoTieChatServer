@@ -1,11 +1,16 @@
 {
   "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+  "builtin-baseline": "9842d45d567ba785627932cca506615b4e43ae6e",
   "name": "taotiechatserver",
   "version-string": "0.0.1",
   "dependencies": [
     "protobuf",
     "grpc",
     "sqlcipher",
-    "nlohmann-json"
+    "nlohmann-json",
+    "fmt",
+    "abseil",
+    "glog",
+    "spdlog"
   ]
 }

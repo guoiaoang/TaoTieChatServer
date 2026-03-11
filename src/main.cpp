@@ -1,129 +1,54 @@
-// std
-#include <iostream>
-#include <string>
-#include <string>
-#include <sstream>
-#include <memory>
-#include <functional>
-#include <thread>
-#include <chrono>
-#include <iostream>
-#include <memory>
-#include <map>
-#include <set>
-#include <vector>
-#include <list>
-#include <unordered_map>
-#include <unordered_set>
-#include <source_location>
-#include <string_view>
-// absl
-#include "absl/flags/flag.h"
-#include "absl/flags/parse.h"
-#include "absl/log/absl_log.h"
-#include "absl/log/check.h"
-#include "absl/log/initialize.h"
-#include "absl/log/globals.h"
-#include "absl/strings/str_format.h"
-// grpc
-#include <grpcpp/grpcpp.h>
-#include <grpcpp/ext/proto_server_reflection_plugin.h>
-#include <grpcpp/health_check_service_interface.h>
-// server
-#include "taotie_chat.grpc.pb.h"
+#include "headers.h"
+#include "utils.h"
 
+#include "StatusChecker.h"
+#include "DBSQLCipher.h"
+
+bool initialize_spdlog();
+
+// absl flag
 ABSL_FLAG(uint16_t, port, 50051, "Server port for the service");
 
-using grpc::Status;
-using grpc::Server;
-using grpc::ServerBuilder;
-using grpc::ServerContext;
-using grpc::ServerUnaryReactor;
-using grpc::CallbackServerContext;
-using grpc::ServerReaderWriter;
-using TaoTieChat::StatusChecker;
-using TaoTieChat::StatusRequest;
-using TaoTieChat::StatusReply;
-
-// 用户在线状态缓存
-static std::map<std::string, std::string> user_status = {
-    {"user1", "online"},
-    {"user2", "offline"},
-    {"user3", "away"},
-};
-// 用户 token 缓存
-static std::map<std::string, std::set<std::string>> user_tokens = {
-    {"user1", {"token1", "token11"}},
-    {"user2", {"token2"}},
-    {"user3", {"token3"}},
-};
-
-// 服务端实现
-class StatusCheckerServiceImpl final : public StatusChecker::Service {
-public:
-    // GetStatus 返回给定请求的状态信息。
-    // 暂不校验是否有查询权限
-    Status GetStatus(ServerContext* context, const StatusRequest* request, StatusReply* response) override {
-        // DEBUG // 记录请求日志
-        // auto&target_id          = request->target_id();
-        // auto&request_user_id    = request->request_user_id();
-        // auto&request_user_token = request->request_user_token();
-        // ABSL_LOG(INFO) << absl::StrFormat(
-        //     "Received GetStatus request: target_id=%s, request_user_id=%s, request_user_token=%s",
-        //     target_id, request_user_id, request_user_token);
-
-        response->mutable_request()->CopyFrom(*request);
-        // 被查询用户 id 为空时返回服务器的状态信息
-        if(request->target_id().empty()) {
-            response->mutable_success()->set_message("Server is running");
-        }
-        // 查询用户 id 不为空时要求必须有查询者的用户 ID
-        else if(request->request_user_id().empty()) {
-            response->mutable_error()->set_message("Request User ID is required");
-        }
-        // 查询用户 id 不为空时要求必须有查询者的用户 ID
-        else if(request->request_user_token().empty()) {
-            response->mutable_error()->set_message("Request User Token is required");
-        }
-        // id 和 token 都不为空时返回用户的状态信息
-        else {
-            auto user_tokens_it = user_tokens.find(request->request_user_id());
-            // 校验用户 ID 的合法性
-            if (user_tokens_it == user_tokens.end()) {
-                response->mutable_error()->set_message("Invalid Request User ID");
-            }
-            // 校验 token 的合法性  // 同一用户可以有多个 token
-            else if (user_tokens_it->second.find(request->request_user_token()) == user_tokens_it->second.end()) {
-                response->mutable_error()->set_message("Invalid Request User Token");
-            }
-            else {
-                // 查询用户 ID 和 token 都合法时返回被查询用户的状态信息
-                auto it = user_status.find(request->target_id());
-                if (it != user_status.end()) {
-                    response->mutable_success()->set_message(absl::StrFormat("User %s is %s", request->target_id(), it->second));
-                } else {
-                    response->mutable_error()->set_message("Invalid target User ID");
-                }
-            }
-        }
-        return Status::OK;
-    }
-};
-
 int main(int argc, char** argv) {
-    absl::ParseCommandLine(argc, argv);
-    absl::InitializeLog();
-    // 设置日志记录的最小等级
-    absl::SetMinLogLevel(absl::LogSeverityAtLeast::kInfo);
-    // 设置日志输出到标准（错误）输出的最小等级 // 可能造成重复输出
-    absl::SetStderrThreshold(absl::LogSeverityAtLeast::kInfo);
+    // 存储命令行参数，供后续使用
+    Utils::instance()->storeArgs(argc, argv);
+    initialize_spdlog();
 
+    // 输出基本信息
+    // 输出当前工作目录
+    LOG_DEBUG("Current working directory: {}", std::filesystem::current_path().string());
+    // 输出程序完整路径
+    LOG_DEBUG("Program path: {}", std::filesystem::absolute(argv[0]).string());
+    // 输出命令行参数
+    LOG_TRACE("Command line arguments:");
+    for (int i = 0; i < argc; ++i) {
+        LOG_TRACE("  argv[{}]: {}", i, argv[i]);
+    }
+
+    // 设置数据路径为程序所在路径的父目录下的 data 文件夹
+    std::filesystem::path app_dir = Utils::instance()->appDir();
+    std::filesystem::path data_dir = app_dir / "data";
+    Utils::instance()->mkdir(data_dir);
+
+    // 初始化数据库连接
+    const std::filesystem::path db_path = data_dir / "taotie_chat_server.db";
+    const std::string encryption_key = "your_secure_encryption_key";
+    DBSQLCipher db_sqlcipher(db_path, encryption_key);
+    if (!db_sqlcipher.OpenDB()) {
+        LOG_ERROR("Failed to open database with encryption key.");
+        return 0;
+    }
+
+    // 启用 gRPC 服务器的默认健康检查服务和反射服务
     grpc::EnableDefaultHealthCheckService(true);
+    // 反射服务允许客户端在运行时查询服务器支持的服务和方法，这对于调试和开发非常有用。
     grpc::reflection::InitProtoReflectionServerBuilderPlugin();
 
+    // 构建服务器地址
     std::string server_address = absl::StrFormat("0.0.0.0:%d", absl::GetFlag(FLAGS_port));
-    ABSL_LOG(INFO) << "Server listening on " << server_address;
+    LOG_INFO("Server listening on {}", server_address);
 
+    // 构建并启动 gRPC 服务器
     ServerBuilder server_builder;
     server_builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
     // 注册服务
@@ -134,6 +59,60 @@ int main(int argc, char** argv) {
 
     return 0;
 }
+
+bool initialize_spdlog() {
+    // spdlog 初始化
+
+    // [%n:multi_sink][%l%:info][%P:22392-%t:18300]
+    // [%@:C:\workspace\projects\qt\TaoTieChatServer\src\main.cpp:351]
+    // [%g:C:\workspace\projects\qt\TaoTieChatServer\src\main.cpp]
+    // [%s:main.cpp][%#:351][%!:main]
+    std::string log_pattern = "[%Y-%m-%d %H:%M:%S.%e] [%^%l%$] [%s:%#] [%!] [%P-%t] %v";
+    // 创建控制台 sink
+    auto stdout_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
+    auto stderr_sink = std::make_shared<spdlog::sinks::stderr_color_sink_mt>();
+    // stderr：err 及以上
+    stderr_sink->set_level(spdlog::level::err);
+    // stdout 需要“上限过滤” -> 包一层 callback sink 做级别判断
+    auto stdout_filter_sink = std::make_shared<spdlog::sinks::callback_sink_mt>(
+        [stdout_sink](const spdlog::details::log_msg& msg) {
+            if (msg.level < spdlog::level::err) {
+                stdout_sink->log(msg);
+            }
+        });
+
+    // 设置日志目录
+    std::filesystem::path log_dir = Utils::instance()->logsDir();
+    Utils::instance()->mkdir(log_dir);
+
+    // 创建按日期轮转的文件 sink
+    // auto file_sink = std::make_shared<spdlog::sinks::rotating_file_sink_mt>("logs/log.txt", 1024*1024*500, 3); // 500MB, 3 个文件
+    auto file_sink = std::make_shared<spdlog::sinks::daily_file_sink_mt>((log_dir / "daily.log").string(), 0, 0);
+    file_sink->set_level(spdlog::level::trace);
+    // file_sink->set_pattern(log_pattern);
+    // 组合 sinks
+    spdlog::sinks_init_list sink_list = {stdout_filter_sink, stderr_sink, file_sink};
+    auto logger = std::make_shared<spdlog::logger>("multi_sink", sink_list);
+    spdlog::set_default_logger(logger);
+    spdlog::flush_on(spdlog::level::info);     // 可选：减少“看起来没输出”的感觉
+    spdlog::default_logger()->set_level(spdlog::level::trace);   // 关键：放开到最低级别
+    spdlog::default_logger()->set_pattern(log_pattern); // 关键：每个 sink 都会复制一份 pattern，确保输出格式一致
+    // spdlog::flush_every(std::chrono::seconds(3));
+    // spdlog::set_error_handler([](const std::string &msg) { spdlog::get("console")->error("*** LOGGER ERROR ***: {}", msg); });
+
+    // 使用
+    // spdlog::debug("debug message to default logger (multi_sink)");
+    // spdlog::error("error message to default logger (multi_sink)");
+    // spdlog::trace("trace message to default logger (multi_sink)");
+
+    // 在 spdlog 中，要输出文件名、行号和函数名，不能直接调用 logger->info() 等成员函数，而必须配合 宏（Macros）和 格式化占位符 使用。
+    // SPDLOG_INFO("带源码信息的日志");  // 宏版本会带上源码信息，默认日志格式里也包含了源码信息，所以这里不需要再设置一次了。
+
+    return true;
+};
+
+// spdlog 初始化，返回值不重要，关键是要在 main() 之前执行
+// static const bool g_init_spdlog = initialize_spdlog();
 
 // callback 示例 : `helloworld/greeter_callback_server.cc`，`helloworld/greeter_callback_server.cc`
 // 客户端推荐使用 `stub->async()->func()` 方式调用异步 API，
