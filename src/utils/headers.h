@@ -1,4 +1,9 @@
 #pragma once
+
+#define LOGGER_USE_SPDLOG
+// #define LOGGER_USE_GLOG
+// #define LOGGER_USE_ABSL_LOG
+
 // std
 #include <iostream>
 #include <string>
@@ -31,11 +36,21 @@
 #include <grpcpp/ext/proto_server_reflection_plugin.h>
 #include <grpcpp/health_check_service_interface.h>
 // sqlcipher
+// #define SQLITE_ENABLE_FTS5
+// #define SQLITE_ENABLE_JSON1
+// #define SQLITE_ENABLE_MEMORY_MANAGEMENT
+// #define SQLITE_ENABLE_STAT4
+// #define SQLITE_ENABLE_UNLOCK_NOTIFY
+#define SQLITE_HAS_CODEC
 #include <sqlcipher/sqlite3.h>
 // nlohmann json
 #include <nlohmann/json.hpp>
 // glog
+#ifdef LOGGER_USE_GLOG
 #include <glog/logging.h>
+#endif
+// boost uuid
+#include <boost/uuid.hpp>
 // spdlog
 // 1. 必须在 include 之前定义，指定允许输出的最低日志级别
 #define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_TRACE // 允许输出 trace 级别及以上的日志
@@ -64,13 +79,12 @@ using grpc::ServerContext;
 using grpc::ServerUnaryReactor;
 using grpc::CallbackServerContext;
 using grpc::ServerReaderWriter;
-using TaoTieChat::StatusChecker;
+using TaoTieChat::StatusService;
 using TaoTieChat::StatusRequest;
 using TaoTieChat::StatusReply;
-
-#define LOGGER_USE_SPDLOG
-// #define LOGGER_USE_GLOG
-// #define LOGGER_USE_ABSL_LOG
+using TaoTieChat::AccountService;
+using TaoTieChat::UserRegisterRequest;
+using TaoTieChat::UserRegisterReply;
 
 // VERBOSE / NOTICE / EMERGENCY / PANIC / AUDIT / ALERT
 // FATAL / CRITICAL / ERROR / WARNING / INFO / DEBUG / TRACE

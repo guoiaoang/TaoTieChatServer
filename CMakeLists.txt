@@ -25,7 +25,8 @@ set(SOURCE_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/utils/headers.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/utils/utils.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/service/StatusChecker.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/service/AccountService.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/service/StatusService.h
 )
 
 # 查找依赖的包
@@ -37,6 +38,7 @@ find_package(nlohmann_json CONFIG REQUIRED)
 find_package(sqlcipher     CONFIG REQUIRED)
 find_package(glog          CONFIG REQUIRED)
 find_package(spdlog        CONFIG REQUIRED)
+find_package(Boost         REQUIRED COMPONENTS uuid)
 
 # 添加源码目录，便于 #include 引用
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src)
@@ -59,6 +61,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE nlohmann_json::nlohmann_json)
 target_link_libraries(${PROJECT_NAME} PRIVATE sqlcipher::sqlcipher)
 target_link_libraries(${PROJECT_NAME} PRIVATE glog::glog)
 target_link_libraries(${PROJECT_NAME} PRIVATE spdlog::spdlog)
+target_link_libraries(${PROJECT_NAME} PRIVATE Boost::uuid)
 # target_link_libraries(${PROJECT_NAME} PRIVATE spdlog::spdlog_header_only)
 
 # ======================= 生成 gRPC 和 Protobuf 代码 ======================= #

@@ -14,7 +14,7 @@ static std::map<std::string, std::set<std::string>> user_tokens = {
 };
 
 // 服务端实现
-class StatusCheckerServiceImpl final : public StatusChecker::Service {
+class StatusServiceImpl final : public StatusService::Service {
 public:
     // GetStatus 返回给定请求的状态信息。
     // 暂不校验是否有查询权限

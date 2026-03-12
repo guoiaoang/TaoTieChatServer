@@ -8,6 +8,10 @@ public:
         static std::shared_ptr<Utils> inst(new Utils());
         return inst;
     }
+    // static Utils& instance() {
+    //     static Utils inst;
+    //     return inst;
+    // }
 
     ~Utils() = default; // shared_ptr 会调用该析构函数
     Utils(const Utils&) = delete;
@@ -83,7 +87,32 @@ public:
         return {true, path};
     }
 
+    boost::uuids::uuid generate_uuid() {
+        // inline boost::uuids::uuid boost::uuids::basic_random_generator<boost::uuids::detail::chacha20_12>::operator()()
+        return m_uuid_generator();
+    }
+
+    std::string to_string(const boost::uuids::uuid& u) {
+        return boost::uuids::to_string(u);
+    }
+
+    boost::uuids::uuid to_uuid(const std::string& s) {
+        return boost::uuids::string_generator()(s);
+    }
+
+    std::chrono::system_clock::time_point currentDateTime() {
+        return std::chrono::system_clock::now();
+    }
+
+    std::string to_string(const std::chrono::system_clock::time_point& tp) {
+        // 获取本地时区并创建带时区的时间对象
+        auto local_time = std::chrono::zoned_time{std::chrono::current_zone(), tp};
+        return std::format("{:%F %T %z}", local_time);
+    }
+
+
 private:
     inline static std::vector<std::string> s_args{};
     inline static std::string s_product_name{"TaoTieChatServer"};
+    boost::uuids::random_generator m_uuid_generator;
 };

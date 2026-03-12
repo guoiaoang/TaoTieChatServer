@@ -11,6 +11,7 @@
     "fmt",
     "abseil",
     "glog",
-    "spdlog"
+    "spdlog",
+    "boost-uuid"
   ]
 }

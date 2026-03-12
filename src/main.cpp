@@ -1,8 +1,9 @@
 #include "headers.h"
 #include "utils.h"
 
-#include "StatusChecker.h"
 #include "DBSQLCipher.h"
+#include "StatusService.h"
+#include "AccountService.h"
 
 bool initialize_spdlog();
 
@@ -33,11 +34,13 @@ int main(int argc, char** argv) {
     // 初始化数据库连接
     const std::filesystem::path db_path = data_dir / "taotie_chat_server.db";
     const std::string encryption_key = "your_secure_encryption_key";
-    DBSQLCipher db_sqlcipher(db_path, encryption_key);
-    if (!db_sqlcipher.OpenDB()) {
+    DBSQLCipher& db_sqlcipher = DBSQLCipher::instance();
+    db_sqlcipher.set_init_params(db_path, encryption_key);
+    if (!db_sqlcipher.database_open()) {
         LOG_ERROR("Failed to open database with encryption key.");
         return 0;
     }
+    db_sqlcipher.database_initialize();
 
     // 启用 gRPC 服务器的默认健康检查服务和反射服务
     grpc::EnableDefaultHealthCheckService(true);
@@ -52,8 +55,10 @@ int main(int argc, char** argv) {
     ServerBuilder server_builder;
     server_builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
     // 注册服务
-    StatusCheckerServiceImpl service_status_checker;
+    StatusServiceImpl service_status_checker;
+    AccountServiceImpl       service_account;
     server_builder.RegisterService(&service_status_checker);
+    server_builder.RegisterService(&service_account);
     std::unique_ptr<Server> server = server_builder.BuildAndStart();
     server->Wait();
 

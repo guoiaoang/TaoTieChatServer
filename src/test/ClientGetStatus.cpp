@@ -25,12 +25,12 @@ void GetStatus(std::shared_ptr<grpc::Channel> channel, const std::string& target
     using grpc::Channel;
     using grpc::ClientContext;
     using grpc::Status;
-    using TaoTieChat::StatusChecker;
+    using TaoTieChat::StatusService;
     using TaoTieChat::StatusRequest;
     using TaoTieChat::StatusReply;
 
     // 创建 gRPC 通道
-    std::unique_ptr<StatusChecker::Stub> stub = StatusChecker::NewStub(channel);
+    std::unique_ptr<StatusService::Stub> stub = StatusService::NewStub(channel);
 
     // 创建请求并调用 GetStatus 方法
     StatusRequest request;
