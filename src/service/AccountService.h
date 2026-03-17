@@ -9,10 +9,10 @@ public:
     Status UserRegister(ServerContext* context, const UserRegisterRequest* request, UserRegisterReply* response) override {
         // 复制请求
         response->mutable_request()->CopyFrom(*request); // 获取可变的请求字段并复制内容
-        // 昵称不能为空
-        if(request->nickname().empty()) {
+        // 用户 ID 不能为空
+        if(request->user_id().empty()) {
             response->set_success(false);
-            response->set_error_message("Nickname is required");
+            response->set_error_message("User ID is required");
             // return Status::OK;
         }
         // 密码不能为空
@@ -39,7 +39,7 @@ public:
             DBSQLCipher& db_sqlcipher = DBSQLCipher::instance();
             std::shared_ptr<DBSQLCipher::UserRegisterParameters> params = std::make_shared<DBSQLCipher::UserRegisterParameters>();
             std::shared_ptr<DBSQLCipher::UserRegisterResult>     result = nullptr;
-            params->nickname          = request->nickname         ();
+            params->user_id           = request->user_id          ();
             params->password          = request->password         ();
             params->security_question = request->security_question();
             params->security_answer   = request->security_answer  ();
@@ -55,7 +55,6 @@ public:
                 // 注册成功，返回注册结果
                 response->set_success      (true                 );
                 response->set_account_id   (result->account_id   );
-                response->set_user_id      (result->user_id      );
                 response->set_error_message(result->error_message);
             }
         }

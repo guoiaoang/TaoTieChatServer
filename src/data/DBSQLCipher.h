@@ -142,7 +142,6 @@ namespace SQL{
                 R"(    FROM users )"
                 R"(    WHERE account_id        = :account_id       )"
                 R"(      AND user_id           = :user_id          )"
-                R"(      AND nickname          = :nickname         )"
                 R"(      AND password          = :password         )"
                 R"(      AND register_time     = :register_time    )"
                 R"(      AND security_question = :security_question)"
@@ -157,8 +156,8 @@ namespace SQL{
             constexpr std::string_view SQL_INSERT_META_VERSION = "INSERT INTO meta (name, value) VALUES ('version', '1.0');";
             // 用户注册的 SQL 语句模板，注意：SQLCipher 不支持参数绑定，所以只能使用字符串替换，这会导致数据库注入风险，但由于这是一个注册语句，且参数都是由系统生成的，不直接暴露给用户，所以风险相对较小，可以接受。
             constexpr std::string_view SQL_INSERT_USER_REGISTER = 
-                R"(INSERT INTO users (account_id, user_id, nickname, password, register_time, security_question, security_answer) )"
-                R"(VALUES (:account_id, :user_id, :nickname, :password, :register_time, :security_question, :security_answer);)";
+                R"(INSERT INTO users (account_id, user_id, password, register_time, security_question, security_answer) )"
+                R"(VALUES (:account_id, :user_id, :password, :register_time, :security_question, :security_answer);)";
                 // R"(INSERT INTO users (account_id, user_id, avatar, nickname, sign, gender, region, birthday, phone, email, password, register_time, security_question, security_answer) )"
                 // R"(VALUES (:account_id, :user_id, :avatar, :nickname, :sign, :gender, :region, :birthday, :phone, :email, :password, :register_time, :security_question, :security_answer);)";
         }
@@ -170,11 +169,11 @@ using SqlValue = std::variant<int, double, std::string, std::nullptr_t>; // 0,1,
 // using SqlNamedParam = std::map<std::string, SqlValue>;
 
 struct WrapperQueryResult {
-    bool success;
+    bool done    = false;  // 仅表示是否执行完成，不代表是否成功
     std::vector<std::map<std::string, SqlValue>> results; // 列名 - 列值
     std::string error_message;
-    WrapperQueryResult(bool success = false, const std::vector<std::map<std::string, SqlValue>>& results = {}, const std::string& error_message = "")
-        : success(success), results(results), error_message(error_message) {}
+    WrapperQueryResult(bool done = false, const std::vector<std::map<std::string, SqlValue>>& results = {}, const std::string& error_message = "")
+        : done(done), results(results), error_message(error_message) {}
 };
 
 struct WrapperNamedParam {
@@ -201,7 +200,7 @@ public:
         auto results = std::make_shared<WrapperQueryResult>();
 
         if (sqlite3_prepare_v2(m_db, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
-            results->success = false;
+            results->done          = true;
             results->error_message = sqlite3_errmsg(m_db);
             return results;
         }
@@ -230,7 +229,7 @@ public:
             }
             results->results.emplace_back(row);
         }
-        results->success = true;
+        results->done = true;
 
         sqlite3_finalize(stmt);
         return results;
@@ -354,7 +353,7 @@ public:
         // 空文件：SQLITE_ERROR  (1) no such table: meta
         // 密码错误：SQLITE_NOTADB (26) file is not a database
         auto execute_query_meta_version = execute(SQL_QUERY_META_VERSION.data());
-        if (execute_query_meta_version->success) {
+        if (execute_query_meta_version->done) {
             auto&v = execute_query_meta_version->results;
             if(!v.empty()) {
                 auto&m = v[0];
@@ -392,7 +391,7 @@ public:
         // std::string str_sql_table_init_version = std::format("{}{}", SQL_CREATE_TABLE_META, std::format(SQL_INSERT_META_VERSION, "1.0"));
         // auto execute_set_meta_version = execute(str_sql_table_init_version);
         auto execute_create_table_meta = execute(SQL_CREATE_TABLE_META.data());
-        if (!execute_create_table_meta->success) {
+        if (!execute_create_table_meta->done) {
             LOG_ERROR("Failed to initialize database file with create table meta: {}", execute_create_table_meta->error_message);
             sqlite3_close(m_db_sqlcipher);
             m_db_sqlcipher = nullptr;
@@ -402,7 +401,7 @@ public:
 
         // 设置元数据版本
         auto execute_set_meta_version = execute(SQL_INSERT_META_VERSION.data());
-        if (!execute_set_meta_version->success) {
+        if (!execute_set_meta_version->done) {
             LOG_ERROR("Failed to initialize database file with write version: {}", execute_set_meta_version->error_message);
             sqlite3_close(m_db_sqlcipher);
             m_db_sqlcipher = nullptr;
@@ -412,7 +411,7 @@ public:
 
         // 再次读取验证是否正确写入了数据，如果仍然失败则说明密钥不正确
         auto query_version_verify = execute(SQL_QUERY_META_VERSION.data());
-        if (!query_version_verify->success) {
+        if (!query_version_verify->done) {
             LOG_ERROR("Failed to verify database initialization, encryption key may be incorrect");
             sqlite3_close(m_db_sqlcipher);
             m_db_sqlcipher = nullptr;
@@ -442,7 +441,7 @@ public:
         };
         for(const auto& cmd : table_creation_commands) {
             auto result = execute(cmd.data());
-            if(!result->success) {
+            if(!result->done) {
                 LOG_ERROR("Failed to execute table creation command: {}, error: {}", cmd, result->error_message);
                 return false;
             }
@@ -536,16 +535,17 @@ public:
 
 public:
     struct UserRegisterParameters {
-        std::string nickname;
+        std::string user_id;
         std::string password;
         std::string security_question;
         std::string security_answer;
     };
 
     struct UserRegisterResult {
+        std::shared_ptr<UserRegisterParameters> params; // 注册参数回传，便于后续使用
+        bool done    = false; // 仅表示是否执行完成，不代表是否成功
         bool success = false; // 注册是否成功
         std::string account_id; // 注册成功时返回的账号 ID
-        std::string user_id;    // 注册成功时返回的用户 ID
         std::string error_message; // 注册失败时的错误信息
     };
 
@@ -559,46 +559,49 @@ public:
         // 1. 检查账号是否已存在，如果已存在则返回失败
         // 2. 如果账号不存在则插入新记录，并返回成功
         std::shared_ptr<UserRegisterResult> result = std::make_shared<UserRegisterResult>();
-        if(params == nullptr || params->nickname.empty() || params->password.empty() || params->security_question.empty() || params->security_answer.empty()) {
-            LOG_ERROR("User register parameters is null");
+        result->params        = params;
+        result->done          = false;
+        result->success       = false;
+        result->account_id    = "";
+        result->error_message = "";
+        // 参数校验
+        if(params == nullptr || params->user_id.empty() || params->password.empty() || params->security_question.empty() || params->security_answer.empty()) {
+            result->error_message = "User register parameters is null or incomplete";
+            LOG_ERROR(result->error_message);
             return result;
         }
+
         // 实现用户注册逻辑
         std::string account_id;
-        std::string user_id;
         std::shared_ptr<WrapperQueryResult> query_account_exists;
         std::shared_ptr<WrapperQueryResult> query_user_exists;
         std::shared_ptr<WrapperQueryResult> insert_result;
         do {
             // 用户 uuid
-            // do {
-            //     user_id = Utils::instance()->to_string(Utils::instance()->generate_uuid());
-            //     auto query_user_exists_params = std::make_shared<WrapperNamedParam>();
-            //     query_user_exists_params->params[":user_id"] = user_id;
-            //     query_user_exists = execute(SQL_QUERY_USER_EXISTS.data(), query_user_exists_params);
-            // } while(query_user_exists->success && !query_user_exists->results.empty());
-            // user_id = params->nickname; // 先使用昵称作为 user_id，后续可以提供修改接口让用户修改 user_id，但必须保证唯一性
             auto query_user_exists_params = std::make_shared<WrapperNamedParam>();
-            query_user_exists_params->params[":user_id"] = params->nickname;
+            query_user_exists_params->params[":user_id"] = params->user_id;
             query_user_exists = execute(SQL_QUERY_USER_EXISTS.data(), query_user_exists_params);
-            if(query_user_exists->success && !query_user_exists->results.empty()) {
-                result->success       = false;
-                result->account_id    = "";
-                result->user_id       = "";
-                result->error_message = "User ID already exists";
-                LOG_ERROR("User ID already exists: {}", params->nickname);
+            // 操作失败
+            if(!query_user_exists->done) {
+                result->error_message = "Failed to check user existence: " + query_user_exists->error_message;
+                LOG_ERROR(result->error_message);
                 break;
             }
-            // 使用 nickname 作为默认用户 ID
-            user_id = params->nickname;
+            // 已经有记录
+            if(!query_user_exists->results.empty()) {
+                result->done          = true;
+                result->error_message = "User ID already exists";
+                LOG_ERROR(result->error_message);
+                break;
+            }
 
-            // 生成账号 uuid
+            // 生成账号 uuid // 操作失败或生成的 uuid 已经存在则重试，直到成功且不存在为止，理论上应该不会出现重复的 uuid，但为了保险起见加上这个检查
+            auto query_account_exists_params = std::make_shared<WrapperNamedParam>();
             do {
                 account_id = Utils::instance()->to_string(Utils::instance()->generate_uuid());
-                auto query_account_exists_params = std::make_shared<WrapperNamedParam>();
                 query_account_exists_params->params[":account_id"] = account_id;
                 query_account_exists = execute(SQL_QUERY_ACCOUNT_EXISTS.data(), query_account_exists_params);
-            } while(query_account_exists->success && !query_account_exists->results.empty());
+            } while(!query_account_exists->done || !query_account_exists->results.empty());
 
             // 获取注册时间
             auto register_time = Utils::instance()->currentDateTime();
@@ -606,8 +609,7 @@ public:
             // 构造参数
             auto user_register_params = std::make_shared<WrapperNamedParam>();
             user_register_params->params[":account_id"] = account_id;
-            user_register_params->params[":user_id"]    = user_id;
-            user_register_params->params[":nickname"]   = params->nickname;
+            user_register_params->params[":user_id"]    = params->user_id;
             user_register_params->params[":password"]   = params->password;  // 由用户端加密后传输，服务器不进行二次加密，直接存储
             user_register_params->params[":security_question"] = params->security_question;
             user_register_params->params[":security_answer"]   = params->security_answer;
@@ -616,38 +618,33 @@ public:
             // 插入新记录
             insert_result = execute(SQL_INSERT_USER_REGISTER.data(), user_register_params);
             // 注册命令执行失败
-            if(!insert_result->success) {
-                result->success       = false;
-                result->account_id    = "";
-                result->user_id       = "";
-                result->error_message = insert_result->error_message;
-                LOG_ERROR("Failed to insert user register record: {}", insert_result->error_message);
+            if(!insert_result->done) {
+                result->error_message = fmt::format("Failed to insert user register record: {}", insert_result->error_message);
+                LOG_ERROR(result->error_message);
                 break;
             }
 
             // 注册成功时需要校验
             auto insert_result_check = execute(SQL_QUERY_USER_REGISTER_CHECK.data(), user_register_params);
             // 校验命令执行失败
-            if(    !insert_result_check->success
-                ||  insert_result_check->results.empty()
-                ||  insert_result_check->results[0].empty()
-                ||  insert_result_check->results[0].begin()->first != "1"
-                ||  std::get<int>(insert_result_check->results[0].begin()->second) != 1
-            ) {
-                result->success       = false;
-                result->account_id    = "";
-                result->user_id       = "";
-                result->error_message = insert_result_check->error_message;
-                LOG_ERROR("Failed to check user register record: {}", insert_result_check->error_message);
+            if(!insert_result_check->done) {
+                result->error_message = fmt::format("Failed to check user register record: {}", insert_result_check->error_message);
+                LOG_ERROR(result->error_message);
+                break;
+            }
+            // 校验命令执行成功，但返回的结果为空
+            if(insert_result_check->results.empty()) {
+                result->done          = true;
+                result->error_message = "User register record check failed, no matching record found";
+                LOG_ERROR(result->error_message);
                 break;
             }
 
             // 注册成功
             result->success       = true;
             result->account_id    = account_id;
-            result->user_id       = user_id;
             result->error_message = "";
-            LOG_INFO("User registered successfully, account_id: {}, user_id: {}", account_id, user_id);
+            LOG_INFO("User registered successfully, account_id: {}, user_id: {}", account_id, params->user_id);
             break;
         } while(false);
         return result;

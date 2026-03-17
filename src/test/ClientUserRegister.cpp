@@ -36,7 +36,7 @@ void UserRegister(std::shared_ptr<grpc::Channel> channel, const DBSQLCipher::Use
 
     // 创建请求并调用 UserRegister 方法
     UserRegisterRequest request;
-    request.set_nickname(params.nickname);
+    request.set_user_id(params.user_id);
     request.set_password(params.password);
     request.set_security_question(params.security_question);
     request.set_security_answer(params.security_answer);
@@ -103,7 +103,6 @@ int main(int argc, char** argv) {
         if (status.ok()) {
             result.success       = response->success();
             result.account_id    = response->account_id();
-            result.user_id       = response->user_id();
             result.error_message = response->error_message();
         }
         else {
@@ -114,15 +113,15 @@ int main(int argc, char** argv) {
 
     ABSL_LOG(INFO) << "UserRegister test started.";
     DBSQLCipher::UserRegisterParameters params;
-    params.nickname = "nickname";
+    params.user_id = "user_id";
     params.password = "password";
     params.security_question = "security_question";
     params.security_answer = "security_answer";
     // 空数据集第一次注册时应当可以注册成功
     UserRegister(channel, params, notify);
-    LOG_INFO("UserRegister 1 test completed. Result: success={}, account_id={}, user_id={}, error_message={}", result.success, result.account_id, result.user_id, result.error_message);
+    LOG_INFO("UserRegister 1 test completed. Result: success={}, account_id={}, error_message={}", result.success, result.account_id, result.error_message);
     // 再次注册时会因为账号已存在而注册失败
     UserRegister(channel, params, notify);
-    LOG_INFO("UserRegister 2 test completed. Result: success={}, account_id={}, user_id={}, error_message={}", result.success, result.account_id, result.user_id, result.error_message);
+    LOG_INFO("UserRegister 2 test completed. Result: success={}, account_id={}, error_message={}", result.success, result.account_id, result.error_message);
     return EXIT_SUCCESS;
 }

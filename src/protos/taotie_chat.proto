@@ -46,7 +46,7 @@ message SuccessInfo {
 
 // 失败/错误状态码
 enum ErrorCode {
-  ERROR            = 0; // 错误/失败
+  ERROR_UNKNOWN    = 0; // 错误/失败
   INVALID_ARGUMENT = 1; // 无效的参数
   INVALID_ID       = 2; // 无效的 ID
   INVALID_TOKEN    = 3; // 无效的认证令牌
@@ -82,7 +82,7 @@ service AccountService {
 }
 
 message UserRegisterRequest {
-  string nickname          = 1; // 昵称
+  string user_id           = 1; // 昵称
   string password          = 2; // 密码
   string security_question = 3; // 安全问题
   string security_answer   = 4; // 安全答案
@@ -92,6 +92,5 @@ message UserRegisterReply {
   optional UserRegisterRequest request = 1; // 可选的原始请求信息字段
   bool   success       = 2; // 注册是否成功
   string account_id    = 3; // 注册成功后返回的账号 ID
-  string user_id       = 4; // 注册成功后返回的用户 ID
-  string error_message = 5; // 注册失败时的错误描述信息
+  string error_message = 4; // 注册失败时的错误描述信息
 }
