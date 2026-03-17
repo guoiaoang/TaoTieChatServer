@@ -1,5 +1,6 @@
 #include "headers.h"
 #include "utils.h"
+#include "types.h"
 
 #include "DBSQLCipher.h"
 #include "StatusService.h"
@@ -12,7 +13,7 @@ ABSL_FLAG(uint16_t, port, 50051, "Server port for the service");
 
 int main(int argc, char** argv) {
     // 存储命令行参数，供后续使用
-    Utils::instance()->storeArgs(argc, argv);
+    Utils::store_args(argc, argv);
     initialize_spdlog();
 
     // 输出基本信息
@@ -27,9 +28,9 @@ int main(int argc, char** argv) {
     }
 
     // 设置数据路径为程序所在路径的父目录下的 data 文件夹
-    std::filesystem::path app_dir = Utils::instance()->appDir();
+    std::filesystem::path app_dir = Utils::app_path();
     std::filesystem::path data_dir = app_dir / "data";
-    Utils::instance()->mkdir(data_dir);
+    Utils::mkdir(data_dir);
 
     // 初始化数据库连接
     const std::filesystem::path db_path = data_dir / "taotie_chat_server.db";
@@ -87,8 +88,8 @@ bool initialize_spdlog() {
         });
 
     // 设置日志目录
-    std::filesystem::path log_dir = Utils::instance()->logsDir();
-    Utils::instance()->mkdir(log_dir);
+    std::filesystem::path log_dir = Utils::logs_path();
+    Utils::mkdir(log_dir);
 
     // 创建按日期轮转的文件 sink
     // auto file_sink = std::make_shared<spdlog::sinks::rotating_file_sink_mt>("logs/log.txt", 1024*1024*500, 3); // 500MB, 3 个文件

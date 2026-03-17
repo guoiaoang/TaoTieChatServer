@@ -23,7 +23,7 @@
 ABSL_FLAG(std::string, target, "localhost:50051", "Server address");
 
 using CallbackUserRegisterNotify = std::function<void(::grpc::ClientContext* context, const ::TaoTieChat::UserRegisterRequest* request, ::TaoTieChat::UserRegisterReply* response, ::grpc::Status status)>;
-void UserRegister(std::shared_ptr<grpc::Channel> channel, const DBSQLCipher::UserRegisterParameters& params, CallbackUserRegisterNotify callback) {
+void UserRegister(std::shared_ptr<grpc::Channel> channel, const UserRegisterParameters& params, CallbackUserRegisterNotify callback) {
     using grpc::Channel;
     using grpc::ClientContext;
     using grpc::Status;
@@ -89,7 +89,7 @@ int main(int argc, char** argv) {
     using ::TaoTieChat::UserRegisterRequest;
     using ::TaoTieChat::UserRegisterReply;
     using ::grpc::Status;
-    DBSQLCipher::UserRegisterResult result;
+    UserRegisterResult result;
     auto notify = [&result](ClientContext* context, const UserRegisterRequest* request, UserRegisterReply* response, Status status) {
         if (status.ok()) {
             std::cout << "RPC succeeded" << std::endl;
@@ -112,7 +112,7 @@ int main(int argc, char** argv) {
     };
 
     ABSL_LOG(INFO) << "UserRegister test started.";
-    DBSQLCipher::UserRegisterParameters params;
+    UserRegisterParameters params;
     params.user_id = "user_id";
     params.password = "password";
     params.security_question = "security_question";

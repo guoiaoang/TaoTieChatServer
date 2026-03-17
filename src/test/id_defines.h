@@ -13,8 +13,8 @@
 #include <source_location>
 #include <string_view>
 
-consteval int ID_UNUSED_STRING(std::string_view x, 
-    const std::source_location& loc = std::source_location::current()) { 
+consteval int ID_UNUSED_STRING(std::string_view x,
+    const std::source_location& loc = std::source_location::current()) {
     return loc.line(); // 返回调用处的行号
 }
 

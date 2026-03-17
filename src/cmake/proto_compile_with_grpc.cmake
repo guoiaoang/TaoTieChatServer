@@ -79,8 +79,8 @@ function(proto_compile_with_grpc)
     # 封装为库
     add_library(${PROTO_LIBARY_NAME} STATIC ${ALL_GENERATED_FILES})
     # 链接必要的库
-    target_link_libraries(${PROTO_LIBARY_NAME} 
-        PUBLIC 
+    target_link_libraries(${PROTO_LIBARY_NAME}
+        PUBLIC
             absl::check
             absl::flags
             absl::flags_parse

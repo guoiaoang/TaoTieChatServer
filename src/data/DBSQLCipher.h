@@ -2,167 +2,9 @@
 
 #include "headers.h"
 #include "utils.h"
+#include "types.h"
 #include <filesystem>
 #include <format>
-
-namespace SQL{
-    namespace COMMANDS {
-        // SQL 语句模板
-        // constexpr std::string_view SQL_SET_PRAGMA_KEY      = "PRAGMA key = '{}';";  // 字符串替换会导致数据库注入，但加密语句不支持数据库绑定
-
-        // 创建表格
-        namespace CREATE{
-            // 元数据
-            constexpr std::string_view SQL_CREATE_TABLE_META =
-                R"(CREATE TABLE IF NOT EXISTS meta ()"
-                R"(    id INTEGER PRIMARY KEY,)"
-                R"(    name   TEXT,)"
-                R"(    value  TEXT,)"
-                R"(    common TEXT)"
-                R"();)";
-            // 用户账号信息
-            constexpr std::string_view SQL_CREATE_TABLE_USERS  =
-                R"(CREATE TABLE IF NOT EXISTS users ()"
-                R"(    id INTEGER PRIMARY KEY,)"  // id 是自增的唯一主键，外部不使用，内部也不使用，主要是为了满足 SQLCipher 的要求，必须有一个 INTEGER PRIMARY KEY 列才能启用自动增量 ID 功能，从而保证每条记录都有一个唯一的标识符。
-                R"(    account_id TEXT,)"  // account_id 账号 ID，唯一，注册时由系统生成，不可被用户修改，销号时不回收
-                R"(    user_id    TEXT,)"  // user_id 用户 ID，唯一，注册时由系统生成，但可被用户修改，可用于账号查找，销号时回收
-                R"(    avatar     TEXT,)"  // avatar 头像 URL
-                R"(    nickname   TEXT,)"  // nickname 昵称
-                R"(    sign       TEXT,)"  // sign 个性签名
-                R"(    gender     TEXT,)"  // gender 性别
-                R"(    region     TEXT,)"  // region 多级地区
-                R"(    birthday   TEXT,)"  // birthday 多级生日
-                R"(    phone      TEXT,)"  // phone 多个电话
-                R"(    email      TEXT,)"  // email 多个邮箱
-                R"(    password   TEXT,)"  // password 简单加密存储的密码
-                // R"( token      TEXT,)"  // token 多个令牌  // 需要单独的一个表来存储 token，包含 token 的值、类型、过期时间等信息
-                // R"( create_time       TEXT,)"  // create_time 创建时间，update_time 更新时间，register_time 注册时间，这三个时间字段的区别在于：create_time 记录账号首次创建的时间，register_time 记录用户完成注册流程的时间（可能在 create_time 之后），update_time 记录用户信息最后一次修改的时间。
-                R"(    register_time     TEXT,)"  // register_time 注册时间
-                R"(    update_time       TEXT,)"  // update_time 更新时间
-                R"(    unregister_time   TEXT,)"  // unregister_time 注销时间
-                R"(    security_question TEXT,)"  // security_question 安全问题
-                R"(    security_answer   TEXT,)"  // security_answer 安全答案
-                // R"( register_ip       TEXT,)"  // register_ip 注册 IP
-                R"(    common            TEXT,)"  // common 通用字段
-                R"(    UNIQUE(account_id),)"  // 标示唯一
-                R"(    UNIQUE(user_id))"      // 标示唯一
-                R"();)";
-            // 好友关系 // 好友的个人信息不进行缓存
-            constexpr std::string_view SQL_CREATE_TABLE_FRIENDS =
-                R"(CREATE TABLE IF NOT EXISTS friends ()"
-                R"(    id INTEGER PRIMARY KEY,)" 
-                R"(    account_id        TEXT,)"  // 当前用户的账号 ID
-                R"(    friend_account_id TEXT,)"  // friend_account_id 好友的账号 ID
-                R"(    remark            TEXT,)"  // remark 对该好友的备注
-                R"(    tags              TEXT,)"  // tags 好友关系的标签
-                R"(    form              TEXT,)"  // form 好友关系的来源
-                R"(    add_time          TEXT,)"  // add_time 添加为好友的时间
-                R"(    remove_time       TEXT,)"  // remove_time 删除好友的时间
-                R"(    starred           BOOLEAN,)"  // starred 好友关系的星标
-                // R"(    pin            BOOLEAN,)"  // pin 好友关系的置顶  // 应当存储在聊天列表中
-                R"(    silent            BOOLEAN,)"  // silent 好友关系的静音
-                R"(    common            TEXT)"  // common 通用字段
-                R"();)";
-            // 群组信息  // 暂定，后续根据实际需求调整
-            constexpr std::string_view SQL_CREATE_TABLE_GROUPS =
-                R"(CREATE TABLE IF NOT EXISTS groups ()"
-                R"(    id INTEGER PRIMARY KEY,)" 
-                R"(    group_id    TEXT,)"  // group_id 群 ID，唯一，注册时由系统生成，不可被用户修改，销号时不回收
-                R"(    name        TEXT,)"  // name 群名称
-                R"(    avatar      TEXT,)"  // avatar 群头像 URL
-                R"(    owner_id    TEXT,)"  // owner_id 群主的账号 ID
-                R"(    member_ids  TEXT,)"  // member_ids 群成员的账号 ID 列表，逗号分隔
-                R"(    create_time TEXT,)"  // create_time 创建时间
-                R"(    update_time TEXT,)"  // update_time 更新时间
-                R"(    common      TEXT)"   // common 通用字段
-                R"();)";
-            // 聊天记录 // 一对一的聊天记录和群聊记录都存储在同一个表中，通过 receiver_id 来区分是单聊还是群聊，单聊时 receiver_id 是好友的账号 ID，群聊时 receiver_id 是群 ID。
-            constexpr std::string_view SQL_CREATE_TABLE_MESSAGES =
-                R"(CREATE TABLE IF NOT EXISTS messages ()"
-                R"(    id INTEGER PRIMARY KEY,)" 
-                R"(    message_id  TEXT,)"  // message_id 消息 ID，对于消息唯一
-                R"(    sender_id   TEXT,)"  // sender_id 发送者的账号 ID
-                R"(    receiver_id TEXT,)"  // receiver_id 接收者的账号 ID，单聊时为好友的账号 ID，群聊时为群 ID
-                R"(    content     TEXT,)"  // content 消息内容
-                R"(    type        TEXT,)"  // type 消息类型，如文本、图片、文件等
-                R"(    timestamp   TEXT,)"  // timestamp 消息时间戳
-                R"(    common      TEXT)"   // common 通用字段
-                R"();)";
-            // // 群聊消息记录 // 群聊消息记录表可以存储一些特定于群聊的信息，如 @提及 的用户列表等
-            // // 也可以不单独存储，而是在 messages 表中通过 content 字段
-            // // 来存储一个 JSON 对象，包含消息内容和一些额外的元信息，这样可以避免表结构的复杂化，同时也更灵活地适应未来可能出现的需求变化。
-            // constexpr std::string_view SQL_CREATE_TABLE_GROUP_MESSAGES =
-            //     R"(CREATE TABLE IF NOT EXISTS group_messages ()"
-            //     R"(    id INTEGER PRIMARY KEY,)" 
-            //     R"(    message_id TEXT,)"  // message_id 消息 ID，对于消息唯一
-            //     R"(    sender_id  TEXT,)"  // sender_id 发送者的账号 ID
-            //     R"(    group_id   TEXT,)"  // group_id 群 ID
-            //     R"(    content    TEXT,)"  // content 消息内容，存储一个 JSON 对象，包含消息内容和一些额外的元信息，如 @提及 的用户列表等
-            //     R"(    type       TEXT,)"  // type 消息类型，如文本、图片、文件等
-            //     R"(    timestamp  TEXT,)"  // timestamp 消息时间戳
-            //     R"(    common     TEXT)"   // common 通用字段
-            //     R"();)";
-            // 有效 token 表 // 存储用户的登录状态等信息，包含 token 的值、类型、过期时间等信息
-            constexpr std::string_view SQL_CREATE_TABLE_TOKENS = 
-                R"(CREATE TABLE IF NOT EXISTS tokens ()"
-                R"(    id INTEGER PRIMARY KEY,)" 
-                R"(    token       TEXT,)"  // token 令牌的值，唯一
-                R"(    account_id  TEXT,)"  // account_id 账号 ID，外键关联 users 表的 account_id
-                R"(    type        TEXT,)"  // type 令牌类型，如登录令牌、设备令牌等
-                R"(    expire_time TEXT,)"  // expire_time 过期时间
-                R"(    create_time TEXT,)"  // create_time 创建时间
-                R"(    common      TEXT)"   // common 通用字段
-                R"();)";
-        }
-
-        // 索引
-        namespace INDEX {
-            constexpr std::string_view SQL_INDEX_ACCOUNT_ID = "CREATE INDEX IF NOT EXISTS idx_account_id ON users (account_id);";
-            constexpr std::string_view SQL_INDEX_USER_ID    = "CREATE INDEX IF NOT EXISTS idx_user_id ON users (user_id);";
-        }
-
-        // 查询
-        namespace QUERY {
-            // 查询数据版本
-            constexpr std::string_view SQL_QUERY_META_VERSION  = "SELECT name, value FROM meta where name = 'version' LIMIT 1;";
-            // // 查询账号 uuid 的 SQL 语句模板
-            // constexpr std::string_view SQL_QUERY_ACCOUNT_ID = "SELECT account_id FROM users WHERE account_id = :account_id;";
-            // // 查询用户 uuid 的 SQL 语句模板
-            // constexpr std::string_view SQL_QUERY_USER_ID = "SELECT user_id FROM users WHERE user_id = :user_id;";
-            // 查询账号是否存在的 SQL 语句模板
-            constexpr std::string_view SQL_QUERY_ACCOUNT_EXISTS = "SELECT 1 FROM users WHERE account_id = :account_id LIMIT 1;";
-            // 查询用户是否存在的 SQL 语句模板
-            constexpr std::string_view SQL_QUERY_USER_EXISTS = "SELECT 1 FROM users WHERE user_id = :user_id LIMIT 1;";
-            // // 查询账号和用户是否匹配的 SQL 语句模板
-            // constexpr std::string_view SQL_QUERY_ACCOUNT_USER_MATCH = "SELECT 1 FROM users WHERE account_id = :account_id AND user_id = :user_id LIMIT 1;";
-
-            // 校验用户注册是否成功/一致
-            constexpr std::string_view SQL_QUERY_USER_REGISTER_CHECK = 
-                R"(SELECT 1)"
-                R"(    FROM users )"
-                R"(    WHERE account_id        = :account_id       )"
-                R"(      AND user_id           = :user_id          )"
-                R"(      AND password          = :password         )"
-                R"(      AND register_time     = :register_time    )"
-                R"(      AND security_question = :security_question)"
-                R"(      AND security_answer   = :security_answer  )"
-                R"( LIMIT 1;)";
-        }
-
-        // 设置
-        namespace INSERT {
-            // 设置数据版本
-            // constexpr std::string_view SQL_INSERT_META_VERSION = "INSERT INTO meta (name, value) VALUES ('version', :version);";
-            constexpr std::string_view SQL_INSERT_META_VERSION = "INSERT INTO meta (name, value) VALUES ('version', '1.0');";
-            // 用户注册的 SQL 语句模板，注意：SQLCipher 不支持参数绑定，所以只能使用字符串替换，这会导致数据库注入风险，但由于这是一个注册语句，且参数都是由系统生成的，不直接暴露给用户，所以风险相对较小，可以接受。
-            constexpr std::string_view SQL_INSERT_USER_REGISTER = 
-                R"(INSERT INTO users (account_id, user_id, password, register_time, security_question, security_answer) )"
-                R"(VALUES (:account_id, :user_id, :password, :register_time, :security_question, :security_answer);)";
-                // R"(INSERT INTO users (account_id, user_id, avatar, nickname, sign, gender, region, birthday, phone, email, password, register_time, security_question, security_answer) )"
-                // R"(VALUES (:account_id, :user_id, :avatar, :nickname, :sign, :gender, :region, :birthday, :phone, :email, :password, :register_time, :security_question, :security_answer);)";
-        }
-    }
-}
 
 // 定义一个简单的多类型值容器（C++17）
 using SqlValue = std::variant<int, double, std::string, std::nullptr_t>; // 0,1,2,3 分别表示 int、double、string、null
@@ -292,18 +134,20 @@ public:
         m_encryption_key = encryption_key;
     }
 
+    // 打开数据库并进行初始化验证
+    // 初始化仅写入 version 信息
     bool database_open() {
+        using namespace SQL::COMMANDS::PRAGMA;
+        using namespace SQL::COMMANDS::CREATE;
+        using namespace SQL::COMMANDS::QUERY;
+        using namespace SQL::COMMANDS::INSERT;
+
         // 1. 检查句柄，如果不为空则表示已经正确打开并已经被初始化
         // 2. 句柄为空则使用密码打开，并读取数据版本信息
         // 3. 读取版本失败时进行创建表和写入版本信息的初始化操作
         // 4. 再次尝试读取版本号，失败则报错
 
         // 密码不正确也可以打开句柄，但无法读出及写入数据，因此我们通过读写数据来验证密码是否正确
-
-        using namespace SQL::COMMANDS::CREATE;
-        using namespace SQL::COMMANDS::INDEX;
-        using namespace SQL::COMMANDS::QUERY;
-        using namespace SQL::COMMANDS::INSERT;
 
         auto absolute_db_path   = std::filesystem::absolute(m_db_path);
         auto parent_path        = absolute_db_path.parent_path();
@@ -422,22 +266,25 @@ public:
     }
 
     bool database_initialize() {
+        using namespace SQL::COMMANDS::PRAGMA;
         using namespace SQL::COMMANDS::CREATE;
-        using namespace SQL::COMMANDS::INDEX;
         using namespace SQL::COMMANDS::QUERY;
         using namespace SQL::COMMANDS::INSERT;
-        // 创建表
-        using namespace SQL::COMMANDS;
+
         std::vector<std::string_view> table_creation_commands = {
             SQL_CREATE_TABLE_META,
             SQL_CREATE_TABLE_USERS,
+            SQL_CREATE_INDEX_ACCOUNT_ID,
+            SQL_CREATE_INDEX_USER_ID,
+            SQL_CREATE_TRIGGER_UPDATE,
+            SQL_CREATE_TABLE_TOKENS,
+            SQL_CREATE_INDEX_TOKEN,
+            SQL_CREATE_INDEX_USER_SESSIONS,
+            //
             SQL_CREATE_TABLE_FRIENDS,
             SQL_CREATE_TABLE_GROUPS,
-            SQL_CREATE_TABLE_MESSAGES,
+            SQL_CREATE_TABLE_MESSAGES
             // SQL_CREATE_TABLE_GROUP_MESSAGES,
-            SQL_CREATE_TABLE_TOKENS,
-            SQL_INDEX_ACCOUNT_ID,
-            SQL_INDEX_USER_ID
         };
         for(const auto& cmd : table_creation_commands) {
             auto result = execute(cmd.data());
@@ -497,24 +344,12 @@ public:
         // SQLITE_API SQLITE_DEPRECATED int sqlite3_global_recover(void);
         // SQLITE_API SQLITE_DEPRECATED void sqlite3_thread_cleanup(void);
         // SQLITE_API void sqlite3_reset_auto_extension(void);
-        
+       
         int sqlcipher_keyword_count = sqlite3_keyword_count();
         LOG_INFO("SQLCipher keyword count: {}", sqlcipher_keyword_count);
     }
 
     std::shared_ptr<WrapperQueryResult> execute(const std::string& sql, const std::shared_ptr<WrapperNamedParam> params = nullptr) {
-        // SQLiteWrapper db_wrapper; // 创建 SQLiteWrapper 实例
-        // // db.execute("PRAGMA cipher_default_compatibility = 4;"); // 设置兼容模式，确保与 SQLCipher 4.x 版本兼容
-        // // db.execute("PRAGMA journal_mode = WAL;"); // 设置 WAL 模式，提升并发性能
-        // // db.execute("PRAGMA synchronous = NORMAL;"); // 设置同步模式，提升性能的同时保持合理的数据安全性
-        // // db.execute("PRAGMA temp_store = MEMORY;"); // 将临时存储设置为内存，提升性能
-        // // db.execute("PRAGMA locking_mode = EXCLUSIVE;"); // 设置锁定模式为独占，减少锁竞争，提高性能
-        // // db.execute("PRAGMA auto_vacuum = FULL;"); // 启用自动清理，保持数据库文件大小合理
-        // // db.execute("PRAGMA secure_delete = ON;"); // 启用安全删除，确保删除的数据无法恢复
-        // // db.execute("PRAGMA cipher_page_size = 4096;"); // 设置页面大小，提升性能和安全性
-        // // db.execute("PRAGMA cipher_hmac_algorithm = HMAC_SHA512;"); // 设置 HMAC 算法，提升安全性
-        // // db.execute("PRAGMA cipher_kdf_algorithm = PBKDF2_HMAC_SHA512;"); // 设置 KDF 算法，提升安全性
-        // db_wrapper.execute(m_db_sqlcipher, SQL_SET_PRAGMA_KEY.data(), m_encryption_key);
         if(m_db_wrapper.get_db() != m_db_sqlcipher) {
             m_db_wrapper.set_db(m_db_sqlcipher);
         }
@@ -534,24 +369,10 @@ public:
     }
 
 public:
-    struct UserRegisterParameters {
-        std::string user_id;
-        std::string password;
-        std::string security_question;
-        std::string security_answer;
-    };
-
-    struct UserRegisterResult {
-        std::shared_ptr<UserRegisterParameters> params; // 注册参数回传，便于后续使用
-        bool done    = false; // 仅表示是否执行完成，不代表是否成功
-        bool success = false; // 注册是否成功
-        std::string account_id; // 注册成功时返回的账号 ID
-        std::string error_message; // 注册失败时的错误信息
-    };
-
+    // 用户注册
     std::shared_ptr<UserRegisterResult> user_register(std::shared_ptr<UserRegisterParameters> params) {
+        using namespace SQL::COMMANDS::PRAGMA;
         using namespace SQL::COMMANDS::CREATE;
-        using namespace SQL::COMMANDS::INDEX;
         using namespace SQL::COMMANDS::QUERY;
         using namespace SQL::COMMANDS::INSERT;
 
@@ -577,7 +398,7 @@ public:
         std::shared_ptr<WrapperQueryResult> query_user_exists;
         std::shared_ptr<WrapperQueryResult> insert_result;
         do {
-            // 用户 uuid
+            // 检查用户 ID 是否已存在
             auto query_user_exists_params = std::make_shared<WrapperNamedParam>();
             query_user_exists_params->params[":user_id"] = params->user_id;
             query_user_exists = execute(SQL_QUERY_USER_EXISTS.data(), query_user_exists_params);
@@ -598,22 +419,28 @@ public:
             // 生成账号 uuid // 操作失败或生成的 uuid 已经存在则重试，直到成功且不存在为止，理论上应该不会出现重复的 uuid，但为了保险起见加上这个检查
             auto query_account_exists_params = std::make_shared<WrapperNamedParam>();
             do {
-                account_id = Utils::instance()->to_string(Utils::instance()->generate_uuid());
+                account_id = Utils::to_string(Utils::generate_uuid());
                 query_account_exists_params->params[":account_id"] = account_id;
                 query_account_exists = execute(SQL_QUERY_ACCOUNT_EXISTS.data(), query_account_exists_params);
             } while(!query_account_exists->done || !query_account_exists->results.empty());
 
             // 获取注册时间
-            auto register_time = Utils::instance()->currentDateTime();
+            auto register_time        = Utils::current_time_point();
+            // 不管用户端是否加密，服务端都对密码进行哈希加密存储
+            auto password_hash        = Utils::hash_password(params->password);
+            // 由于需要校验，因此手动生成便于比对
+            auto register_time_utc    = Utils::to_utc_string(register_time);
+            // 安全问题答案也进行哈希加密存储，避免明文存储安全问题答案的风险
+            auto security_answer_hash = Utils::hash_security_answer(params->security_answer);
 
             // 构造参数
             auto user_register_params = std::make_shared<WrapperNamedParam>();
-            user_register_params->params[":account_id"] = account_id;
-            user_register_params->params[":user_id"]    = params->user_id;
-            user_register_params->params[":password"]   = params->password;  // 由用户端加密后传输，服务器不进行二次加密，直接存储
+            user_register_params->params[":account_id"       ] = account_id;
+            user_register_params->params[":user_id"          ] = params->user_id;
+            user_register_params->params[":password_hash"    ] = password_hash;
             user_register_params->params[":security_question"] = params->security_question;
-            user_register_params->params[":security_answer"]   = params->security_answer;
-            user_register_params->params[":register_time"]     = Utils::instance()->to_string(register_time);
+            user_register_params->params[":security_answer"  ] = params->security_answer;
+            user_register_params->params[":register_time"    ] = register_time_utc;
 
             // 插入新记录
             insert_result = execute(SQL_INSERT_USER_REGISTER.data(), user_register_params);
@@ -650,22 +477,90 @@ public:
         return result;
     }
 
-// private:
-//     void sqlcipher_commands() {
-//         static const std::map<std::string, std::string> commands = {
-//             {"PRAGMA cipher_version;", "获取 SQLCipher 版本信息"},
-//             {"PRAGMA cipher_source_id;", "获取 SQLCipher 源代码 ID"},
-//             {"PRAGMA cipher_libversion_number;", "获取 SQLCipher 版本号"},
-//             {"PRAGMA compile_options;", "获取 SQLCipher 编译选项"},
-//             {"PRAGMA threadsafe;", "检查 SQLCipher 是否线程安全"},
-//             {"PRAGMA initialize;", "初始化 SQLCipher"},
-//             {"PRAGMA shutdown;", "关闭 SQLCipher"},
-//             {"PRAGMA os_init;", "初始化 SQLCipher 的操作系统接口"},
-//             {"PRAGMA os_end;", "关闭 SQLCipher 的操作系统接口"},
-//             {"PRAGMA memory_used;", "获取 SQLCipher 当前使用的内存量"},
-//             {"PRAGMA keyword_count;", "获取 SQLCipher 关键字数量"}
-//         };
-//     }
+    // 用户登录
+    std::shared_ptr<UserLoginResult> user_login(std::shared_ptr<UserLoginParameters> params) { 
+        using namespace SQL::COMMANDS::PRAGMA;
+        using namespace SQL::COMMANDS::CREATE;
+        using namespace SQL::COMMANDS::QUERY;
+        using namespace SQL::COMMANDS::INSERT;
+
+        // 用户登录验证，返回是否登录成功
+        // 1. 根据用户 ID 查询用户记录，如果没有找到则返回失败
+        // 2. 如果找到了用户记录则比较密码和安全问题答案，如果匹配则返回成功，否则返回失败
+        std::shared_ptr<UserLoginResult> result = std::make_shared<UserLoginResult>();
+        result->params        = params;
+        result->done          = false;
+        result->success       = false;
+        result->account_id    = "";
+        result->error_message = "";
+        // 参数校验
+        if(params == nullptr || params->user_id.empty() || params->password.empty()) {
+            result->error_message = "User login parameters is null or incomplete";
+            LOG_ERROR(result->error_message);
+            return result;
+        }
+
+        auto password_hash = Utils::hash_password(params->password);
+
+        // 实现用户登录验证逻辑
+        // 构造参数
+        auto user_login_params = std::make_shared<WrapperNamedParam>();
+        user_login_params->params[":user_id"      ] = params->user_id;
+        user_login_params->params[":password_hash"] = password_hash;
+        // 查询用户记录  // 根据用户 ID、密码，查询账号 ID
+        std::shared_ptr<WrapperQueryResult> query_user_result = execute(SQL_QUERY_USER_LOGIN.data(), user_login_params);
+        // 查询命令执行失败
+        if(!query_user_result->done) {
+            result->error_message = fmt::format("Failed to query user login record: {}", query_user_result->error_message);
+            LOG_ERROR(result->error_message);
+            return result;
+        }
+        // 查询命令执行成功，但返回的结果为空  // 用户名或密码错误
+        if(query_user_result->results.empty()) {
+            result->done          = true;
+            result->error_message = "User ID or password is incorrect";
+            LOG_ERROR(result->error_message);
+            return result;
+        }
+
+        // 获取账号 ID
+        std::string account_id = std::get<std::string>(query_user_result->results[0]["account_id"]);
+        // 生成 token 并记录登陆请求
+        // 1. 暂不校验唯一性
+        // 2. 不存储明文防止泄露
+        // 建议加入时间戳等信息后再 sha256 存储，或者使用 JWT 等标准格式的 token，以便后续验证和解析
+        std::string token      = Utils::generate_token();
+        std::string token_hash = Utils::hash_token(token);
+        // 需要校验是否写入成功时，则需要保存该变量
+        auto create_time       = Utils::current_time_point();
+        auto create_time_str   = Utils::to_utc_string(create_time);
+        // token 过期时间，暂定为 30 天
+        // TODO:再次被使用时需要更新该过期时间
+        auto expire_time       = create_time + std::chrono::days(30);
+        auto expire_time_str   = Utils::to_utc_string(expire_time);
+
+        // 记录登陆请求
+        auto login_record_params = std::make_shared<WrapperNamedParam>();
+        login_record_params->params[":account_id" ] = account_id;
+        login_record_params->params[":token_hash" ] = token_hash;
+        login_record_params->params[":create_time"] = create_time_str;
+        login_record_params->params[":expire_time"] = expire_time_str;
+        auto insert_login_record_result = execute(SQL_INSERT_USER_LOGIN_RECORD.data(), login_record_params);
+        // 记录登陆请求命令执行失败
+        if(!insert_login_record_result->done) {
+            result->error_message = fmt::format("Failed to insert user login record: {}", insert_login_record_result->error_message);
+            LOG_ERROR(result->error_message);
+            return result;
+        }
+        // 登录成功
+        result->success       = true;
+        result->account_id    = account_id;
+        result->token         = token;
+        result->error_message = "";
+        LOG_INFO("User logged in successfully, account_id: {}, user_id: {}", result->account_id, params->user_id);
+        return result;
+    }
+
 private:
     std::filesystem::path m_db_path;
     sqlite3*              m_db_sqlcipher = nullptr;

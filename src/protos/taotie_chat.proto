@@ -79,6 +79,8 @@ message StatusReply {
 service AccountService {
   // Register 接收用户注册请求并返回注册结果。
   rpc UserRegister (UserRegisterRequest) returns (UserRegisterReply) {}
+  // UserLogin 接收用户登录请求并返回登录结果。
+  rpc UserLogin    (UserLoginRequest)    returns (UserLoginReply) {}
 }
 
 message UserRegisterRequest {
@@ -93,4 +95,17 @@ message UserRegisterReply {
   bool   success       = 2; // 注册是否成功
   string account_id    = 3; // 注册成功后返回的账号 ID
   string error_message = 4; // 注册失败时的错误描述信息
+}
+
+message UserLoginRequest {
+  string user_id    = 1; // 昵称
+  string password   = 2; // 密码
+}
+
+message UserLoginReply {
+  optional UserLoginRequest request = 1; // 可选的原始请求信息字段
+  bool   success       = 2; // 登录是否成功
+  string account_id    = 3; // 注册成功后返回的账号 ID
+  string token         = 4; // 登录成功后返回的认证令牌
+  string error_message = 5; // 登录失败时的错误描述信息
 }
