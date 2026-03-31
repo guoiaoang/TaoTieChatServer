@@ -74,9 +74,9 @@ int main(int argc, char** argv) {
 
     // 解析命令行参数并初始化日志系统
     absl::ParseCommandLine(argc, argv);
-	absl::InitializeLog();
-	absl::SetMinLogLevel(absl::LogSeverityAtLeast::kInfo);
-	absl::SetStderrThreshold(absl::LogSeverityAtLeast::kInfo);
+    absl::InitializeLog();
+    absl::SetMinLogLevel(absl::LogSeverityAtLeast::kInfo);
+    absl::SetStderrThreshold(absl::LogSeverityAtLeast::kInfo);
 
     // 客户端实现
     string target_str = absl::GetFlag(FLAGS_target);

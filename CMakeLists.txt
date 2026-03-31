@@ -15,7 +15,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 # MSVC 编译器特定设置
 if(MSVC)
-    add_definitions(-D_WIN32_WINNT=0x600)
+    # add_definitions(-D_WIN32_WINNT=0x600)
+    add_compile_definitions(_WIN32_WINNT=0x600)
     # 强制编译器以 UTF-8 编码读取所有源文件
     add_compile_options(/utf-8)
 endif()
@@ -25,9 +26,14 @@ set(SOURCE_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/utils/headers.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/utils/utils.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/utils/utils.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/service/AccountService.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/service/StatusService.h
 )
+
+add_compile_definitions(ENABLE_SERVER=ON)
+# add_compile_definitions(ENABLE_SPDLOG=ON)
+# add_compile_definitions(ENABLE_GOOGLE_GRPC=ON)
 
 # 查找依赖的包
 find_package(absl          CONFIG REQUIRED)
@@ -38,7 +44,7 @@ find_package(nlohmann_json CONFIG REQUIRED)
 find_package(sqlcipher     CONFIG REQUIRED)
 find_package(glog          CONFIG REQUIRED)
 find_package(spdlog        CONFIG REQUIRED)
-find_package(Boost         REQUIRED COMPONENTS uuid)
+find_package(Boost         CONFIG REQUIRED COMPONENTS uuid)
 
 # 添加源码目录，便于 #include 引用
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src)
@@ -71,7 +77,7 @@ include(${PROJECT_SOURCE_DIR}/src/cmake/proto_compile_with_grpc.cmake)
 
 # 设置 proto 文件路径和生成的头文件目录
 set(PROTO_FILES       "${CMAKE_CURRENT_SOURCE_DIR}/src/protos/taotie_chat.proto")
-set(PROTO_HEADERS_DIR "${CMAKE_CURRENT_BINARY_DIR}/protos")
+set(PROTO_HEADERS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/protos")
 
 # 调用函数编译 proto 文件，并指定输出目录和库名称
 proto_compile_with_grpc(

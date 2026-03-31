@@ -2,3 +2,9 @@ out
 build
 .vscode/cache/
 .qtcreator
+
+# grpc 生成的文件
+src/protos/taotie_chat.grpc.pb.cc
+src/protos/taotie_chat.grpc.pb.h
+src/protos/taotie_chat.pb.cc
+src/protos/taotie_chat.pb.h

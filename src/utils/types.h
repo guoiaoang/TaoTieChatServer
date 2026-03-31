@@ -176,11 +176,11 @@ namespace SQL{
                     last_ip           TEXT,
 
                     -- 时间戳
-                    create_time       DATETIME DEFAULT (datetime('now')), -- 创建时间
-                    expire_time       DATETIME NOT NULL,                  -- 过期时间
+                    create_time       DATETIME DEFAULT (datetime('now')),              -- 创建时间
+                    expire_time       DATETIME DEFAULT (datetime('now', '+30 days')),  -- 过期时间
 
                     -- 用于存储扩展的 JSON 配置
-                    common            TEXT
+                    common            TEXT,
 
                     -- 级联删除：当用户从 users 表注销(DELETE)时，该用户的所有 token 自动清理
                     -- FOREIGN KEY (account_id) REFERENCES users(account_id) ON DELETE CASCADE
@@ -308,13 +308,28 @@ namespace SQL{
             )";
 
             // 用户密码登录时校验用户 ID 和密码
-            constexpr std::string_view SQL_QUERY_USER_LOGIN = R"(
+            constexpr std::string_view SQL_QUERY_USER_LOGIN_BY_PASSWORD = R"(
                 SELECT account_id
                 FROM users
                 WHERE
-                    user_id = :user_id
+                        user_id       = :user_id
                     AND password_hash = :password_hash
-                    AND status = 0  -- 要求用户账户状态正常，排除冻结或注销的账户
+                    AND status        = 0              -- 要求用户账户状态正常，排除冻结或注销的账户
+                LIMIT 1;
+            )";
+
+            // 用户 token 登录时校验用户 ID 和 token
+            // token 表没有 user_id 字段，需要通过 account_id 进行关联查询
+            constexpr std::string_view SQL_QUERY_TOKEN_VALIDITY_BY_USER_ID = R"(
+                SELECT u.account_id, u.status
+                FROM users u
+                JOIN user_tokens t ON u.account_id = t.account_id
+                WHERE
+                        u.user_id      = :user_id       -- 传入的用户可改 ID
+                    AND t.token_hash   = :token_hash    -- 传入的 token 哈希值
+                    AND u.status       = 0              -- 确保账号状态正常
+                    AND t.token_status = 0              -- 确保 Token 未被手动撤销
+                    AND t.expire_time > datetime('now') -- 确保 Token 未过期
                 LIMIT 1;
             )";
 
@@ -323,16 +338,17 @@ namespace SQL{
             // 2. token_status = 0（Token 未手动撤销）
             // 3. expire_time > 当前时间（Token 未过期）
             // 4. 用户账号状态正常（JOIN users 表验证 status = 0）
-            constexpr std::string_view SQL_QUERY_TOKEN_VALIDITY = R"(
+            constexpr std::string_view SQL_QUERY_TOKEN_VALIDITY_BY_ACCOUNT_ID = R"(
                 SELECT t.account_id, u.status
                 FROM user_tokens t
                 JOIN users u ON t.account_id = u.account_id
                 WHERE
-                    t.account_id = :account_id          -- 传入的账号 ID
-                    AND t.token_hash = :token_hash      -- token_hash 匹配
-                    AND t.token_status = 0              -- Token 未手动撤销
-                    AND t.expire_time > datetime('now') -- Token 未过期
-                    AND u.status = 0;                   -- 用户账号状态正常
+                        t.account_id   = :account_id     -- 传入的账号 ID
+                    AND t.token_hash   = :token_hash     -- token_hash 匹配
+                    AND t.token_status = 0               -- Token 未手动撤销
+                    AND t.expire_time  > datetime('now') -- Token 未过期
+                    AND u.status       = 0;              -- 用户账号状态正常
+                LIMIT 1;
             )";
         }
 
@@ -351,38 +367,9 @@ namespace SQL{
             )";
             // 用户登录记录的 SQL 语句模板
             constexpr std::string_view SQL_INSERT_USER_LOGIN_RECORD = R"(
-                INSERT INTO user_tokens ( account_id,  token_hash, token_type, token_status,                 expire_time)
-                VALUES                  (:account_id, :token_hash, 'access'  ,            0, datetime('now', '+30 days'));
+                INSERT INTO user_tokens ( account_id,  token_hash,  create_time,  expire_time)
+                VALUES                  (:account_id, :token_hash, :create_time, :expire_time);
             )";
         }
     }
 }
-
-struct UserRegisterParameters {
-    std::string user_id;
-    std::string password;
-    std::string security_question;
-    std::string security_answer;
-};
-
-struct UserRegisterResult {
-    std::shared_ptr<UserRegisterParameters> params; // 注册参数回传，便于后续使用
-    bool        done    = false; // 仅表示是否执行完成，不代表是否成功
-    bool        success = false; // 注册是否成功
-    std::string account_id;      // 注册成功时返回的账号 ID
-    std::string error_message;   // 注册失败时的错误信息
-};
-
-struct UserLoginParameters {
-    std::string user_id;
-    std::string password;
-};
-
-struct UserLoginResult {
-    std::shared_ptr<UserLoginParameters> params; // 登录参数回传，便于后续使用
-    bool        done    = false; // 仅表示是否执行完成，不代表是否成功
-    bool        success = false; // 登录是否成功
-    std::string account_id;      // 登录成功时返回的账号 ID
-    std::string token;           // 登录成功时返回的 token
-    std::string error_message;   // 登录失败时的错误信息
-};

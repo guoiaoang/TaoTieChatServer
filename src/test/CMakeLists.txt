@@ -1,5 +1,5 @@
 
-foreach(Client ClientGetStatus ClientUserRegister)
+foreach(Client ClientGetStatus ClientSignUp ClientSignIn)
 
     # 生成可执行文件
     add_executable(${Client} ${Client}.cpp)

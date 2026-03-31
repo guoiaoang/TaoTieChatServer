@@ -2,6 +2,84 @@ syntax = "proto3";
 
 package TaoTieChat;
 
+// ============================  ErrorCode  ============================ //
+
+// 成功码
+enum SuccessCode {
+  option allow_alias = true;  // 允许不同名但同值的枚举值  // 没有重名会报错
+
+  // 成功
+  SUCCESS            = 0x0000000; // 成功
+  STATUS_SUCCESS     = 0x0000000; // 成功
+  STATUS_RUNNING     = 0x0000000; // 运行中
+  STATUS_ONLINE      = 0x0000000; // 在线
+}
+
+// 错误码格式：`0xAABBCCDD`
+// * AA:服务类型
+// * BB:业务模块
+//   * 01:用户注册
+//   * 02:用户登录
+// * CC:错误发生原因
+//   * 01:输入错误
+//   * 02:执行失败
+// * DD:具体错误信息
+enum ErrorCode {
+  // option allow_alias = true;  // 允许不同名但同值的枚举值  // 没有重名会报错
+
+  UNSET                           = 0x00000000; // 未设置错误码
+  UNKNOWN                         = 0x00000001; // 未知错误
+  ERROR_INIT                      = 0x00000101; // 返回初始值
+  ERROR_CONN                      = 0x00000102; // QT 建立连接失败，无法触发 connect 动作
+  ERROR_RECV                      = 0x00000103; // 接收到的数据不完整或解析失败
+  ERROR_SEND                      = 0x00000104; // 发送数据失败
+  // 数据库相关错误码
+  DB_QUERY                        = 0x00000201; // 数据库查询失败
+  DB_QUERY_EMPTY                  = 0x00000202; // 数据库查询为空
+  DB_EXECUTE                      = 0x00000203; // 数据库命令执行失败
+  DB_EXECUTE_EMPTY                = 0x00000204; // 数据库命令执行为空
+  DB_CHECK                        = 0x00000205; // 数据库数据插入检查失败
+  DB_CHECK_EMPTY                  = 0x00000206; // 数据库数据插入检查为空
+
+  // status 相关错误码           // 0x010101DD 输入错误
+  STATUS_TARGET_ID_EMPTY          = 0x01010101; // 目标 ID 为空
+  STATUS_REQUEST_USER_ID_EMPTY    = 0x01010102; // 无效的查询者用户 ID
+  STATUS_REQUEST_USER_TOKEN_EMPTY = 0x01010103; // 无效的查询者认证令牌
+  // status 相关错误码           // 0x010102DD 结果失败
+  STATUS_TARGET_ID_NOT_FOUND      = 0x01010204; // 目标 ID 不存在
+  STATUS_USER_ID_INVALID          = 0x01010205; // 用户 ID 无效  // 不存在或无权限
+  STATUS_USER_TOKEN_INVALID       = 0x01010206; // 用户认证令牌无效  // 不存在、过期或无权限
+
+  // 用户注册相关错误码           // 0x010201DD 输入错误
+  SIGN_UP_USER_ID_EMPTY           = 0x01020101; // 用户 ID 为空
+  SIGN_UP_PASSWORD_EMPTY          = 0x01020102; // 密码为空
+  SIGN_UP_CONFIRM_PASSWORD_EMPTY  = 0x01020103; // 确认密码为空
+  SIGN_UP_SECURITY_QUESTION_EMPTY = 0x01020104; // 安全问题为空
+  SIGN_UP_SECURITY_ANSWER_EMPTY   = 0x01020105; // 安全答案为空
+  SIGN_UP_DIFF_CONFIRM_PASSWORD   = 0x01020106; // 确认密码与密码不一致
+  // 用户注册相关错误码           // 0x010202DD 结果失败
+  SIGN_UP_USER_ID_EXISTS          = 0x01020201; // 用户 ID 已存在
+
+  // 用户登录相关错误码           // 0x010301DD 输入错误
+  SIGN_IN_USER_ID_EMPTY           = 0x01030101; // 用户 ID 为空
+  SIGN_IN_PASSWORD_EMPTY          = 0x01030102; // 密码 为空
+  SIGN_IN_TOKEN_EMPTY             = 0x01030103; // token 为空
+  SIGN_IN_INVALID_LOGIN_METHOD    = 0x01030104; // 无效的登录方法
+  // 用户登录相关错误码           // 0x010302DD 结果失败
+  SIGN_IN_USER_ID_NOT_FOUND       = 0x01030201; // 用户 ID 不存在
+  SIGN_IN_PASSWORD_INCORRECT      = 0x01030202; // 密码错误
+  SIGN_IN_TOKEN_INCORRECT         = 0x01030203; // token 错误
+  SIGN_IN_AUTH_FAILED             = 0x01030204; // 用户 ID 或密码或 token 等错误导致登录失败  // 请检查登录信息
+}
+
+// Result 结果消息
+message Result {
+  oneof code {
+    ErrorCode   error_code   = 1; // 错误码字段
+    SuccessCode success_code = 2; // 成功码字段
+  }
+  string        message      = 3; // 可选的错误消息字段
+}
 
 // ============================== StatusService ============================== //
 
@@ -18,59 +96,11 @@ message StatusRequest {
   string request_user_token = 3; // 查询者的认证令牌（可选，某些请求可能不需要）
 }
 
-// 成功状态码
-enum SuccessCode {
-  OK       = 0;
-  CREATED  = 1; // 已创建
-  ACCEPTED = 2; // 已接受处理
-  ALREADY_EXISTS = 3; // 业务层定义的已存在（非报错）
-}
-
-// 在线状态
-enum OnlineStatus {
-  ONLINE  = 0; // 在线
-  OFFLINE = 1; // 离线
-  UNKNOWN = 2; // 未知状态
-}
-
-// 成功时返回的具体业务数据
-message SuccessInfo {
-  oneof code {
-    SuccessCode  success_code  = 1;
-    OnlineStatus online_status = 2;
-    int32        other_code    = 3; // 自定义的成功返回值
-  }
-  string message = 4; // 自定义成功描述
-  // 这里可以放你原本想返回的业务数据
-}
-
-// 失败/错误状态码
-enum ErrorCode {
-  ERROR_UNKNOWN    = 0; // 错误/失败
-  INVALID_ARGUMENT = 1; // 无效的参数
-  INVALID_ID       = 2; // 无效的 ID
-  INVALID_TOKEN    = 3; // 无效的认证令牌
-  ACCESS_DENIED    = 4; // 权限不足
-  NOT_FOUND        = 5; // 未找到用户或服务器
-}
-
-// 失败时返回的具体错误信息
-message ErrorInfo {
-  oneof code {
-    ErrorCode  error_code  = 1; // 错误码字段
-    int32      other_code  = 3; // 自定义的失败返回值
-  }
-  string message = 4; // 可选的错误消息字段
-}
-
 // 最终的状态响应消息
 message StatusReply {
-  optional StatusRequest request = 1; // 可选的原始请求信息字段
-  // 使用 oneof 确保成功和失败的消息互斥，且节省空间
-  oneof result {
-    SuccessInfo success = 2;
-    ErrorInfo   error   = 3;
-  }
+  optional StatusRequest request = 1;  // 可选的原始请求信息字段
+           Result        result  = 2; // 状态信息字段
+           string        status  = 3; // 自定义的用户状态字段
 }
 
 // ============================  AccountService  ============================ //
@@ -78,34 +108,76 @@ message StatusReply {
 // 用户注册服务
 service AccountService {
   // Register 接收用户注册请求并返回注册结果。
-  rpc UserRegister (UserRegisterRequest) returns (UserRegisterReply) {}
+  rpc SignUp(SignUpRequest) returns (SignUpReply) {}
   // UserLogin 接收用户登录请求并返回登录结果。
-  rpc UserLogin    (UserLoginRequest)    returns (UserLoginReply) {}
+  rpc SignIn(SignInRequest) returns (SignInReply) {}
 }
 
-message UserRegisterRequest {
+// 用户注册请求
+message SignUpRequest {
   string user_id           = 1; // 昵称
   string password          = 2; // 密码
-  string security_question = 3; // 安全问题
-  string security_answer   = 4; // 安全答案
+  string confirm           = 3; // 确认密码  // 用于客户端
+  string security_question = 4; // 安全问题
+  string security_answer   = 5; // 安全答案
 }
 
-message UserRegisterReply {
-  optional UserRegisterRequest request = 1; // 可选的原始请求信息字段
-  bool   success       = 2; // 注册是否成功
-  string account_id    = 3; // 注册成功后返回的账号 ID
-  string error_message = 4; // 注册失败时的错误描述信息
+// 用户注册响应
+message SignUpReply {
+  optional SignUpRequest request    = 1;  // 可选的原始请求信息字段
+           Result        result     = 2; // 状态信息字段
+           string        account_id = 3; // 注册成功后返回的账号 ID
 }
 
-message UserLoginRequest {
+// 用户登录请求
+message SignInRequest {
   string user_id    = 1; // 昵称
-  string password   = 2; // 密码
+  oneof auth_method {
+    string password = 2; // 密码;  // 有 token 时就不要使用密码
+    string token    = 3; // 认证令牌
+  }
 }
 
-message UserLoginReply {
-  optional UserLoginRequest request = 1; // 可选的原始请求信息字段
-  bool   success       = 2; // 登录是否成功
-  string account_id    = 3; // 注册成功后返回的账号 ID
-  string token         = 4; // 登录成功后返回的认证令牌
-  string error_message = 5; // 登录失败时的错误描述信息
+// 用户登录响应
+message SignInReply {
+  optional SignInRequest request    = 1;  // 可选的原始请求信息字段
+           Result        result     = 2; // 状态信息字段
+           string        account_id = 3; // 登录成功后返回的账号 ID
+           string        token      = 4; // 登录成功后返回的认证令牌
+}
+
+// ============================  SearchService  ============================ //
+
+// 搜索服务
+service SearchService {
+  // 搜索用户
+  rpc SearchUsers(SearchUsersRequest) returns (SearchUsersReply) {}
+  // 搜索群组
+  // rpc SearchGroups(SearchGroupsRequest) returns (SearchGroupsReply) {}
+}
+
+// 搜索用户需要的参数
+message SearchUsersRequest{
+  string users_key    = 1; // user_id/nickname/phone/email，其一即可
+  string users_filter = 2; // gender/region/birthday, 过滤条件
+}
+
+// 返回搜索用户的结果
+message SearchUsersReply{
+  optional SearchUsersRequest request   = 1;  // 可选的原始请求信息字段
+           Result             result    = 2; // 状态信息字段
+  repeated UserBaseInfo       user_info = 3; // 用户信息  // 默认最多只返回 10 条信息 // 暂不设置可过滤或分页
+}
+
+// 用户的基本信息
+message UserBaseInfo{
+           string user_id  = 1; // 用户 ID
+           string nickname = 2; // 昵称
+           string avatar   = 3; // 头像
+           string sign     = 4; // 签名
+           int32  gender   = 5; // 性别
+           string region   = 6; // 地区
+           string birthday = 7; // 生日
+  repeated string phone    = 8; // 手机号
+  repeated string email    = 9; // 邮箱
 }

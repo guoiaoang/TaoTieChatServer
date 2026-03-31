@@ -15,7 +15,7 @@
 
 consteval int ID_UNUSED_STRING(std::string_view x,
     const std::source_location& loc = std::source_location::current()) {
-    return loc.line(); // 返回调用处的行号
+    return loc.line();  // 返回调用处的行号
 }
 
 // 保存 ID 对应的字符串，这里只是为了方便查看，实际编译链接不在这里

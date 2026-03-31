@@ -41,7 +41,10 @@ int main(int argc, char** argv) {
         LOG_ERROR("Failed to open database with encryption key.");
         return 0;
     }
-    db_sqlcipher.database_initialize();
+    if (!db_sqlcipher.database_initialize()) {
+        LOG_ERROR("Failed to initialize database schema.");
+        return 0;
+    }
 
     // 启用 gRPC 服务器的默认健康检查服务和反射服务
     grpc::EnableDefaultHealthCheckService(true);
@@ -92,7 +95,7 @@ bool initialize_spdlog() {
     Utils::mkdir(log_dir);
 
     // 创建按日期轮转的文件 sink
-    // auto file_sink = std::make_shared<spdlog::sinks::rotating_file_sink_mt>("logs/log.txt", 1024*1024*500, 3); // 500MB, 3 个文件
+    // auto file_sink = std::make_shared<spdlog::sinks::rotating_file_sink_mt>("logs/log.txt", 1024*1024*500, 3);  // 500MB, 3 个文件
     auto file_sink = std::make_shared<spdlog::sinks::daily_file_sink_mt>((log_dir / "daily.log").string(), 0, 0);
     file_sink->set_level(spdlog::level::trace);
     // file_sink->set_pattern(log_pattern);
@@ -102,7 +105,7 @@ bool initialize_spdlog() {
     spdlog::set_default_logger(logger);
     spdlog::flush_on(spdlog::level::info);     // 可选：减少“看起来没输出”的感觉
     spdlog::default_logger()->set_level(spdlog::level::trace);   // 关键：放开到最低级别
-    spdlog::default_logger()->set_pattern(log_pattern); // 关键：每个 sink 都会复制一份 pattern，确保输出格式一致
+    spdlog::default_logger()->set_pattern(log_pattern);  // 关键：每个 sink 都会复制一份 pattern，确保输出格式一致
     // spdlog::flush_every(std::chrono::seconds(3));
     // spdlog::set_error_handler([](const std::string &msg) { spdlog::get("console")->error("*** LOGGER ERROR ***: {}", msg); });
 

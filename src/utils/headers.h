@@ -1,10 +1,31 @@
 #pragma once
 
-#define LOGGER_USE_SPDLOG
-// #define LOGGER_USE_GLOG
-// #define LOGGER_USE_ABSL_LOG
+// ================ 设置 ================ //
+
+#define ENABLE_SQLCIPHER
+#define ENABLE_NLOHMANN_JSON
+#define ENABLE_BOOST_UUID
+#define ENABLE_FMT
+// #define ENABLE_CLIENT
+
+#ifdef ENABLE_CLIENT
+#define ENABLE_HEADERS_QT
+#define ENABLE_QT_MACRO
+// #define ENABLE_QDEBUG_LOGGER
+// #define ENABLE_SIMPLE_QT_LOGGER
+// #define ENABLE_SPDLOG
+#elif defined(ENABLE_SERVER)  // ENABLE_SERVER
+#define ENABLE_HEADERS_STD
+#define ENABLE_GOOGLE_GRPC
+#define ENABLE_SPDLOG
+#define ENABLE_ABSL_LIB
+#endif // ENABLE_CLIENT
+
+// ================ 内容 ================ //
 
 // std
+// #define ENABLE_HEADERS_STD
+#ifdef ENABLE_HEADERS_STD
 #include <iostream>
 #include <string>
 #include <string>
@@ -23,7 +44,185 @@
 #include <unordered_set>
 #include <source_location>
 #include <string_view>
-// absl
+// std cxx
+#include <iostream>
+#include <string>
+#include <sstream>
+#include <functional>
+#include <algorithm>
+#include <vector>
+#include <set>
+#include <list>
+#include <map>
+#include <memory>
+#include <mutex>
+#include <thread>
+#include <chrono>
+#include <filesystem>
+#endif // ENABLE_HEADERS_STD
+
+// qt
+// #define ENABLE_HEADERS_QT
+#ifdef ENABLE_HEADERS_QT
+#include <QAction>
+#include <QActionGroup>
+#include <QApplication>
+#include <QBitmap>
+#include <QBuffer>
+#include <QButtonGroup>
+#include <QByteArray>
+#include <QByteArrayList>
+#include <QByteArrayMatcher>
+#include <QByteArrayView>
+#include <QCommandLineParser>
+#include <QDataStream>
+#include <QDate>
+#include <QDateEdit>
+#include <QDateTime>
+#include <QDialog>
+#include <QDir>          // 遍历子目录，较老版本 // QDir::entryList()
+#include <QDirIterator>  // 遍历子目录，较新版本，单个遍历
+#include <QDirListing>   // 遍历子目录，最新版本，c++20 方式
+#include <QFile>
+#include <QFileDialog>
+#include <QFileInfo>
+#include <QFont>
+#include <QFontDatabase>
+#include <QGuiApplication>
+#include <QIcon>
+#include <QImage>
+#include <QImageReader>
+#include <QImageWriter>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonParseError>
+#include <QJsonValue>
+#include <QLabel>
+#include <QList>
+#include <QListWidgetItem>
+#include <QLocale>
+#include <QLocalServer>
+#include <QLocalSocket>
+#include <QMainWindow>
+#include <QMap>
+#include <QMenu>
+#include <QMessageBox>
+#include <QMetaEnum>
+#include <QMovie>
+#include <QMutex>
+#include <QObject>
+#include <QPainter>
+#include <QPalette>
+#include <QPicture>
+#include <QPixmap>
+#include <QPropertyAnimation>
+#include <QRegularExpression>
+#include <QRegularExpressionMatch>
+#include <QRegularExpressionMatchIterator>
+#include <QRegularExpressionValidator>
+#include <QSaveFile>
+#include <QScopedArrayPointer>
+#include <QScopedPointer>
+#include <QScopeGuard>
+#include <QScreen>
+#include <QScrollArea>
+#include <QScrollBar>
+#include <QScroller>
+#include <QSemaphore>
+#include <QSettings>
+#include <QSharedData>
+#include <QSharedDataPointer>
+#include <QSharedMemory>
+#include <QSharedPointer>
+#include <QShortcut>
+#include <QSpinBox>
+#include <QSplitter>
+#include <QSslCipher>
+#include <QStandardPaths>
+#include <QString>
+#include <QStringList>
+#include <QStyle>
+#include <QSvgGenerator>
+#include <QSvgRenderer>
+#include <QSvgWidget>
+#include <QSyntaxHighlighter>
+#include <QSysInfo>
+#include <QSystemTrayIcon>
+#include <QtDebug>
+#include <QThread>
+#include <QThreadPool>
+#include <QTimeEdit>
+#include <QTimeLine>
+#include <QTimer>
+#include <QTimeZone>
+#include <QToolBar>
+#include <QToolBox>
+#include <QTranslator>
+#include <QVariant>
+#include <QVector>
+#include <QXmlStreamAttributes>
+#include <QXmlStreamReader>
+#include <QXmlStreamWriter>
+#include <QUuid>
+#endif // ENABLE_HEADERS_QT
+
+// 宏工具：将宏参数转换为字符串
+#define STRINGIFY(x) #x
+#define TOSTRING(x) STRINGIFY(x)
+
+#define ENABLE_QT_MACRO
+#ifdef ENABLE_QT_MACRO
+// 宏展开：强制 Q_INIT_RESOURCE 的参数先进行宏展开
+#define Q_INIT_RESOURCE_EXPAND(name) Q_INIT_RESOURCE(name)
+// 仅支持 std 输入，不支持 QT 输入
+#define STD_VARGS_TO_QSTRING(...) QString::fromStdString(fmt::format(__VA_ARGS__))
+#endif // ENABLE_QT_MACRO
+
+// #define ENABLE_SQLCIPHER
+#ifdef ENABLE_SQLCIPHER
+// sqlcipher
+// #define SQLITE_ENABLE_FTS5
+// #define SQLITE_ENABLE_JSON1
+// #define SQLITE_ENABLE_MEMORY_MANAGEMENT
+// #define SQLITE_ENABLE_STAT4
+// #define SQLITE_ENABLE_UNLOCK_NOTIFY
+#define SQLITE_HAS_CODEC  // 允许加密
+#include <sqlcipher/sqlite3.h>
+#endif // ENABLE_SQLCIPHER
+
+// #define ENABLE_NLOHMANN_JSON
+#ifdef ENABLE_NLOHMANN_JSON
+// nlohmann json
+#include <nlohmann/json.hpp>
+#endif // ENABLE_NLOHMANN_JSON
+
+// #define ENABLE_BOOST_UUID
+#ifdef ENABLE_BOOST_UUID
+// boost uuid
+#include <boost/uuid.hpp>
+#endif // ENABLE_BOOST_UUID
+
+// #define ENABLE_FMT
+#ifdef ENABLE_FMT
+#include <fmt/format.h>
+#endif // ENABLE_FMT
+
+// #define ENABLE_GOOGLE_GRPC
+#ifdef ENABLE_GOOGLE_GRPC
+// grpc
+#include <grpcpp/grpcpp.h>
+#include <grpcpp/ext/proto_server_reflection_plugin.h>
+#include <grpcpp/health_check_service_interface.h>
+using grpc::Status;
+using grpc::Server;
+using grpc::ServerBuilder;
+using grpc::ServerContext;
+using grpc::ServerUnaryReactor;
+using grpc::CallbackServerContext;
+#endif // ENABLE_GOOGLE_GRPC
+
+#ifdef ENABLE_ABSL_LIB
 #include "absl/flags/flag.h"
 #include "absl/flags/parse.h"
 #include "absl/log/absl_log.h"
@@ -31,26 +230,60 @@
 #include "absl/log/initialize.h"
 #include "absl/log/globals.h"
 #include "absl/strings/str_format.h"
+#endif // ENABLE_ABSL_LIB
+
 // grpc
-#include <grpcpp/grpcpp.h>
-#include <grpcpp/ext/proto_server_reflection_plugin.h>
-#include <grpcpp/health_check_service_interface.h>
-// sqlcipher
-// #define SQLITE_ENABLE_FTS5
-// #define SQLITE_ENABLE_JSON1
-// #define SQLITE_ENABLE_MEMORY_MANAGEMENT
-// #define SQLITE_ENABLE_STAT4
-// #define SQLITE_ENABLE_UNLOCK_NOTIFY
-#define SQLITE_HAS_CODEC
-#include <sqlcipher/sqlite3.h>
-// nlohmann json
-#include <nlohmann/json.hpp>
-// glog
-#ifdef LOGGER_USE_GLOG
-#include <glog/logging.h>
-#endif
-// boost uuid
-#include <boost/uuid.hpp>
+#ifdef ENABLE_CLIENT
+// client
+#include "taotie_chat.qpb.h"
+#include "taotie_chat_client.grpc.qpb.h"
+using TaoTieChat::StatusService::Client;
+using TaoTieChat::StatusRequest;
+using TaoTieChat::StatusReply;
+// using TaoTieChat::AccountService::Client;
+using TaoTieChat::SignUpRequest;
+using TaoTieChat::SignUpReply;
+using TaoTieChat::SignInRequest;
+using TaoTieChat::SignInReply;
+#elif defined(ENABLE_SERVER)  // ENABLE_SERVER
+// server
+#include "taotie_chat.grpc.pb.h"
+using grpc::ServerReaderWriter;
+using TaoTieChat::StatusService;
+using TaoTieChat::StatusRequest;
+using TaoTieChat::StatusReply;
+using TaoTieChat::AccountService;
+using TaoTieChat::SignUpRequest;
+using TaoTieChat::SignUpReply;
+using TaoTieChat::SignInRequest;
+using TaoTieChat::SignInReply;
+#endif // ENABLE_CLIENT
+
+// logs
+// VERBOSE / NOTICE / EMERGENCY / PANIC / AUDIT / ALERT
+// FATAL / CRITICAL / ERROR / WARNING / INFO / DEBUG / TRACE
+// #define ENABLE_SIMPLE_QT_LOGGER
+// #define ENABLE_SPDLOG
+// #define ENABLE_GLOG
+// #define ENABLE_ABSL_LOG
+#if defined(ENABLE_SIMPLE_QT_LOGGER)
+#include <simpleQtLogger.h>
+#define LOG_TRACE(...)    L_DEBUG(__VA_ARGS__)
+#define LOG_DEBUG(...)    L_DEBUG(__VA_ARGS__)
+#define LOG_INFO(...)     L_INFO(__VA_ARGS__)
+#define LOG_WARNING(...)  L_WARN(__VA_ARGS__)
+#define LOG_ERROR(...)    L_ERROR(__VA_ARGS__)
+#define LOG_CRITICAL(...) L_ERROR(__VA_ARGS__)
+#define LOG_FATAL(...)    L_FATAL(__VA_ARGS__)
+// 只支持 std 类型输入，不支持 qt 类型输入
+#define LOG_TRACEV(...)    LOG_TRACE(STD_VARGS_TO_QSTRING(__VA_ARGS__))
+#define LOG_DEBUGV(...)    LOG_DEBUG(STD_VARGS_TO_QSTRING(__VA_ARGS__))
+#define LOG_INFOV(...)     LOG_INFO(STD_VARGS_TO_QSTRING(__VA_ARGS__))
+#define LOG_WARNINGV(...)  LOG_WARNING(STD_VARGS_TO_QSTRING(__VA_ARGS__))
+#define LOG_ERRORV(...)    LOG_ERROR(STD_VARGS_TO_QSTRING(__VA_ARGS__))
+#define LOG_CRITICALV(...) LOG_CRITICAL(STD_VARGS_TO_QSTRING(__VA_ARGS__))
+#define LOG_FATALV(...)    LOG_FATAL(STD_VARGS_TO_QSTRING(__VA_ARGS__))
+#elif defined(ENABLE_SPDLOG)
 // spdlog
 // 1. 必须在 include 之前定义，指定允许输出的最低日志级别
 #define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_TRACE // 允许输出 trace 级别及以上的日志
@@ -68,27 +301,6 @@
 #include <spdlog/sinks/callback_sink.h>
 // #include "spdlog/sinks/qt_sinks.h"
 // #include "spdlog/sinks/syslog_sink.h"
-// server
-#include "taotie_chat.grpc.pb.h"
-
-// using
-using grpc::Status;
-using grpc::Server;
-using grpc::ServerBuilder;
-using grpc::ServerContext;
-using grpc::ServerUnaryReactor;
-using grpc::CallbackServerContext;
-using grpc::ServerReaderWriter;
-using TaoTieChat::StatusService;
-using TaoTieChat::StatusRequest;
-using TaoTieChat::StatusReply;
-using TaoTieChat::AccountService;
-using TaoTieChat::UserRegisterRequest;
-using TaoTieChat::UserRegisterReply;
-
-// VERBOSE / NOTICE / EMERGENCY / PANIC / AUDIT / ALERT
-// FATAL / CRITICAL / ERROR / WARNING / INFO / DEBUG / TRACE
-#ifdef LOGGER_USE_SPDLOG
 #define LOG_TRACE(...)    SPDLOG_TRACE(__VA_ARGS__)
 #define LOG_DEBUG(...)    SPDLOG_DEBUG(__VA_ARGS__)
 #define LOG_INFO(...)     SPDLOG_INFO(__VA_ARGS__)
@@ -96,7 +308,8 @@ using TaoTieChat::UserRegisterReply;
 #define LOG_ERROR(...)    SPDLOG_ERROR(__VA_ARGS__)
 #define LOG_CRITICAL(...) SPDLOG_CRITICAL(__VA_ARGS__)
 #define LOG_FATAL(...)    SPDLOG_CRITICAL(__VA_ARGS__)
-#elif defined(LOGGER_USE_GLOG)
+#elif defined(ENABLE_GLOG)
+#include <glog/logging.h>
 #define LOG_TRACE(...)    LOG(GLOG_INFO) << __VA_ARGS__
 #define LOG_DEBUG(...)    LOG(GLOG_INFO) << __VA_ARGS__
 #define LOG_INFO(...)     LOG(GLOG_INFO) << __VA_ARGS__
@@ -104,7 +317,15 @@ using TaoTieChat::UserRegisterReply;
 #define LOG_ERROR(...)    LOG(GLOG_ERROR) << __VA_ARGS__
 #define LOG_CRITICAL(...) LOG(GLOG_FATAL) << __VA_ARGS__
 #define LOG_FATAL(...)    LOG(GLOG_FATAL) << __VA_ARGS__
-#elif defined(LOGGER_USE_ABSL_LOG)
+#elif defined(ENABLE_ABSL_LOG)
+// absl
+#include "absl/flags/flag.h"
+#include "absl/flags/parse.h"
+#include "absl/log/absl_log.h"
+#include "absl/log/check.h"
+#include "absl/log/initialize.h"
+#include "absl/log/globals.h"
+#include "absl/strings/str_format.h"
 #define LOG_TRACE(...)    ABSL_LOG(GLOG_INFO) << __VA_ARGS__
 #define LOG_DEBUG(...)    ABSL_LOG(GLOG_INFO) << __VA_ARGS__
 #define LOG_INFO(...)     ABSL_LOG(GLOG_INFO) << __VA_ARGS__
@@ -112,6 +333,22 @@ using TaoTieChat::UserRegisterReply;
 #define LOG_ERROR(...)    ABSL_LOG(GLOG_ERROR) << __VA_ARGS__
 #define LOG_CRITICAL(...) ABSL_LOG(GLOG_FATAL) << __VA_ARGS__
 #define LOG_FATAL(...)    ABSL_LOG(GLOG_FATAL) << __VA_ARGS__
+#elif defined(ENABLE_QDEBUG_LOGGER)
+#include <QDebug>
+#define LOG_TRACE(...)    qDebug() << __VA_ARGS__
+#define LOG_DEBUG(...)    qDebug() << __VA_ARGS__
+#define LOG_INFO(...)     qInfo() << __VA_ARGS__
+#define LOG_WARNING(...)  qWarning() << __VA_ARGS__
+#define LOG_ERROR(...)    qWarning() << __VA_ARGS__
+#define LOG_CRITICAL(...) qCritical() << __VA_ARGS__
+#define LOG_FATAL(...)    qFatal() << __VA_ARGS__
+#define LOG_TRACEV(...)    LOG_TRACE(STD_VARGS_TO_QSTRING(__VA_ARGS__))
+#define LOG_DEBUGV(...)    LOG_DEBUG(STD_VARGS_TO_QSTRING(__VA_ARGS__))
+#define LOG_INFOV(...)     LOG_INFO(STD_VARGS_TO_QSTRING(__VA_ARGS__))
+#define LOG_WARNINGV(...)  LOG_WARNING(STD_VARGS_TO_QSTRING(__VA_ARGS__))
+#define LOG_ERRORV(...)    LOG_ERROR(STD_VARGS_TO_QSTRING(__VA_ARGS__))
+#define LOG_CRITICALV(...) LOG_CRITICAL(STD_VARGS_TO_QSTRING(__VA_ARGS__))
+#define LOG_FATALV(...)    LOG_FATAL(STD_VARGS_TO_QSTRING(__VA_ARGS__))
 #else
 #define LOG_TRACE(...)    std::cout << __VA_ARGS__ << std::endl
 #define LOG_DEBUG(...)    std::cout << __VA_ARGS__ << std::endl
@@ -121,4 +358,3 @@ using TaoTieChat::UserRegisterReply;
 #define LOG_CRITICAL(...) std::cerr << __VA_ARGS__ << std::endl
 #define LOG_FATAL(...)    std::cerr << __VA_ARGS__ << std::endl
 #endif  // LOGGER_USE_SPDLOG
-
