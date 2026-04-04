@@ -28,6 +28,7 @@ set(SOURCE_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/utils/utils.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/utils/utils.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/service/AccountService.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/service/SearchService.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/service/StatusService.h
 )
 

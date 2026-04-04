@@ -608,7 +608,7 @@ public:
 
         // 查询命令执行成功，但返回的结果为空  // 用户名或密码错误
         if(query_user_login_auth->results.empty()) {
-            LOG_DEBUG("query_user_login_auth result empty, message: {}", query_user_login_auth->error_message);
+            LOG_DEBUG("DB query_user_login_auth result empty, message: {}", query_user_login_auth->error_message);
             set_error(reply, ec::SIGN_IN_AUTH_FAILED);
             LOG_ERROR("User ID or Password or Token error, code: {:#010x}, message: {}", (int)reply->mutable_result()->error_code(), reply->mutable_result()->message());
             return reply;
@@ -649,6 +649,103 @@ public:
         set_success(reply, sc::SUCCESS);
         reply->set_account_id(account_id);
         reply->set_token(token);
+        return reply;
+    }
+
+    // 搜索用户
+    std::shared_ptr<::TaoTieChat::SearchUsersReply> search_users(std::shared_ptr<::TaoTieChat::SearchUsersRequest> request) {
+        using Request = ::TaoTieChat::SearchUsersReply;
+        using Reply   = ::TaoTieChat::SearchUsersReply;
+        using sc      = ::TaoTieChat::SuccessCode;
+        using ec      = ::TaoTieChat::ErrorCode;
+
+        auto set_success = [&](std::shared_ptr<Reply>&reply, sc code) {
+            if(!reply) {
+                return;
+            }
+            reply->mutable_result()->set_success_code(code);
+            reply->mutable_result()->set_message(Utils::to_message_string(code));
+        };
+        auto set_error = [&](std::shared_ptr<Reply>&reply, ec code) {
+            if(!reply) {
+                return;
+            }
+            reply->mutable_result()->set_error_code(code);
+            reply->mutable_result()->set_message(Utils::to_message_string(code));
+        };
+
+        // ================================================================== //
+
+        using namespace SQL::COMMANDS::PRAGMA;
+        using namespace SQL::COMMANDS::CREATE;
+        using namespace SQL::COMMANDS::QUERY;
+        using namespace SQL::COMMANDS::INSERT;
+
+        // 复制请求
+        std::shared_ptr<Reply> reply = std::make_shared<Reply>();
+        set_error(reply, ec::ERROR_INIT);
+        if(!request) {
+            return reply;
+        }
+        reply->mutable_request()->CopyFrom(*request.get());
+
+        // 参数校验
+        if(request->users_keyword().empty()) {
+            set_error(reply, ec::SEARCH_USERS_KEYWORD_EMPTY);
+            LOG_DEBUG("Users keyword is empty, code: {:#010x}, message: {}", (int)reply->mutable_result()->error_code(), reply->mutable_result()->message());
+            return reply;
+        }
+
+        // 获取参数
+        std::string users_keyword = request->users_keyword();  // 暂时同义于 user_id
+        std::string users_filter  = request->users_filter ();  // 暂时无效
+        std::string&user_id       = users_keyword;
+
+        // 构造数据库查询参数
+        auto search_users_params = std::make_shared<WrapperNamedParam>();
+        search_users_params->params[":user_id"] = user_id;
+        // 执行数据库查询命令  // 传入查询语句及相关参数
+        std::shared_ptr<WrapperQueryResult> query_search_users = execute(SQL_QUERY_SEARCH_USERS.data(), search_users_params);
+
+        // 数据库查询命令执行失败
+        if(!query_search_users->done) {
+            set_error(reply, ec::DB_QUERY);
+            LOG_ERROR("Query users keyword failed, code: {:#010x}, message: {}", (int)reply->mutable_result()->error_code(), reply->mutable_result()->message());
+            return reply;
+        }
+
+        // 数据库查询命令执行成功，但没有有效数据  // 返回的结果为空
+        if(query_search_users->results.empty()) {
+            LOG_DEBUG("DB query_search_users result empty, message: {}", query_search_users->error_message);
+            set_error(reply, ec::SEARCH_USERS_KEYWORD_NOT_FOUND);
+            LOG_ERROR("Search Users empty, code: {:#010x}, message: {}", (int)reply->mutable_result()->error_code(), reply->mutable_result()->message());
+            return reply;
+        }
+
+        // 查询命令执行成功且有有效数据  // 返回的结果不为空，至少包含一条有效数据
+        set_success(reply, sc::SUCCESS);
+        for(auto&db_user_info : query_search_users->results) {
+            auto reply_user_info = reply->add_user_info();
+            auto ite_end         = db_user_info.end();
+            auto ite_user_id     = db_user_info.find("user_id" );
+            auto ite_nickname    = db_user_info.find("nickname");
+            auto ite_avatar      = db_user_info.find("avatar"  );
+            auto ite_sign        = db_user_info.find("sign"    );
+            auto ite_gender      = db_user_info.find("gender"  );
+            auto ite_region      = db_user_info.find("region"  );
+            auto ite_birthday    = db_user_info.find("birthday");
+            auto ite_phones      = db_user_info.find("phones"  );
+            auto ite_emails      = db_user_info.find("emails"  );
+            if(ite_user_id  != ite_end) { auto point_value = std::get_if<std::string>(&ite_user_id ->second); if(point_value) { reply_user_info->set_user_id (*point_value); } }
+            if(ite_nickname != ite_end) { auto point_value = std::get_if<std::string>(&ite_nickname->second); if(point_value) { reply_user_info->set_nickname(*point_value); } }
+            if(ite_avatar   != ite_end) { auto point_value = std::get_if<std::string>(&ite_avatar  ->second); if(point_value) { reply_user_info->set_avatar  (*point_value); } }
+            if(ite_sign     != ite_end) { auto point_value = std::get_if<std::string>(&ite_sign    ->second); if(point_value) { reply_user_info->set_sign    (*point_value); } }
+            if(ite_gender   != ite_end) { auto point_value = std::get_if<int32_t    >(&ite_gender  ->second); if(point_value) { reply_user_info->set_gender  (*point_value); } }
+            if(ite_region   != ite_end) { auto point_value = std::get_if<std::string>(&ite_region  ->second); if(point_value) { reply_user_info->set_region  (*point_value); } }
+            if(ite_birthday != ite_end) { auto point_value = std::get_if<std::string>(&ite_birthday->second); if(point_value) { reply_user_info->set_birthday(*point_value); } }
+            if(ite_phones   != ite_end) { auto point_value = std::get_if<std::string>(&ite_phones  ->second); if(point_value) { for(auto&phone : Utils::split(*point_value, ";")) { reply_user_info->add_phones(phone); } } }
+            if(ite_emails   != ite_end) { auto point_value = std::get_if<std::string>(&ite_emails  ->second); if(point_value) { for(auto&email : Utils::split(*point_value, ";")) { reply_user_info->add_emails(email); } } }
+        }
         return reply;
     }
 

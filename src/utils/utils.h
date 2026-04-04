@@ -3,7 +3,7 @@
 // enum ::TaoTieChat::ErrorCode;
 namespace TaoTieChat {
     enum ErrorCode;
-} 
+}
 
 class Utils{
     Utils() = default;
@@ -67,6 +67,10 @@ public:
     static std::chrono::system_clock::time_point to_time_point(const std::string& utc_str);
     // 将 UTC 时间字符串转换为本地时间字符串
     static std::string utc_to_local(const std::string& utc_str);
+
+    // ============================== std 扩展 ============================== //
+    static std::vector<std::string> split(const std::string&src, const std::string&div);
+    static const std::string join(std::vector<std::string>&src, const std::string&div);
 
     // ====================================================================== //
     // 获取错误信息

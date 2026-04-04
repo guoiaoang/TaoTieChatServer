@@ -113,13 +113,13 @@ namespace SQL{
                     nickname          TEXT,                  -- 昵称
                     avatar            TEXT,                  -- 头像 URL
                     sign              TEXT,                  -- 个性签名
-                    gender            INTEGER DEFAULT 0,     -- 0:保密, 1:男, 2:女
+                    gender            INTEGER DEFAULT 0,     -- 0:未设置, 1:男, 2:女, 3:保密
                     region            TEXT,                  -- 建议存区域代码 (Code)
                     birthday          TEXT,                  -- 格式: YYYY-MM-DD
 
                     -- 联系方式
-                    phone             TEXT,                  -- 建议存 JSON 数组或独立表
-                    email             TEXT,                  -- 建议存 JSON 数组或独立表
+                    phones            TEXT,                  -- 建议存 JSON 数组或独立表  -- 暂定为以 `;` 划分的字符串数组
+                    emails            TEXT,                  -- 建议存 JSON 数组或独立表  -- 暂定为以 `;` 划分的字符串数组
 
                     -- 时间戳
                     register_time     DATETIME DEFAULT (datetime('now')),  -- 注册时间
@@ -349,6 +349,11 @@ namespace SQL{
                     AND t.expire_time  > datetime('now') -- Token 未过期
                     AND u.status       = 0;              -- 用户账号状态正常
                 LIMIT 1;
+            )";
+
+            // 查询用户是否存在的 SQL 语句模板  // 排除已注销的账号  // 实际为精准匹配 user_id，最多只包含一条数据
+            constexpr std::string_view SQL_QUERY_SEARCH_USERS = R"(
+                SELECT * FROM users WHERE user_id = :user_id AND status = 0 LIMIT 10;
             )";
         }
 

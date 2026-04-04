@@ -5,6 +5,7 @@
 #include "DBSQLCipher.h"
 #include "StatusService.h"
 #include "AccountService.h"
+#include "SearchService.h"
 
 bool initialize_spdlog();
 
@@ -59,10 +60,12 @@ int main(int argc, char** argv) {
     ServerBuilder server_builder;
     server_builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
     // 注册服务
-    StatusServiceImpl service_status_checker;
-    AccountServiceImpl       service_account;
+    StatusServiceImpl               service_status_checker;
     server_builder.RegisterService(&service_status_checker);
+    AccountServiceImpl              service_account;
     server_builder.RegisterService(&service_account);
+    SearchServiceImpl               service_search;
+    server_builder.RegisterService(&service_search);
     std::unique_ptr<Server> server = server_builder.BuildAndStart();
     server->Wait();
 

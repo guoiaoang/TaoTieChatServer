@@ -203,6 +203,34 @@ std::string Utils::utc_to_local(const std::string& utc_str) {
     return Utils::to_local_string(tp);
 }
 
+// ============================== std 扩展 ============================== //
+
+std::vector<std::string> Utils::split(const std::string&src, const std::string&div) {
+    std::vector<std::string> result;
+    size_t start = 0;
+    while (true) {
+        size_t pos = src.find(div, start);
+        if (pos == std::string::npos) {
+            result.push_back(src.substr(start));
+            break;
+        }
+        result.push_back(src.substr(start, pos - start));
+        start = pos + div.length();
+    }
+    return result;
+};
+
+const std::string Utils::join(std::vector<std::string>&src, const std::string&div) {
+    std::string result;
+    for (size_t i = 0; i < src.size(); ++i) {
+        result += src[i];
+        if (i != src.size() - 1) {
+            result += div;
+        }
+    }
+    return result;
+}
+
 // ====================================================================== //
 
 // 获取错误信息
@@ -267,6 +295,8 @@ std::string_view Utils::to_message_view(::TaoTieChat::ErrorCode code) {
         {ec::SIGN_IN_PASSWORD_INCORRECT     , "Password is incorrect"         },
         {ec::SIGN_IN_TOKEN_INCORRECT        , "Token is incorrect"            },
         {ec::SIGN_IN_AUTH_FAILED            , "User ID or Password or Token error" },
+        {ec::SEARCH_USERS_KEYWORD_EMPTY     , "Search Users is empty"         },
+        {ec::SEARCH_USERS_KEYWORD_NOT_FOUND , "Search Users not found"        },
     };
 
     if (map_codes.contains(code)) {
