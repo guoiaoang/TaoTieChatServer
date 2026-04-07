@@ -26,44 +26,33 @@
 // std
 // #define ENABLE_HEADERS_STD
 #ifdef ENABLE_HEADERS_STD
-#include <iostream>
-#include <string>
-#include <string>
-#include <sstream>
-#include <memory>
-#include <functional>
-#include <thread>
-#include <chrono>
-#include <iostream>
-#include <memory>
-#include <map>
-#include <set>
-#include <vector>
-#include <list>
-#include <unordered_map>
-#include <unordered_set>
-#include <source_location>
-#include <string_view>
-// std cxx
-#include <iostream>
-#include <string>
-#include <sstream>
-#include <functional>
 #include <algorithm>
-#include <vector>
-#include <set>
+#include <chrono>
+#include <filesystem>
+#include <format>
+#include <functional>
+#include <iostream>
 #include <list>
 #include <map>
 #include <memory>
 #include <mutex>
+#include <queue>
+#include <set>
+#include <source_location>
+#include <sstream>
+#include <string_view>
+#include <string>
 #include <thread>
-#include <chrono>
-#include <filesystem>
+#include <unordered_map>
+#include <unordered_set>
+#include <vector>
 #endif // ENABLE_HEADERS_STD
 
 // qt
 // #define ENABLE_HEADERS_QT
 #ifdef ENABLE_HEADERS_QT
+#include <functional>
+#include <QAbstractListModel>
 #include <QAction>
 #include <QActionGroup>
 #include <QApplication>
@@ -74,11 +63,14 @@
 #include <QByteArrayList>
 #include <QByteArrayMatcher>
 #include <QByteArrayView>
+#include <QCheckBox>
+#include <QColor>
 #include <QCommandLineParser>
 #include <QDataStream>
 #include <QDate>
 #include <QDateEdit>
 #include <QDateTime>
+#include <QDebug>
 #include <QDialog>
 #include <QDir>          // 遍历子目录，较老版本 // QDir::entryList()
 #include <QDirIterator>  // 遍历子目录，较新版本，单个遍历
@@ -88,6 +80,9 @@
 #include <QFileInfo>
 #include <QFont>
 #include <QFontDatabase>
+#include <QFontMetrics>
+#include <QGrpcChannelOptions>
+#include <QGrpcHttp2Channel>
 #include <QGuiApplication>
 #include <QIcon>
 #include <QImage>
@@ -107,16 +102,19 @@
 #include <QMainWindow>
 #include <QMap>
 #include <QMenu>
+#include <QMenuBar>
 #include <QMessageBox>
 #include <QMetaEnum>
 #include <QMovie>
 #include <QMutex>
 #include <QObject>
 #include <QPainter>
+#include <QPainterPath>
 #include <QPalette>
 #include <QPicture>
 #include <QPixmap>
 #include <QPropertyAnimation>
+#include <QPushButton>
 #include <QRegularExpression>
 #include <QRegularExpressionMatch>
 #include <QRegularExpressionMatchIterator>
@@ -136,13 +134,17 @@
 #include <QSharedMemory>
 #include <QSharedPointer>
 #include <QShortcut>
+#include <QSize>
 #include <QSpinBox>
 #include <QSplitter>
 #include <QSslCipher>
+#include <QStackedWidget>
 #include <QStandardPaths>
+#include <QStatusBar>
 #include <QString>
 #include <QStringList>
 #include <QStyle>
+#include <QStyledItemDelegate>
 #include <QSvgGenerator>
 #include <QSvgRenderer>
 #include <QSvgWidget>
@@ -150,6 +152,7 @@
 #include <QSysInfo>
 #include <QSystemTrayIcon>
 #include <QtDebug>
+#include <QtGrpc/QGrpcStatus>
 #include <QThread>
 #include <QThreadPool>
 #include <QTimeEdit>
@@ -158,13 +161,17 @@
 #include <QTimeZone>
 #include <QToolBar>
 #include <QToolBox>
+#include <QToolButton>
 #include <QTranslator>
+#include <QtSvg/QSvgGenerator>
+#include <QUrl>
+#include <QUuid>
 #include <QVariant>
 #include <QVector>
+#include <QWidget>
 #include <QXmlStreamAttributes>
 #include <QXmlStreamReader>
 #include <QXmlStreamWriter>
-#include <QUuid>
 #endif // ENABLE_HEADERS_QT
 
 // 宏工具：将宏参数转换为字符串

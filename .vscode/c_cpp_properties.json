@@ -4,8 +4,7 @@
             "name": "Win32",
             "includePath": [
                 "${workspaceFolder}/**",
-                "${workspaceFolder}/out/build/qt683_msvs_config/vcpkg_installed/x64-windows/include/**",
-                "${workspaceFolder}/out/build/qt683_msvs_config/protos/**"
+                "${workspaceFolder}/src/protos/include/**"
             ],
             "defines": [
                 "DEBUG",

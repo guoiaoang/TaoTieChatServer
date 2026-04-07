@@ -2,37 +2,183 @@
     "version": 10,
     "configurePresets": [
         {
-            "$comment":[
-                "request : msvc 2022 with cmake, qt 6.8.3 msvc 2022, vcpkg, cmake",
-                "qt 6 cmake toolchain file : C:/app/dev/Qt/6.8.3/msvc2022_64/lib/cmake/Qt6/qt.toolchain.cmake",
-                "vcpkg cmake toolchain file : C:/a/t/vcpkg/scripts/buildsystems/vcpkg.cmake",
-                "vcpkg root : C:/a/t/vcpkg",
-                "vcpkg triplet : x64-windows",
-                "vcpkg generator : Visual Studio 17 2022",
-                "vcpkg install qt6:x64-windows",
-                "vcpkg install grpc:x64-windows",
-                "vcpkg install protobuf:x64-windows"
-            ],
-            "name": "qt683_msvs_config",
-            "displayName": "x64 debug",
-            "condition": {
-                "type": "equals",
-                "lhs": "${hostSystemName}",
-                "rhs": "Windows"
-            },
-            "description": "vcpkg + qt6.8.3 + cmake with msvc 2022 x64 debug config on windows",
+            "name": "base-msvs2022-vcpkg",
+            "hidden": true,
             "generator": "Visual Studio 17 2022",
             "binaryDir": "${sourceDir}/out/build/${presetName}",
             "installDir": "${sourceDir}/out/install/${presetName}",
             "toolchainFile": "C:/a/t/vcpkg/scripts/buildsystems/vcpkg.cmake",
+            "architecture": "x64",
+            "environment": {
+                "VCPKG_ROOT": "C:/a/t/vcpkg"
+            },
+            "cacheVariables": {
+                "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/${presetName}",
+                "CMAKE_TOOLCHAIN_FILE": "C:/a/t/vcpkg/scripts/buildsystems/vcpkg.cmake",
+                "BUILD_TESTING": "ON"
+            }
+        },
+        {
+            "name": "msvs2022x64_vcpkg_debug",
+            "inherits": "base-msvs2022-vcpkg",
+            "displayName": "Microsoft Visual Studio 2022 x64 + vcpkg for debug config",
+            "description": "Microsoft Visual Studio 2022 x64 + vcpkg for debug",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Debug",
-                "CMAKE_PREFIX_PATH": "C:/app/dev/Qt/6.8.3/msvc2022_64/lib/cmake"
-            },
-            "environment": {
-                "VCPKG_ROOT": "C:/a/t/vcpkg",
-                "PATH": "C:/a/t/vcpkg;$penv{PATH}"
+                "CPACK_PACKAGE_FILE_NAME": "TaoTieChatServer"
             }
+        },
+        {
+            "name": "msvs2022x64_vcpkg_release",
+            "inherits": "base-msvs2022-vcpkg",
+            "displayName": "Microsoft Visual Studio 2022 x64 + vcpkg for release config",
+            "description": "Microsoft Visual Studio 2022 x64 + vcpkg for release",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release",
+                "CPACK_PACKAGE_FILE_NAME": "TaoTieChatServer"
+            }
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "msvs2022x64_vcpkg_debug",
+            "description": "Microsoft Visual Studio 2022 x64 + vcpkg for debug build",
+            "displayName": "Microsoft Visual Studio 2022 x64 + vcpkg for debug",
+            "configurePreset": "msvs2022x64_vcpkg_debug",
+            "configuration": "Debug"
+        },
+        {
+            "name": "msvs2022x64_vcpkg_release",
+            "description": "Microsoft Visual Studio 2022 x64 + vcpkg for release build",
+            "displayName": "Microsoft Visual Studio 2022 x64 + vcpkg for release",
+            "configurePreset": "msvs2022x64_vcpkg_release",
+            "configuration": "Release"
+        },
+        {
+            "name": "msvs2022x64_vcpkg_debug_install",
+            "description": "Install build artifacts for debug",
+            "displayName": "Install target for debug",
+            "configurePreset": "msvs2022x64_vcpkg_debug",
+            "configuration": "Debug",
+            "targets": [
+                "install"
+            ]
+        },
+        {
+            "name": "msvs2022x64_vcpkg_release_install",
+            "description": "Install build artifacts for release",
+            "displayName": "Install target for release",
+            "configurePreset": "msvs2022x64_vcpkg_release",
+            "configuration": "Release",
+            "targets": [
+                "install"
+            ]
+        }
+    ],
+    "testPresets": [
+        {
+            "name": "msvs2022x64_vcpkg_debug",
+            "displayName": "CTest Debug",
+            "description": "Run tests in debug build tree",
+            "configurePreset": "msvs2022x64_vcpkg_debug",
+            "configuration": "Debug",
+            "execution": {
+                "stopOnFailure": false,
+                "noTestsAction": "ignore"
+            }
+        },
+        {
+            "name": "msvs2022x64_vcpkg_release",
+            "displayName": "CTest Release",
+            "description": "Run tests in release build tree",
+            "configurePreset": "msvs2022x64_vcpkg_release",
+            "configuration": "Release",
+            "execution": {
+                "stopOnFailure": false,
+                "noTestsAction": "ignore"
+            }
+        }
+    ],
+    "packagePresets": [
+        {
+            "name": "msvs2022x64_vcpkg_debug",
+            "description": "Microsoft Visual Studio 2022 x64 + vcpkg for debug package",
+            "displayName": "Microsoft Visual Studio 2022 x64 + vcpkg for debug",
+            "configurePreset": "msvs2022x64_vcpkg_debug",
+            "configurations": [
+                "Debug"
+            ],
+            "generators": [
+                "ZIP"
+            ]
+        },
+        {
+            "name": "msvs2022x64_vcpkg_release",
+            "description": "Microsoft Visual Studio 2022 x64 + vcpkg for release package",
+            "displayName": "Microsoft Visual Studio 2022 x64 + vcpkg for release",
+            "configurePreset": "msvs2022x64_vcpkg_release",
+            "configurations": [
+                "Release"
+            ],
+            "generators": [
+                "ZIP"
+            ]
+        }
+    ],
+    "workflowPresets": [
+        {
+            "name": "msvs2022x64_vcpkg_debug",
+            "description": "Microsoft Visual Studio 2022 x64 + vcpkg for debug workflow",
+            "displayName": "Microsoft Visual Studio 2022 x64 + vcpkg for debug",
+            "steps": [
+                {
+                    "type": "configure",
+                    "name": "msvs2022x64_vcpkg_debug"
+                },
+                {
+                    "type": "build",
+                    "name": "msvs2022x64_vcpkg_debug"
+                },
+                {
+                    "type": "test",
+                    "name": "msvs2022x64_vcpkg_debug"
+                },
+                {
+                    "type": "build",
+                    "name": "msvs2022x64_vcpkg_debug_install"
+                },
+                {
+                    "type": "package",
+                    "name": "msvs2022x64_vcpkg_debug"
+                }
+            ]
+        },
+        {
+            "name": "msvs2022x64_vcpkg_release",
+            "description": "Microsoft Visual Studio 2022 x64 + vcpkg for release workflow",
+            "displayName": "Microsoft Visual Studio 2022 x64 + vcpkg for release",
+            "steps": [
+                {
+                    "type": "configure",
+                    "name": "msvs2022x64_vcpkg_release"
+                },
+                {
+                    "type": "build",
+                    "name": "msvs2022x64_vcpkg_release"
+                },
+                {
+                    "type": "test",
+                    "name": "msvs2022x64_vcpkg_release"
+                },
+                {
+                    "type": "build",
+                    "name": "msvs2022x64_vcpkg_release_install"
+                },
+                {
+                    "type": "package",
+                    "name": "msvs2022x64_vcpkg_release"
+                }
+            ]
         }
     ]
 }
