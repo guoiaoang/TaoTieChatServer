@@ -95,7 +95,7 @@ find_package(Protobuf      CONFIG   REQUIRED)
 find_package(gRPC          CONFIG   REQUIRED)
 # find_package(magic_enum  CONFIG   REQUIRED)
 # find_path(CONJURE_ENUM_INCLUDE_DIRS   "fix8/conjure_enum.hpp")
-enable_testing()
+include(CTest)
 find_package(GTest         CONFIG   REQUIRED)
 # ============================= add_executable ============================= #
 
