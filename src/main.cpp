@@ -57,8 +57,9 @@ int main(int argc, char** argv) {
     LOG_INFO("Server listening on {}", server_address);
 
     // 构建并启动 gRPC 服务器
+    int selected_port = 0;
     ServerBuilder server_builder;
-    server_builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
+    server_builder.AddListeningPort(server_address, grpc::InsecureServerCredentials(), &selected_port);
     // 注册服务
     StatusServiceImpl               service_status_checker;
     server_builder.RegisterService(&service_status_checker);
@@ -66,7 +67,19 @@ int main(int argc, char** argv) {
     server_builder.RegisterService(&service_account);
     SearchServiceImpl               service_search;
     server_builder.RegisterService(&service_search);
+
+    // 校验端口是否绑定成功，以防 server 为 nullptr
+    if (selected_port == 0) {
+        LOG_ERROR("Failed to bind listening port: {}", server_address);
+    }
     std::unique_ptr<Server> server = server_builder.BuildAndStart();
+    if (!server) {
+        LOG_FATAL("gRPC server failed to start."
+            " Check whether port {} is already in use and "
+            "whether service registration is valid.", server_address);
+        return 1;
+    }
+    LOG_INFO("gRPC server started successfully on {} (selected port: {})", server_address, selected_port);
     server->Wait();
 
     return 0;

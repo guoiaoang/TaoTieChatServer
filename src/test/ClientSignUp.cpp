@@ -107,15 +107,52 @@ int main(int argc, char** argv) {
 
     ABSL_LOG(INFO) << "SignUp test started.";
     shared_ptr<Request> request = make_shared<Request>();
+    // all empty
+    SignUp(channel, *request, notify);
+    LOG_INFO(fmt::format("SignUp no user_id."
+        " Result: code={:#010x}, message={}, account_id={}",
+        get_code(result), result.result().message(), result.account_id()));
+    // no password
     request->set_user_id(str_random_user_id);
+    SignUp(channel, *request, notify);
+    LOG_INFO(fmt::format("SignUp no password."
+        " Result: code={:#010x}, message={}, account_id={}",
+        get_code(result), result.result().message(), result.account_id()));
+    // no confirm
     request->set_password("password");
+    SignUp(channel, *request, notify);
+    LOG_INFO(fmt::format("SignUp no confirm."
+        " Result: code={:#010x}, message={}, account_id={}",
+        get_code(result), result.result().message(), result.account_id()));
+    // confirm diff
+    request->set_confirm("password_diff");
+    SignUp(channel, *request, notify);
+    LOG_INFO(fmt::format("SignUp confirm diff."
+        " Result: code={:#010x}, message={}, account_id={}",
+        get_code(result), result.result().message(), result.account_id()));
+    // no security_question
+    request->set_confirm("password");
+    SignUp(channel, *request, notify);
+    LOG_INFO(fmt::format("SignUp no security_question."
+        " Result: code={:#010x}, message={}, account_id={}",
+        get_code(result), result.result().message(), result.account_id()));
+    // no security_answer
     request->set_security_question("security_question");
+    SignUp(channel, *request, notify);
+    LOG_INFO(fmt::format("SignUp no security_answer."
+        " Result: code={:#010x}, message={}, account_id={}",
+        get_code(result), result.result().message(), result.account_id()));
+    // all correct
     request->set_security_answer("security_answer");
     // 空数据集第一次注册时应当可以注册成功
     SignUp(channel, *request, notify);
-    LOG_INFO(fmt::format("SignUp 1 test completed. Result: code={:#010x}, message={}, account_id={}", get_code(result), result.result().message(), result.account_id()));
+    LOG_INFO(fmt::format("SignUp first. test completed."
+        " Result: code={:#010x}, message={}, account_id={}",
+        get_code(result), result.result().message(), result.account_id()));
     // 再次注册时会因为账号已存在而注册失败
     SignUp(channel, *request, notify);
-    LOG_INFO(fmt::format("SignUp 2 test completed. Result: code={:#010x}, message={}, account_id={}", get_code(result), result.result().message(), result.account_id()));
+    LOG_INFO(fmt::format("SignUp second. test completed."
+        " Result: code={:#010x}, message={}, account_id={}",
+        get_code(result), result.result().message(), result.account_id()));
     return EXIT_SUCCESS;
 }

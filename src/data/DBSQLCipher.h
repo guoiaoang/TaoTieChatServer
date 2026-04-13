@@ -4,114 +4,116 @@
 #include "utils.h"
 #include "types.h"
 
+using std::string;
+using std::variant;
+using std::nullptr_t;
+using std::map;
+using std::vector;
+using std::list;
+using std::pair;
+using std::shared_ptr;
+using std::make_shared;
+using std::string_view;
+using std::filesystem::path;
+using std::filesystem::absolute;
+using std::filesystem::exists;
+using std::filesystem::create_directories;
+using std::visit;
+using std::decay_t;
+using std::is_same_v;
+using std::format;
+using std::chrono::days;
+using std::get_if;
+
+using namespace SQL::COMMANDS::PRAGMA;
+using namespace SQL::COMMANDS::CREATE;
+using namespace SQL::COMMANDS::QUERY;
+using namespace SQL::COMMANDS::INSERT;
+
+using ::TaoTieChat::SignUpRequest;
+using ::TaoTieChat::SignUpReply;
+using ::TaoTieChat::SuccessCode;
+using ::TaoTieChat::ErrorCode;
+using ::TaoTieChat::AuthRequest;
+using ::TaoTieChat::AuthReply;
+using ::TaoTieChat::SignUpRequest;
+using ::TaoTieChat::SignUpReply;
+using ::TaoTieChat::Contact;
+using ::TaoTieChat::Contacts;
+using ::TaoTieChat::SearchUsersRequest;
+using ::TaoTieChat::SearchUsersReply;
+
+using Utils::set_success;
+using Utils::set_error;
+using Utils::to_string;
+using Utils::hash_token;
+using Utils::hash_password;
+using Utils::hash_security_answer;
+using Utils::generate_uuid;
+using Utils::generate_account_id;
+using Utils::generate_token;
+using Utils::current_time_point;
+using Utils::to_utc_string;
+using Utils::split;
+using Utils::success_reply;
+using Utils::error_reply;
+
+// =========================================================================== //
+
 // 定义一个简单的多类型值容器（C++17）
-using SqlValue = std::variant<int, double, std::string, std::nullptr_t>;  // 0,1,2,3 分别表示 int、double、string、null
-// using SqlNamedParam = std::map<std::string, SqlValue>;
+using SqlValue  = variant<int, double, string, nullptr_t>;  // 0,1,2,3 分别表示 int、double、string、null
+using SqlParams = map<string, SqlValue>;  // 参数其实不必保留顺序
+using SqlRow    = map<string, SqlValue>;  // 保留顺序
+using SqlRows   = vector<SqlRow>;  // 保留顺序
 
-struct WrapperQueryResult {
-    bool done    = false;  // 仅表示是否执行完成，不代表是否成功
-    std::vector<std::map<std::string, SqlValue>> results;  // 列名 - 列值
-    std::string error_message;
-    WrapperQueryResult(bool done = false, const std::vector<std::map<std::string, SqlValue>>& results = {}, const std::string& error_message = "")
-        : done(done), results(results), error_message(error_message) {}
-};
+static std::string to_string(const SqlValue& v) {
+    // 1. 转换
+    return std::visit([](auto&& arg) -> std::string {
+        using T = std::decay_t<decltype(arg)>;
+        if constexpr (std::is_same_v<T, int>)
+            return std::to_string(arg);
+        else if constexpr (std::is_same_v<T, double>)
+            return std::to_string(arg);
+        else if constexpr (std::is_same_v<T, std::string>)
+            return arg;
+        else if constexpr (std::is_same_v<T, std::nullptr_t>)
+            return "null"; // 或者返回空字符串 ""
+        else
+            return "";
+    }, v);
+    // 2. 需确保所有类型都支持 format，或者在 visit 里包装  // C++ 20
+    return std::visit([](auto&& arg) {
+        return std::format("{}", arg);
+    }, v);
+}
 
-struct WrapperNamedParam {
-    std::map<std::string, SqlValue> params;
-    WrapperNamedParam(const std::map<std::string, SqlValue>& params = {}) : params(params) {}
-    SqlValue& operator[](const std::string& name) {
-        return params[name];
+static string get_string(const SqlValue& v, const string&default_value = string()) {
+    if (auto pVal = std::get_if<std::string>(&v)) {
+        return *pVal; // 提取成功
     }
-    const SqlValue& operator[](const std::string& name) const {
-        auto it = params.find(name);
-        if (it != params.end()) {
-            return it->second;
-        }
-        // throw std::out_of_range("Parameter not found: " + name);
-        return nullptr;  // 返回一个空值，表示未找到参数
+    return default_value;
+}
+
+static int get_int(const SqlValue& v, const int default_value = -1) {
+    if (auto pVal = std::get_if<int>(&v)) {
+        return *pVal; // 提取成功
     }
-};
+    return default_value;
+}
 
-class SQLiteWrapper {
-public:
-    // 执行查询并将结果存入 vector<map>
-    std::shared_ptr<WrapperQueryResult> query_named(const std::string& sql, const std::shared_ptr<WrapperNamedParam> params = nullptr) {
-        sqlite3_stmt* stmt;
-        auto results = std::make_shared<WrapperQueryResult>();
-
-        if (sqlite3_prepare_v2(m_db, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
-            results->done          = true;
-            results->error_message = sqlite3_errmsg(m_db);
-            return results;
-        }
-
-        // --- 核心：命名参数绑定 ---
-        if (params) {
-            for (auto const& [name, value] : params->params) {
-                int index = sqlite3_bind_parameter_index(stmt, name.c_str());
-                if (index > 0) { // 只有在 SQL 中找到了该名称才绑定
-                    bind_variant(stmt, index, value);
-                }
-                else {
-                    LOG_TRACE("Parameter name '{}' not found in SQL statement, skipping binding.", name);
-                }
-            }
-        }
-
-        // --- 获取结果并转换 ---
-        while (sqlite3_step(stmt) == SQLITE_ROW) {
-            std::map<std::string, SqlValue> row;
-            int col_count = sqlite3_column_count(stmt);
-
-            for (int i = 0; i < col_count; i++) {
-                std::string col_name = sqlite3_column_name(stmt, i);
-                row[col_name] = extract_column(stmt, i);
-            }
-            results->results.emplace_back(row);
-        }
-        results->done = true;
-
-        sqlite3_finalize(stmt);
-        return results;
-    }
-
-    void set_db(sqlite3* database) {
-        m_db = database;
-    }
-
-    sqlite3* get_db() const {
-        return m_db;
-    }
-
-private:
-    sqlite3* m_db = nullptr;
-
-    // 辅助：根据 variant 类型执行绑定
-    void bind_variant(sqlite3_stmt* stmt, int idx, const SqlValue& v) {
-        std::visit([&](auto&& arg) {
-            using T = std::decay_t<decltype(arg)>;
-            ;    if constexpr (std::is_same_v<T, int           >) sqlite3_bind_int   (stmt, idx, arg);
-            else if constexpr (std::is_same_v<T, double        >) sqlite3_bind_double(stmt, idx, arg);
-            else if constexpr (std::is_same_v<T, std::string   >) sqlite3_bind_text  (stmt, idx, arg.c_str(), -1, SQLITE_TRANSIENT);
-            else if constexpr (std::is_same_v<T, std::nullptr_t>) sqlite3_bind_null  (stmt, idx);
-        }, v);
-    }
-
-    // 辅助：从列中提取数据存入 variant
-    SqlValue extract_column(sqlite3_stmt* stmt, int idx) {
-        int type = sqlite3_column_type(stmt, idx);
-        if (type == SQLITE_INTEGER) return sqlite3_column_int(stmt, idx);
-        if (type == SQLITE_FLOAT)   return sqlite3_column_double(stmt, idx);
-        if (type == SQLITE_TEXT)    return std::string(reinterpret_cast<const char*>(sqlite3_column_text(stmt, idx)));
-        return nullptr;
-    }
+struct SQLResult{
+    bool    done = false;  // 仅表示是否执行完成，不代表是否成功
+    string  msg ;  // 错误消息
+    SqlRows rows;  // 列名 - 列值
+    SQLResult(bool done = false, const string& msg = "", const SqlRows& rows = {})
+        : done(done), msg(msg), rows(rows) {}
 };
 
 class DBSQLCipher {
 private:
     DBSQLCipher() = default;
-    DBSQLCipher(const DBSQLCipher&) = delete;
-    DBSQLCipher& operator=(const DBSQLCipher&) = delete;
+    DBSQLCipher(const DBSQLCipher&) = default;
+    DBSQLCipher& operator=(const DBSQLCipher&) = default;
 public:
     static DBSQLCipher& instance() {
         static DBSQLCipher instance;
@@ -127,19 +129,14 @@ public:
     }
 
 public:
-    void set_init_params(const std::filesystem::path& db_path, const std::string& encryption_key) {
-        m_db_path = db_path;
+    void set_init_params(const path& db_path, const string& encryption_key) {
+        m_db_path        = db_path       ;
         m_encryption_key = encryption_key;
     }
 
     // 打开数据库并进行初始化验证
     // 初始化仅写入 version 信息
     bool database_open() {
-        using namespace SQL::COMMANDS::PRAGMA;
-        using namespace SQL::COMMANDS::CREATE;
-        using namespace SQL::COMMANDS::QUERY;
-        using namespace SQL::COMMANDS::INSERT;
-
         // 1. 检查句柄，如果不为空则表示已经正确打开并已经被初始化
         // 2. 句柄为空则使用密码打开，并读取数据版本信息
         // 3. 读取版本失败时进行创建表和写入版本信息的初始化操作
@@ -147,152 +144,121 @@ public:
 
         // 密码不正确也可以打开句柄，但无法读出及写入数据，因此我们通过读写数据来验证密码是否正确
 
-        auto absolute_db_path   = std::filesystem::absolute(m_db_path);
-        auto parent_path        = absolute_db_path.parent_path();
-        std::string str_db_path = absolute_db_path.string();  // 必须，否则 c_str() 返回的指针会指向一个临时对象，导致后续使用时访问无效内存
-        const char* sz_db_path  = str_db_path.c_str();
-        LOG_TRACE("Attempting to open database at path: {}", absolute_db_path.string());
-        LOG_TRACE("Attempting to open database at path: {}", sz_db_path);
+        path        absolute_db_path = absolute(m_db_path);
+        path        parent_path      = absolute_db_path.parent_path();
+        string      str_db_path      = absolute_db_path.string     ();  // 必须，否则 c_str() 返回的指针会指向一个临时对象，导致后续使用时访问无效内存
+        const char* sz_db_path       = str_db_path     .c_str      ();
 
         // 句柄打开则认为已经初始化，不再校验
         if(m_db_sqlcipher) {
-            LOG_TRACE("Database is already open: {}", sz_db_path);
+            LOG_TRACE("Database is already open: {}", str_db_path);
             return true;
         }
-
-        LOG_INFO("Database is not open, attempting to open: {}", sz_db_path);
+        LOG_INFO("Database is not open, attempting to open: {}", str_db_path);
 
         // SQLCipher 不会自动创建父文件夹，需要手动创建
-        if(!std::filesystem::exists(parent_path)) {
-            LOG_INFO("Creating database parent directory: {}", parent_path.string());
-            std::filesystem::create_directories(parent_path);  // 确保目录存在
+        if(!exists(parent_path)) {
+            create_directories(parent_path);
+            if(!exists(parent_path)) {
+                // 创建文件夹失败
+                LOG_ERROR("Creating database parent directory failed. path: {}", parent_path.string());
+                return false;
+            }
+            // 创建文件夹成功
+            LOG_TRACE("Creating database parent directory successed. path: {}", parent_path.string());
         }
-        LOG_TRACE("Database parent directory exists: {}", parent_path.string());
 
         // 尝试打开数据库，如果数据库文件不存在，sqlite3_open 会创建一个新的空数据库文件
         int rc = sqlite3_open(sz_db_path, &m_db_sqlcipher);
         if (rc != SQLITE_OK) {
-            LOG_ERROR("Can't open database: {}", sqlite3_errmsg(m_db_sqlcipher));
+            LOG_ERROR("Can't open database. msg: {}", sqlite3_errmsg(m_db_sqlcipher));
             m_db_sqlcipher = nullptr;
             return false;
         }
-
-        LOG_DEBUG("Opened database successfully");
+        LOG_TRACE("Opened database successfully");
 
         // PRAGMA key 不支持参数绑定，但使用字符串依然会导致数据库注入
         rc = sqlite3_key(m_db_sqlcipher, m_encryption_key.c_str(), (int)m_encryption_key.size());
         if(rc != SQLITE_OK) {
-            LOG_ERROR("Failed to set encryption key: {}", sqlite3_errmsg(m_db_sqlcipher));
+            LOG_ERROR("Failed to set encryption key. msg: {}", sqlite3_errmsg(m_db_sqlcipher));
             sqlite3_close(m_db_sqlcipher);
             m_db_sqlcipher = nullptr;
             return false;
         }
         // 仅表示执行成功，并不代表密钥正确，后续通过读写验证密钥是否正确
-        LOG_DEBUG("Encryption key set successfully");
+        LOG_TRACE("Encryption key set successfully, not check rw.");
 
-        // 如果可以正确获取到版本号则说明数据库已经被初始化且秘钥正确。
-        // 空文件也会导致失败
-        // 空文件：SQLITE_ERROR  (1) no such table: meta
-        // 密码错误：SQLITE_NOTADB (26) file is not a database
-        auto execute_query_meta_version = execute(SQL_QUERY_META_VERSION.data());
-        if (execute_query_meta_version->done) {
-            auto&v = execute_query_meta_version->results;
-            if(!v.empty()) {
-                auto&m = v[0];
-                auto ite_name  = m.find("name" );
-                auto ite_value = m.find("value");
-                if(ite_name != m.end() && ite_value != m.end()) {
-                    auto name  = std::get<std::string>(ite_name->second);
-                    auto value = std::get<std::string>(ite_value->second);
-                    LOG_INFO("Meta version query result: {} = {}", name, value);
-                }
-                else {
-                    LOG_WARNING("Meta version query result has unexpected format, expected 2 columns 'name' and 'value', but got {} columns", m.size());
-                }
-            }
+#ifdef DEBUG
+        std::ofstream debug_key(parent_path / "debug_key.txt", std::ios::app);
+        if(debug_key.is_open()) {
+            debug_key << "debug key : " << m_encryption_key << std::endl;
+            debug_key.close();
+        }
+#endif // DEBUG
+
+        // 验证数据库秘钥是否设置正确时必须对数据库进行读写操作，无法直接从返回值判断
+        // 读写 meta version 作为数据库秘钥设置是否成功的验证
+
+        // 如果直接获取到有效信息，则认为数据库秘钥设置正确，直接返回成功
+        auto [success_get_meta_version, meta_version] = get_meta_version();
+        if(!success_get_meta_version) {
+            // 读取失败时忽略错误，尝试执行写入，不返回
+        }
+        // 执行成功且版本不为空
+        if(!meta_version.empty()) {
+            LOG_TRACE("Encryption key set successfully by check meta version.");
+            return true;
+        }
+        // 执行失败或版本为空
+        auto[success_write_meta_version, result_write_meta_version] = write_meta_version();
+        if(!success_write_meta_version) {
+            // 写入失败时则说明数据库密码设置不正确
+            LOG_ERROR("Failed to set encryption key. msg: {}", sqlite3_errmsg(m_db_sqlcipher));
+            sqlite3_close(m_db_sqlcipher);
+            m_db_sqlcipher = nullptr;
+            return false;
+        }
+        if(result_write_meta_version) {
+            // 写入成功无需校验
+            LOG_TRACE("Encryption key set successfully by verified meta version.");
             return true;
         }
 
-        int error_code = sqlite3_errcode(m_db_sqlcipher);
-        if(error_code == SQLITE_NOTADB) {
-            // 密码可能错误
-            LOG_ERROR("Failed to query version test, file is not a database, may be caused by incorrect encryption key");
-        }
-        else if(error_code == SQLITE_ERROR) {
-            // 可能为空文件
-            LOG_ERROR("Failed to query version test, SQL error, may be caused by missing table, error code: {}", error_code);
-        }
-        // else {
-        //     LOG_ERROR("Failed to query version test, unexpected error code: {}", error_code);
-        // }
-
-        // 创建元数据表
-        // SQLCipher 要求必须有写入操作才会初始化数据库文件，否则为 0 字节的空文件
-        // 尝试执行一个写入操作来初始化数据库文件
-        // 密码错误时也可以执行到该步骤，只是会返回失败
-        // std::string str_sql_table_init_version = std::format("{}{}", SQL_CREATE_TABLE_META, std::format(SQL_INSERT_META_VERSION, "1.0"));
-        // auto execute_set_meta_version = execute(str_sql_table_init_version);
-        auto execute_create_table_meta = execute(SQL_CREATE_TABLE_META.data());
-        if (!execute_create_table_meta->done) {
-            LOG_ERROR("Failed to initialize database file with create table meta: {}", execute_create_table_meta->error_message);
-            sqlite3_close(m_db_sqlcipher);
-            m_db_sqlcipher = nullptr;
-            return false;
-        }
-        LOG_DEBUG("Database file initialized successfully with create table meta");
-
-        // 设置元数据版本
-        auto execute_set_meta_version = execute(SQL_INSERT_META_VERSION.data());
-        if (!execute_set_meta_version->done) {
-            LOG_ERROR("Failed to initialize database file with write version: {}", execute_set_meta_version->error_message);
-            sqlite3_close(m_db_sqlcipher);
-            m_db_sqlcipher = nullptr;
-            return false;
-        }
-        LOG_DEBUG("Database file initialized successfully with write version");
-
-        // 再次读取验证是否正确写入了数据，如果仍然失败则说明密钥不正确
-        auto query_version_verify = execute(SQL_QUERY_META_VERSION.data());
-        if (!query_version_verify->done) {
-            LOG_ERROR("Failed to verify database initialization, encryption key may be incorrect");
-            sqlite3_close(m_db_sqlcipher);
-            m_db_sqlcipher = nullptr;
-            return false;
-        }
-        LOG_INFO("Database initialization verified successfully");
-        return true;
+        LOG_ERROR("Database initialization verified failed!");
+        sqlite3_close(m_db_sqlcipher);
+        m_db_sqlcipher = nullptr;
+        return false;
     }
 
     bool database_initialize() {
-        using namespace SQL::COMMANDS::PRAGMA;
-        using namespace SQL::COMMANDS::CREATE;
-        using namespace SQL::COMMANDS::QUERY;
-        using namespace SQL::COMMANDS::INSERT;
-
-        std::vector<std::string_view> table_creation_commands = {
-            SQL_CREATE_TABLE_META,
-            SQL_CREATE_TABLE_USERS,
-            SQL_CREATE_INDEX_ACCOUNT_ID,
-            SQL_CREATE_INDEX_USER_ID,
-            SQL_CREATE_TRIGGER_UPDATE,
-            SQL_CREATE_TABLE_TOKENS,
-            SQL_CREATE_INDEX_TOKEN,
+        vector<string_view> table_creation_commands = {
+            // SQL_CREATE_TABLE_META         ,
+            SQL_CREATE_TABLE_USERS        ,
+            SQL_CREATE_INDEX_ACCOUNT_ID   ,
+            SQL_CREATE_INDEX_USER_ID      ,
+            SQL_CREATE_TRIGGER_UPDATE     ,
+            SQL_CREATE_TABLE_TOKENS       ,
+            SQL_CREATE_INDEX_TOKEN        ,
             SQL_CREATE_INDEX_USER_SESSIONS,
             //
-            SQL_CREATE_TABLE_FRIENDS,
-            SQL_CREATE_TABLE_GROUPS,
+            SQL_CREATE_TABLE_FRIENDS ,
+            SQL_CREATE_TABLE_GROUPS  ,
             SQL_CREATE_TABLE_MESSAGES
             // SQL_CREATE_TABLE_GROUP_MESSAGES,
         };
-        for(const auto& cmd : table_creation_commands) {
-            auto result = execute(cmd.data());
-            if(!result || !result->error_message.empty()) {
-                LOG_ERROR("Failed to execute table creation command: {}, error: {}", cmd, result ? result->error_message : "null result");
-                return false;
+        do{
+            for(const auto& cmd : table_creation_commands) {
+                auto sql_result = execute(cmd.data());
+                if(!sql_result || !sql_result->done) {
+                    auto msg = sql_result ? sql_result->msg : "null result";
+                    LOG_ERROR("Failed to execute table creation command: {}, message: {}", cmd, msg);
+                    return false;
+                }
             }
-        }
-        LOG_INFO("All tables created successfully");
-        return true;
+            LOG_INFO("All tables created successfully");
+            return true;
+        }while(false);
+        return false;
     }
 
 public:
@@ -348,11 +314,92 @@ public:
         LOG_INFO("SQLCipher keyword count: {}", sqlcipher_keyword_count);
     }
 
-    std::shared_ptr<WrapperQueryResult> execute(const std::string& sql, const std::shared_ptr<WrapperNamedParam> params = nullptr) {
-        if(m_db_wrapper.get_db() != m_db_sqlcipher) {
-            m_db_wrapper.set_db(m_db_sqlcipher);
+    // 执行查询并将结果存入 vector<map>
+    shared_ptr<SQLResult> execute(const string_view& sql, const shared_ptr<SqlParams> params = nullptr) {
+        // 辅助：根据 variant 类型执行绑定
+        auto bind_variant = [](sqlite3_stmt* stmt, int idx, const SqlValue& v)->void {
+            visit([&](auto&& arg) {
+                using T = decay_t<decltype(arg)>;
+                ;    if constexpr (is_same_v<T, int      >) sqlite3_bind_int   (stmt, idx, arg);
+                else if constexpr (is_same_v<T, double   >) sqlite3_bind_double(stmt, idx, arg);
+                else if constexpr (is_same_v<T, string   >) sqlite3_bind_text  (stmt, idx, arg.c_str(), -1, SQLITE_TRANSIENT);
+                else if constexpr (is_same_v<T, nullptr_t>) sqlite3_bind_null  (stmt, idx);
+            }, v);
+        };
+        // 辅助：从列中提取数据存入 variant
+        auto extract_column = [](sqlite3_stmt* stmt, int idx)->SqlValue {
+            int type = sqlite3_column_type(stmt, idx);
+            if (type == SQLITE_INTEGER) { return sqlite3_column_int   (stmt, idx); }
+            if (type == SQLITE_FLOAT)   { return sqlite3_column_double(stmt, idx); }
+            if (type == SQLITE_TEXT)    { return string(reinterpret_cast<const char*>(sqlite3_column_text(stmt, idx))); }
+            return nullptr;
+        };
+
+        //
+        auto results = make_shared<SQLResult>();
+        if(!m_db_sqlcipher) {
+            results->done = false;
+            results->msg  = "Database not opened.";
+            return results;
         }
-        return m_db_wrapper.query_named(sql, params);
+        if(sql.empty()) {
+            results->done = false;
+            results->msg  = "sql is empty.";
+            return results;
+        }
+        sqlite3_stmt* stmt;
+        if (sqlite3_prepare_v2(m_db_sqlcipher, sql.data(), -1, &stmt, nullptr) != SQLITE_OK) {
+            results->done = false;
+            results->msg  = sqlite3_errmsg(m_db_sqlcipher);
+            return results;
+        }
+
+        // 命名参数绑定
+        if (params) {
+            for (auto const& [name, value] : *params) {
+                int index = sqlite3_bind_parameter_index(stmt, name.c_str());
+                // 只有在 SQL 中找到了该名称才绑定
+                if (index > 0) {
+                    bind_variant(stmt, index, value);
+                }
+                else {
+                    LOG_TRACE("Parameter name '{}' not found in SQL statement, skipping binding.", name);
+                }
+            }
+        }
+
+        int rc = -1;  // SQLITE_ROW 未读完，还有数据可读
+        // 执行语句并保存结果  // 数据已经写入，无需读取验证
+        // while (sqlite3_step(stmt) == SQLITE_ROW) {
+        for(int loo_count = 0; loo_count <= SQL_RESULTS_MAX_LINES; ++loo_count) {
+            rc = sqlite3_step(stmt);
+            if(rc != SQLITE_ROW) {
+                break;
+            }
+            SqlRow row;
+            for (int i = 0; i < sqlite3_column_count(stmt); i++) {
+                row[sqlite3_column_name(stmt, i)] = extract_column(stmt, i);
+            }
+            results->rows.emplace_back(row);
+        }
+        if(rc == SQLITE_DONE) {
+            // 执行过程没有错误
+            results->done = true;
+            return results;
+        }
+        else {
+            if(rc == SQLITE_ROW) {
+                LOG_WARNING("SQL execute result is large.");
+            }
+            // 执行过程发生错误
+            results->done = false;
+            results->msg  = sqlite3_errmsg(m_db_sqlcipher);
+            return results;
+        }
+
+        results->done = false;
+        sqlite3_finalize(stmt); // 清理
+        return results;
     }
 
     int get_last_error_code() {
@@ -368,388 +415,734 @@ public:
     }
 
 public:
-    // 用户注册
-    std::shared_ptr<::TaoTieChat::SignUpReply> sign_up(std::shared_ptr<::TaoTieChat::SignUpRequest> request) {
-        using Request = ::TaoTieChat::SignUpRequest;
-        using Reply   = ::TaoTieChat::SignUpReply;
-        using sc      = ::TaoTieChat::SuccessCode;
-        using ec      = ::TaoTieChat::ErrorCode;
+    // ================== 业务层不要包含 SQL 语句与参数构造 ================== //
 
-        auto set_success = [&](std::shared_ptr<Reply>&reply, sc code) {
-            if(!reply) {
-                return;
-            }
-            reply->mutable_result()->set_success_code(code);
-            reply->mutable_result()->set_message(Utils::to_message_string(code));
-            reply->set_account_id("");
-        };
-        auto set_error = [&](std::shared_ptr<Reply>&reply, ec code) {
-            if(!reply) {
-                return;
-            }
-            reply->mutable_result()->set_error_code(code);
-            reply->mutable_result()->set_message(Utils::to_message_string(code));
-            reply->set_account_id("");
-        };
-
-        // ================================================================== //
-
-        using namespace SQL::COMMANDS::PRAGMA;
-        using namespace SQL::COMMANDS::CREATE;
-        using namespace SQL::COMMANDS::QUERY;
-        using namespace SQL::COMMANDS::INSERT;
-
+    // 获取在线状态
+    shared_ptr<StatusReply> get_status(shared_ptr<StatusRequest> request) {
+        using Request = StatusRequest;
+        using Reply   = StatusReply;
+        // =========================== 初始化操作 =========================== //
         // 注册用户，返回是否注册成功
         // 1. 检查账号是否已存在，如果已存在则返回失败
         // 2. 如果账号不存在则插入新记录，并返回成功
-        std::shared_ptr<Reply> reply = std::make_shared<Reply>();
-        set_error(reply, ec::ERROR_INIT);
+        shared_ptr<Reply> reply = make_shared<Reply>();
+        set_error(reply->mutable_result(), ErrorCode::ERROR_INIT);
         if(!request) {
             return reply;
         }
         reply->mutable_request()->CopyFrom(*request.get());
-
-        // 参数校验
-        if(request->user_id().empty()) {
-            set_error(reply, ec::SIGN_UP_USER_ID_EMPTY);
-            LOG_DEBUG("User ID is empty, code: {:#010x}, message: {}", (int)reply->mutable_result()->error_code(), reply->mutable_result()->message());
-            return reply;
+        set_error(reply->mutable_result(), ErrorCode::UNKNOWN);
+        // =========================== 参数校验 =========================== //
+        // 被查询用户 id 为空时返回服务器的状态信息
+        if(request->target_user_id().empty()) {
+            // request->DebugString();
+            return success_reply<Reply>(reply, SuccessCode::STATUS_RUNNING, std::format("Server is running."));
         }
-
-        if(request->password().empty()) {
-            set_error(reply, ec::SIGN_UP_PASSWORD_EMPTY);
-            LOG_DEBUG("Password is empty, code: {:#010x}, message: {}", (int)reply->mutable_result()->error_code(), reply->mutable_result()->message());
-            return reply;
+        if(!request->has_request_user_auth()) {
+            return error_reply<Reply>(reply, ErrorCode::AUTH_INFO_NONE, std::format("Auth info is required."));
         }
-
-        if(request->security_question().empty()) {
-            set_error(reply, ec::SIGN_UP_SECURITY_QUESTION_EMPTY);
-            LOG_DEBUG("Security question is empty, code: {:#010x}, message: {}", (int)reply->mutable_result()->error_code(), reply->mutable_result()->message());
-            return reply;
+        shared_ptr<AuthRequest> auth_request = make_shared<AuthRequest>(request->request_user_auth());
+#ifdef DEBUG
+        if(!auth_request->has_user_id() || auth_request->user_id().empty()) {
+            return error_reply<Reply>(reply, ErrorCode::USER_ID_EMPTY, std::format("User id is required."));
         }
-
-        if(request->security_answer().empty()) {
-            set_error(reply, ec::SIGN_UP_SECURITY_ANSWER_EMPTY);
-            LOG_DEBUG("Security answer is empty, code: {:#010x}, message: {}", (int)reply->mutable_result()->error_code(), reply->mutable_result()->message());
-            return reply;
+        if(!auth_request->has_token() || auth_request->token().empty()) {
+            return error_reply<Reply>(reply, ErrorCode::TOKEN_EMPTY, std::format("Token id is required."));
         }
-
-        // 实现用户注册逻辑
-        std::string account_id;
-        std::shared_ptr<WrapperQueryResult> query_account_exists;
-        std::shared_ptr<WrapperQueryResult> query_user_exists;
-        std::shared_ptr<WrapperQueryResult> insert_result;
-
-        // 检查用户 ID 是否已存在
-        auto query_user_exists_params = std::make_shared<WrapperNamedParam>();
-        query_user_exists_params->params[":user_id"] = request->user_id();
-        query_user_exists = execute(SQL_QUERY_USER_EXISTS.data(), query_user_exists_params);
-
-        // 操作失败
-        if(!query_user_exists->done) {
-            set_error(reply, ec::DB_QUERY);
-            LOG_ERROR("Query user exists failed, code: {:#010x}, message: {}", (int)reply->mutable_result()->error_code(), reply->mutable_result()->message());
-            return reply;
+#else
+        auto auth_reply  = auth_check(auth_request);
+        auto&auth_result = auth_reply->result();
+        if(!auth_result.has_success_code()) {
+            return error_reply<Reply>(reply, auth_result.error_code(), auth_result.message());
         }
-
-        // 已经有记录
-        if(!query_user_exists->results.empty()) {
-            set_error(reply, ec::SIGN_UP_USER_ID_EXISTS);
-            LOG_ERROR("User ID already exists, code: {:#010x}, message: {}", (int)reply->mutable_result()->error_code(), reply->mutable_result()->message());
-            return reply;
+#endif // DEBUG
+        // =========================== 执行操作 =========================== //
+#ifdef DEBUG
+        // test
+        {
+            // id 和 token 都不为空时返回用户的状态信息
+            // 取出参数
+            auto target_user_id     = request->target_user_id();
+            auto request_user_id    = request->request_user_auth().user_id();
+            auto request_user_token = request->request_user_auth().token();
+            auto cache_request_user_tokens = std::set<string>();
+            // 用户 token 缓存
+            static map<string, std::set<string> > cache_request_users_tokens = {
+                {"user1", {"token1", "token11"}},
+                {"user2", {"token2"}},
+                {"user3", {"token3"}},
+            };
+            // 用户在线状态缓存
+            static map<string, string> cache_target_users_status = {
+                {"user1", "online"},
+                {"user2", "offline"},
+                {"user3", "away"},
+            };
+            do{
+                // 查找用户 ID 是否存在
+                auto cache_request_user_tokens_it = cache_request_users_tokens.find(request_user_id);
+                if (cache_request_user_tokens_it == cache_request_users_tokens.end()) {
+                    return error_reply<Reply>(reply, ErrorCode::USER_ID_NOT_FOUND, std::format("Request User ID not found."));
+                }
+                // 获取用户 tokens 并校验传入 token 的合法性  // 同一用户可以有多个 token
+                cache_request_user_tokens = cache_request_user_tokens_it->second;
+                if (cache_request_user_tokens.find(request_user_token) == cache_request_user_tokens.end()) {
+                    return error_reply<Reply>(reply, ErrorCode::TOKEN_NOT_FOUND, std::format("User token is invalid."));
+                }
+                // 查找目标用户是否有状态缓存
+                auto cache_target_users_status_it = cache_target_users_status.find(target_user_id);
+                if (cache_target_users_status_it == cache_target_users_status.end()) {
+                    return error_reply<Reply>(reply, ErrorCode::TARGET_USER_ID_NOT_FOUND, std::format("Target User ID not found."));
+                }
+                // 成功  // 返回目标用户的状态缓存
+                else {
+                    reply->set_status(cache_target_users_status_it->second);
+                    return success_reply<Reply>(
+                        reply,
+                        SuccessCode::STATUS_SUCCESS,
+                        std::format(
+                            "Get status successed. "
+                            "Target ID: {}, status: {}, request:{}",
+                            target_user_id,
+                            cache_target_users_status_it->second,
+                            request->DebugString()));
+                }
+            } while(false);
+            // 默认失败
+            return error_reply<Reply>(reply, ErrorCode::DEFAULT, std::format("Default error."));
         }
-
-        // 生成账号 uuid // 操作失败或生成的 uuid 已经存在则重试，直到成功且不存在为止，理论上应该不会出现重复的 uuid，但为了保险起见加上这个检查
-        auto query_account_exists_params = std::make_shared<WrapperNamedParam>();
-        do {
-            account_id = Utils::to_string(Utils::generate_uuid());
-            query_account_exists_params->params[":account_id"] = account_id;
-            query_account_exists = execute(SQL_QUERY_ACCOUNT_EXISTS.data(), query_account_exists_params);
-        } while(!query_account_exists->done || !query_account_exists->results.empty());
-
-        // 获取注册时间
-        auto register_time        = Utils::current_time_point();
-        // 不管用户端是否加密，服务端都对密码进行哈希加密存储
-        auto password_hash        = Utils::hash_password(request->password());
-        // 由于需要校验，因此手动生成便于比对
-        auto register_time_utc    = Utils::to_utc_string(register_time);
-        // 安全问题答案也进行哈希加密存储，避免明文存储安全问题答案的风险
-        auto security_answer_hash = Utils::hash_security_answer(request->security_answer());
-
-        // 构造参数
-        auto user_register_params = std::make_shared<WrapperNamedParam>();
-        user_register_params->params[":account_id"       ] = account_id;
-        user_register_params->params[":user_id"          ] = request->user_id();
-        user_register_params->params[":password_hash"    ] = password_hash;
-        user_register_params->params[":security_question"] = request->security_question();
-        user_register_params->params[":security_answer"  ] = request->security_answer();
-        user_register_params->params[":register_time"    ] = register_time_utc;
-
-        // 插入新记录
-        insert_result = execute(SQL_INSERT_USER_REGISTER.data(), user_register_params);
-        // 注册命令执行失败
-        if(!insert_result->done) {
-            set_error(reply, ec::DB_EXECUTE);
-            LOG_ERROR("Insert user register record failed, code: {:#010x}, message: {}", (int)reply->mutable_result()->error_code(), reply->mutable_result()->message());
-            return reply;
-        }
-
-        // 注册成功时需要校验
-        auto insert_result_check = execute(SQL_QUERY_USER_REGISTER_CHECK.data(), user_register_params);
-        // 校验命令执行失败
-        if(!insert_result_check->done) {
-            set_error(reply, ec::DB_CHECK);
-            LOG_ERROR("Check user register record failed, code: {:#010x}, message: {}", (int)reply->mutable_result()->error_code(), reply->mutable_result()->message());
-            return reply;
-        }
-
-        // 校验命令执行成功，但返回的结果为空
-        if(insert_result_check->results.empty()) {
-            set_error(reply, ec::DB_CHECK_EMPTY);
-            LOG_ERROR("Check user register record failed, code: {:#010x}, message: {}", (int)reply->mutable_result()->error_code(), reply->mutable_result()->message());
-            return reply;
-        }
-
-        // 注册成功
-        set_success(reply, sc::SUCCESS);
-        reply->set_account_id(account_id);
-        LOG_INFO("User registered successfully, account_id: {}, user_id: {}", reply->account_id(), request->user_id());
-        return reply;
+#endif // DEBUG
+        LOG_ERROR("TODO:get_status");
+        // 默认失败
+        return error_reply<Reply>(reply, ErrorCode::DEFAULT, std::format("Default error."));
     }
 
-    // 用户登录
-    std::shared_ptr<::TaoTieChat::SignInReply> sign_in(std::shared_ptr<::TaoTieChat::SignInRequest> request) {
-        using Request = ::TaoTieChat::SignInRequest;
-        using Reply   = ::TaoTieChat::SignInReply;
-        using sc      = ::TaoTieChat::SuccessCode;
-        using ec      = ::TaoTieChat::ErrorCode;
+    // 用户注册
+    shared_ptr<SignUpReply> sign_up(shared_ptr<SignUpRequest> request) {
+        using Request = SignUpRequest;
+        using Reply   = SignUpReply;
+        // =========================== 初始化操作 =========================== //
+        // 注册用户，返回是否注册成功
+        // 1. 检查账号是否已存在，如果已存在则返回失败
+        // 2. 如果账号不存在则插入新记录，并返回成功
+        shared_ptr<Reply> reply = make_shared<Reply>();
+        set_error(reply->mutable_result(), ErrorCode::ERROR_INIT);
+        if(!request) {
+            return reply;
+        }
+        reply->mutable_request()->CopyFrom(*request.get());
+        set_error(reply->mutable_result(), ErrorCode::UNKNOWN);
+        // =========================== 参数校验 =========================== //
+        // 用户 ID 不能为空
+        if(request->user_id().empty()) {
+            return error_reply<Reply>(reply, ErrorCode::USER_ID_EMPTY, std::format("User ID is empty."));
+        }
+        // 密码不能为空
+        if(request->password().empty()) {
+            return error_reply<Reply>(reply, ErrorCode::PASSWORD_EMPTY, std::format("Password is empty."));
+        }
+        // 密码与确认密码不同
+        if(request->password() != request->confirm()) {
+            return error_reply<Reply>(reply, ErrorCode::DIFF_PASSWORD_WITH_CONFIRM, std::format("Password diff with confirm."));
+        }
+        // 密保问题不能为空
+        if(request->security_question().empty()) {
+            return error_reply<Reply>(reply, ErrorCode::SECURITY_QUESTION_EMPTY, std::format("Security question is empty."));
+        }
+        // 密保答案不能为空
+        if(request->security_answer().empty()) {
+            return error_reply<Reply>(reply, ErrorCode::SECURITY_ANSWER_EMPTY, std::format("Security answer is empty."));
+        }
+        // =========================== 执行操作 =========================== //
+        auto user_id = request->user_id();
 
-        auto set_success = [&](std::shared_ptr<Reply>&reply, sc code) {
-            if(!reply) {
-                return;
+        auto [success_search_active_user_id, result_search_active_user_id] = search_active_user_id(user_id);
+        // 查询失败直接返回错误
+        if(!success_search_active_user_id) {
+            return error_reply<Reply>(reply, ErrorCode::DB_QUERY, std::format("Can not search user_id. user_id:{}.", request->user_id()));
+        }
+        // 查询成功但用户已存在
+        if(result_search_active_user_id) {
+            return error_reply<Reply>(reply, ErrorCode::USER_ID_EXISTS, std::format("Can not register user_id:{}.", request->user_id()));
+        }
+
+        auto [success_user_register, account_id] = user_register(user_id, request->password(), request->security_question(), request->security_answer());
+        if(!success_user_register) {
+            return error_reply<Reply>(reply, ErrorCode::DB_EXECUTE, std::format("User register error."));
+        }
+        if(!account_id.empty()) {
+            // 执行成功无需验证
+            reply->set_account_id(account_id);
+            return success_reply<Reply>(
+                reply,
+                SuccessCode::SUCCESS,
+                std::format(
+                    "User registered successfully."
+                    " account_id: {}, user_id: {}.",
+                    account_id,
+                    user_id));
+        }
+
+        // 默认失败
+        return error_reply<Reply>(reply, ErrorCode::DEFAULT, std::format("Default error."));
+    }
+
+    // 密码或 token 验证
+    shared_ptr<AuthReply> auth_check(shared_ptr<AuthRequest> request) {
+        using Request = AuthRequest;
+        using Reply   = AuthReply;
+        // =========================== 初始化操作 =========================== //
+        // 鉴权，仅返回认证是否成功
+        // 返回账号 ID 与 token 属于登陆接口的功能
+        shared_ptr<Reply> reply = make_shared<Reply>();
+        set_error(reply->mutable_result(), ErrorCode::ERROR_INIT);
+        if(!request) {
+            return error_reply<Reply>(reply, ErrorCode::ERROR_INIT, std::format("Invalid Param."));
+        }
+        reply->mutable_request()->CopyFrom(*request.get());
+        set_error(reply->mutable_result(), ErrorCode::UNKNOWN);
+        // =========================== 参数校验 =========================== //
+        // 不允许空凭证：
+        //   * 必须包含字符串，且字符串去除无效字符外不能为空
+        //   * 字符串中的任何位置都不允许包含空格等字符
+        // std::optional<std::string> user_id = std::nullopt;
+        // std::optional<std::string> user_id = {};
+        string user_id    = !request->has_user_id   () ? string() : request->user_id   ();
+        string account_id = !request->has_account_id() ? string() : request->account_id();
+        string password   = !request->has_password  () ? string() : request->password  ();
+        string token      = !request->has_token     () ? string() : request->token     ();
+        // 未提供用户名或账户
+        if(user_id.empty() && account_id.empty()) {
+            return error_reply<Reply>(reply, ErrorCode::AUTH_ID_EMPTY, std::format("Auth ID is empty."));
+        }
+        // 未提供密码或 token
+        if(password.empty() && token.empty()) {
+            return error_reply<Reply>(reply, ErrorCode::AUTH_METHOD_EMPTY, std::format("Auth Method is empty."));
+        }
+        // =========================== 执行操作 =========================== //
+        // 将 user_id 转换为 account_id
+        if(account_id.empty() && !user_id.empty()) {
+            auto[success_get_active_account_id, result_account_id] = get_active_account_id(user_id);
+            if(!success_get_active_account_id) {
+                return error_reply<Reply>(reply, ErrorCode::DB_QUERY, std::format("Get active account ID error, user_id:{}.", user_id));
             }
-            reply->mutable_result()->set_success_code(code);
-            reply->mutable_result()->set_message(Utils::to_message_string(code));
-            reply->set_account_id("");
-            reply->set_token("");
-        };
-        auto set_error = [&](std::shared_ptr<Reply>&reply, ec code) {
-            if(!reply) {
-                return;
+            // 用户或账号 ID 未注册或停用等，返回账号不存在即可
+            if(result_account_id.empty()) {
+                return error_reply<Reply>(reply, ErrorCode::USER_ID_NOT_FOUND, std::format("user_id maybe not register, user_id:{}.", user_id));
             }
-            reply->mutable_result()->set_error_code(code);
-            reply->mutable_result()->set_message(Utils::to_message_string(code));
-            reply->set_account_id("");
-            reply->set_token("");
-        };
+            account_id = result_account_id;
+        }
 
-        // ================================================================== //
+        // 不要生成新的凭证
+        // if(token.empty() && !password.empty()) {
+        //     auto get_token = [](const string&account_id, const string&password) -> const string { return ""; };
+        //     token = get_token(account_id, password);
+        // }
 
-        using namespace SQL::COMMANDS::PRAGMA;
-        using namespace SQL::COMMANDS::CREATE;
-        using namespace SQL::COMMANDS::QUERY;
-        using namespace SQL::COMMANDS::INSERT;
+        // token 与密码仅允许提供一种校验方式，优先校验 token
+        // 使用 token 进行验证
+        if(!token.empty()) {
+            auto [success_check_token, result_check_token] = check_token(account_id, token);
+            if(!success_check_token) {
+                return error_reply<Reply>(reply, ErrorCode::DB_QUERY, std::format("Check token error."));
+            }
+            if(!result_check_token) {
+                // 校验失败
+                return error_reply<Reply>(reply, ErrorCode::TOKEN_ERROR, std::format("Token error."));
+            }
+            // 校验成功
+            reply->set_account_id(account_id);  // 保存传入或获取到的账号 ID
+            reply->set_token(token);  // 保存传入的 token
+            return success_reply<Reply>(reply, SuccessCode::SUCCESS, std::format("Auth by token Successed."));
+        }
+        // 使用密码进行验证
+        else if(!password.empty()) {
+            auto [success_check_password, result_check_password] = check_password(account_id, password);
+            if(!success_check_password) {
+                return error_reply<Reply>(reply, ErrorCode::DB_QUERY, std::format("Check Password error."));
+            }
+            if(!result_check_password) {
+                // 校验失败
+                return error_reply<Reply>(reply, ErrorCode::PASSWORD_ERROR, std::format("Password error."));
+            }
+            // 校验成功
+            reply->set_account_id(account_id); // 保存传入或获取到的账号 ID
+            // reply->set_token(token);  // 没有传入 token 则不保存
+            return success_reply<Reply>(reply, SuccessCode::SUCCESS, std::format("Auth by passwoord Successed."));
+        }
+        // 默认失败
+        return error_reply<Reply>(reply, ErrorCode::DEFAULT, std::format("Default error."));
+    }
 
+    // 用户登录  // TODO:使用 token 登陆时延长 token 有效期，而不是生成新的
+    shared_ptr<SignInReply> sign_in(shared_ptr<SignInRequest> request) {
+        using Request = SignInRequest;
+        using Reply   = SignInReply;
+        // =========================== 初始化操作 =========================== //
         // 用户登录验证，返回是否登录成功
         // 1. 根据用户 ID 查询用户记录，如果没有找到则返回失败
         // 2. 如果找到了用户记录则比较密码和安全问题答案，如果匹配则返回成功，否则返回失败
-        std::shared_ptr<Reply> reply = std::make_shared<Reply>();
-        set_error(reply, ec::ERROR_INIT);
+        shared_ptr<Reply> reply = make_shared<Reply>();
+        set_error(reply->mutable_result(), ErrorCode::ERROR_INIT);
         if(!request) {
-            return reply;
+            return error_reply<Reply>(reply, ErrorCode::ERROR_INIT, std::format("Invalid Param."));
         }
         reply->mutable_request()->CopyFrom(*request.get());
-
-        // 参数校验
-        if(request->user_id().empty() ) {
-            set_error(reply, ec::SIGN_UP_USER_ID_EMPTY);
-            LOG_DEBUG("User ID is empty, code: {:#010x}, message: {}", (int)reply->mutable_result()->error_code(), reply->mutable_result()->message());
-            return reply;
+        set_error(reply->mutable_result(), ErrorCode::UNKNOWN);
+        // =========================== 参数校验 =========================== //
+        // =========================== 执行操作 =========================== //
+        // 验证鉴权是否成功
+        shared_ptr<AuthRequest> auth_request = make_shared<AuthRequest>(request->request_user_auth());
+        auto auth_reply  = auth_check(auth_request);
+        auto&auth_result = auth_reply->result();
+        if(!auth_result.has_success_code()) {
+            return error_reply<Reply>(reply, auth_result.error_code(), auth_result.message());
         }
-
-        // 参数校验
-        bool has_token    = request->has_token   ();
-        bool has_password = request->has_password();
-        if(!has_token && !has_password) {
-            set_error(reply, ec::SIGN_IN_INVALID_LOGIN_METHOD);
-            LOG_DEBUG("Invalid login method is used, code: {:#010x}, message: {}", (int)reply->mutable_result()->error_code(), reply->mutable_result()->message());
-            return reply;
+        // 获取结果
+        auto account_id = auth_reply->account_id();
+        if(account_id.empty()) {
+            return error_reply<Reply>(reply, ErrorCode::AUTH_FAILED, std::format("Auth failed to get account_id."));
         }
-
-        std::shared_ptr<WrapperQueryResult> query_user_login_auth;
-        std::shared_ptr<WrapperQueryResult> insert_result;
-        std::string req_token_hash    = !has_token    ? std::string() : Utils::hash_token   (request->token   ());
-        std::string req_password_hash = !has_password ? std::string() : Utils::hash_password(request->password());
-        std::string sql_query_user_login;  // token 或密码查询语句
-        if(has_token) {
-            sql_query_user_login = SQL_QUERY_TOKEN_VALIDITY_BY_USER_ID;
+        auto token = auth_reply->has_token() ? auth_reply->token() : string();
+        if(token.empty()) {
+            auto[success_get_new_token, new_token] = get_new_token(account_id);
+            if(!success_get_new_token) {
+                return error_reply<Reply>(reply, ErrorCode::DB_EXECUTE, std::format("get new token error."));
+            }
+            // 不是 token 登陆的，则保持新生成的 token
+            auto[success_write_token, result_write_token] = write_token(account_id, new_token);
+            if(!success_write_token) {
+                return error_reply<Reply>(reply, ErrorCode::DB_EXECUTE, std::format("DB write token record error."));
+            }
+            if(!new_token.empty()) {
+                token = new_token;
+            }
         }
-        else if(has_password) {
-            sql_query_user_login = SQL_QUERY_USER_LOGIN_BY_PASSWORD;
+        if(!token.empty()) {
+            reply->set_account_id(account_id);
+            reply->set_token(token);
+            return success_reply<Reply>(reply, SuccessCode::SUCCESS, std::format("Signin Successed."));
         }
-
-        // 实现用户登录验证逻辑
-        // 构造参数
-        auto user_login_params = std::make_shared<WrapperNamedParam>();
-        user_login_params->params[":user_id"      ] = request->user_id();
-        user_login_params->params[":token_hash"   ] = req_token_hash;
-        user_login_params->params[":password_hash"] = req_password_hash;
-        // 查询用户记录  // 根据用户 ID、密码，查询账号 ID
-        query_user_login_auth = execute(sql_query_user_login, user_login_params);
-
-        // 查询命令执行失败
-        if(!query_user_login_auth->done) {
-            set_error(reply, ec::DB_QUERY);
-            LOG_ERROR("Query user login record failed, code: {:#010x}, message: {}", (int)reply->mutable_result()->error_code(), reply->mutable_result()->message());
-            return reply;
+        else {
+            return error_reply<Reply>(reply, ErrorCode::AUTH_FAILED, std::format("Auth failed to get new token."));
         }
-
-        // 查询命令执行成功，但返回的结果为空  // 用户名或密码错误
-        if(query_user_login_auth->results.empty()) {
-            LOG_DEBUG("DB query_user_login_auth result empty, message: {}", query_user_login_auth->error_message);
-            set_error(reply, ec::SIGN_IN_AUTH_FAILED);
-            LOG_ERROR("User ID or Password or Token error, code: {:#010x}, message: {}", (int)reply->mutable_result()->error_code(), reply->mutable_result()->message());
-            return reply;
-        }
-
-        // 获取账号 ID
-        std::string account_id = std::get<std::string>(query_user_login_auth->results[0]["account_id"]);
-        // 生成 token 并记录登陆请求
-        // 1. 暂不校验唯一性
-        // 2. 不存储明文防止泄露
-        // 建议加入时间戳等信息后再 sha256 存储，或者使用 JWT 等标准格式的 token，以便后续验证和解析
-        std::string token      = Utils::generate_token();
-        std::string token_hash = Utils::hash_token(token);
-        // 需要校验是否写入成功时，则需要保存该变量
-        auto create_time       = Utils::current_time_point();
-        auto create_time_str   = Utils::to_utc_string(create_time);
-        // token 过期时间，暂定为 30 天
-        // TODO:再次被使用时需要更新该过期时间
-        auto expire_time       = create_time + std::chrono::days(30);
-        auto expire_time_str   = Utils::to_utc_string(expire_time);
-
-        // 记录登陆请求
-        auto login_record_params = std::make_shared<WrapperNamedParam>();
-        login_record_params->params[":account_id" ] = account_id;
-        login_record_params->params[":token_hash" ] = token_hash;
-        login_record_params->params[":create_time"] = create_time_str;
-        login_record_params->params[":expire_time"] = expire_time_str;
-        insert_result = execute(SQL_INSERT_USER_LOGIN_RECORD.data(), login_record_params);
-
-        // 记录登陆请求命令执行失败
-        if(!insert_result->done) {
-            set_error(reply, ec::DB_EXECUTE);
-            LOG_ERROR("Insert user login record failed, code: {:#010x}, message: {}", (int)reply->mutable_result()->error_code(), reply->mutable_result()->message());
-            return reply;
-        }
-
-        // 登录成功
-        set_success(reply, sc::SUCCESS);
-        reply->set_account_id(account_id);
-        reply->set_token(token);
-        return reply;
+        return error_reply<Reply>(reply, ErrorCode::DEFAULT, std::format("Default error."));
     }
 
-    // 搜索用户
-    std::shared_ptr<::TaoTieChat::SearchUsersReply> search_users(std::shared_ptr<::TaoTieChat::SearchUsersRequest> request) {
-        using Request = ::TaoTieChat::SearchUsersReply;
-        using Reply   = ::TaoTieChat::SearchUsersReply;
-        using sc      = ::TaoTieChat::SuccessCode;
-        using ec      = ::TaoTieChat::ErrorCode;
-
-        auto set_success = [&](std::shared_ptr<Reply>&reply, sc code) {
-            if(!reply) {
-                return;
-            }
-            reply->mutable_result()->set_success_code(code);
-            reply->mutable_result()->set_message(Utils::to_message_string(code));
-        };
-        auto set_error = [&](std::shared_ptr<Reply>&reply, ec code) {
-            if(!reply) {
-                return;
-            }
-            reply->mutable_result()->set_error_code(code);
-            reply->mutable_result()->set_message(Utils::to_message_string(code));
-        };
-
-        // ================================================================== //
-
-        using namespace SQL::COMMANDS::PRAGMA;
-        using namespace SQL::COMMANDS::CREATE;
-        using namespace SQL::COMMANDS::QUERY;
-        using namespace SQL::COMMANDS::INSERT;
-
+    // 搜索用户 ID
+    shared_ptr<SearchUsersReply> search_users(shared_ptr<SearchUsersRequest> request) {
+        using Request  = SearchUsersReply;
+        using Reply    = SearchUsersReply;
+        // =========================== 初始化操作 =========================== //
         // 复制请求
-        std::shared_ptr<Reply> reply = std::make_shared<Reply>();
-        set_error(reply, ec::ERROR_INIT);
+        shared_ptr<Reply> reply = make_shared<Reply>();
+        set_error(reply->mutable_result(), ErrorCode::ERROR_INIT);
         if(!request) {
-            return reply;
+            return error_reply<Reply>(reply, ErrorCode::ERROR_INIT, std::format("Invalid Param."));
         }
         reply->mutable_request()->CopyFrom(*request.get());
-
+        set_error(reply->mutable_result(), ErrorCode::UNKNOWN);
+        // =========================== 参数校验 =========================== //
         // 参数校验
-        if(request->users_keyword().empty()) {
-            set_error(reply, ec::SEARCH_USERS_KEYWORD_EMPTY);
-            LOG_DEBUG("Users keyword is empty, code: {:#010x}, message: {}", (int)reply->mutable_result()->error_code(), reply->mutable_result()->message());
-            return reply;
+        if(request->user_id().empty()) {
+            return error_reply<Reply>(reply, ErrorCode::TARGET_USER_ID_EMPTY, std::format("Users keyword is empty."));
         }
+        // =========================== 执行操作 =========================== //
+        // 1. 找回账号时无法提供鉴权，这里不对鉴权进行验证
+        // 2. 这里是先筛选在用用户 ID 的方式过滤的，因此搜索到的是在用的账号信息
+
+        // // 验证鉴权是否成功
+        // shared_ptr<AuthRequest> auth_request = make_shared<AuthRequest>(request->request_user_auth());
+        // auto auth_reply  = auth_check(auth_request);
+        // auto&auth_result = auth_reply->result();
+        // if(!auth_result.has_success_code()) {
+        //     return error_reply<Reply>(reply, auth_result.error_code(), auth_result.message());
+        // }
 
         // 获取参数
-        std::string users_keyword = request->users_keyword();  // 暂时同义于 user_id
-        std::string users_filter  = request->users_filter ();  // 暂时无效
-        std::string&user_id       = users_keyword;
+        string user_id      = request->user_id    ();  // 用户 ID
+        string users_filter = request->user_filter();  // 暂时无效
 
+        // 先查询目标用户的账号 ID，再通过账号 ID 获取账号信息
         // 构造数据库查询参数
-        auto search_users_params = std::make_shared<WrapperNamedParam>();
-        search_users_params->params[":user_id"] = user_id;
-        // 执行数据库查询命令  // 传入查询语句及相关参数
-        std::shared_ptr<WrapperQueryResult> query_search_users = execute(SQL_QUERY_SEARCH_USERS.data(), search_users_params);
-
-        // 数据库查询命令执行失败
-        if(!query_search_users->done) {
-            set_error(reply, ec::DB_QUERY);
-            LOG_ERROR("Query users keyword failed, code: {:#010x}, message: {}", (int)reply->mutable_result()->error_code(), reply->mutable_result()->message());
-            return reply;
+        // auto sql_params = make_shared<SqlParams>();
+        // (*sql_params)[":user_id"] = user_id;
+        auto [success_get_active_account_id, account_id] = get_active_account_id(user_id);
+        if(!success_get_active_account_id) {
+            return error_reply<Reply>(reply, ErrorCode::DB_QUERY, std::format("db get active account id error."));
         }
-
-        // 数据库查询命令执行成功，但没有有效数据  // 返回的结果为空
-        if(query_search_users->results.empty()) {
-            LOG_DEBUG("DB query_search_users result empty, message: {}", query_search_users->error_message);
-            set_error(reply, ec::SEARCH_USERS_KEYWORD_NOT_FOUND);
-            LOG_ERROR("Search Users empty, code: {:#010x}, message: {}", (int)reply->mutable_result()->error_code(), reply->mutable_result()->message());
-            return reply;
+        if(!account_id.empty()) {
+            auto [success_get_active_account_info, account_info] = get_active_account_info(account_id);
+            if(!success_get_active_account_id) {
+                return error_reply<Reply>(reply, ErrorCode::DB_QUERY, std::format("db get active account info error."));
+            }
+            reply->mutable_contacts()->CopyFrom(account_info);
+            return success_reply<Reply>(reply, SuccessCode::SUCCESS, std::format("Search user_id Successed."));
         }
-
-        // 查询命令执行成功且有有效数据  // 返回的结果不为空，至少包含一条有效数据
-        set_success(reply, sc::SUCCESS);
-        for(auto&db_user_info : query_search_users->results) {
-            auto reply_user_info = reply->add_user_info();
-            auto ite_end         = db_user_info.end();
-            auto ite_user_id     = db_user_info.find("user_id" );
-            auto ite_nickname    = db_user_info.find("nickname");
-            auto ite_avatar      = db_user_info.find("avatar"  );
-            auto ite_sign        = db_user_info.find("sign"    );
-            auto ite_gender      = db_user_info.find("gender"  );
-            auto ite_region      = db_user_info.find("region"  );
-            auto ite_birthday    = db_user_info.find("birthday");
-            auto ite_phones      = db_user_info.find("phones"  );
-            auto ite_emails      = db_user_info.find("emails"  );
-            if(ite_user_id  != ite_end) { auto point_value = std::get_if<std::string>(&ite_user_id ->second); if(point_value) { reply_user_info->set_user_id (*point_value); } }
-            if(ite_nickname != ite_end) { auto point_value = std::get_if<std::string>(&ite_nickname->second); if(point_value) { reply_user_info->set_nickname(*point_value); } }
-            if(ite_avatar   != ite_end) { auto point_value = std::get_if<std::string>(&ite_avatar  ->second); if(point_value) { reply_user_info->set_avatar  (*point_value); } }
-            if(ite_sign     != ite_end) { auto point_value = std::get_if<std::string>(&ite_sign    ->second); if(point_value) { reply_user_info->set_sign    (*point_value); } }
-            if(ite_gender   != ite_end) { auto point_value = std::get_if<int32_t    >(&ite_gender  ->second); if(point_value) { reply_user_info->set_gender  (*point_value); } }
-            if(ite_region   != ite_end) { auto point_value = std::get_if<std::string>(&ite_region  ->second); if(point_value) { reply_user_info->set_region  (*point_value); } }
-            if(ite_birthday != ite_end) { auto point_value = std::get_if<std::string>(&ite_birthday->second); if(point_value) { reply_user_info->set_birthday(*point_value); } }
-            if(ite_phones   != ite_end) { auto point_value = std::get_if<std::string>(&ite_phones  ->second); if(point_value) { for(auto&phone : Utils::split(*point_value, ";")) { reply_user_info->add_phones(phone); } } }
-            if(ite_emails   != ite_end) { auto point_value = std::get_if<std::string>(&ite_emails  ->second); if(point_value) { for(auto&email : Utils::split(*point_value, ";")) { reply_user_info->add_emails(email); } } }
+        else {
+            return error_reply<Reply>(reply, ErrorCode::TARGET_USER_ID_NOT_FOUND, std::format("Search target user not found."));
         }
-        return reply;
+        return error_reply<Reply>(reply, ErrorCode::DEFAULT, std::format("Default error."));
     }
 
 private:
-    std::filesystem::path m_db_path;
-    sqlite3*              m_db_sqlcipher = nullptr;
-    std::string           m_encryption_key;
-    SQLiteWrapper         m_db_wrapper;  // 数据库操作包装类实例
+    // ========================= 包含 SQL 语句的函数 ========================= //
+    // 执行失败、执行成功但无匹配均返回{false, {}}，执行成功且匹配才返回 {true,xx}
+    // 获取数据版本
+    std::tuple<bool, string> get_meta_version() {
+        // =========================== 参数校验 =========================== //
+        // =========================== 执行操作 =========================== //
+        auto sql_result = execute(SQL_QUERY_META_VERSION);
+        if(sql_result && sql_result->done) {
+            // 查询命令执行成功
+            return get_meta_version(sql_result->rows);
+        }
+        return {false, string{}};
+    }
+    std::tuple<bool, string> get_meta_version(const SqlRows&rows) {
+        // | name    | value |
+        // | ------- | ----- |
+        // | version | 1.0   |
+        //
+        // 如果包含 key="name", value="version" 的行，那么从这行中取出 key = "value" 的 value
+
+        // 解析获取 version 并返回
+        for(auto&row : rows) {
+            if(row.contains("name") && row.contains("value")) {
+                auto name  = get_string(row.find("name" )->second);
+                auto value = get_string(row.find("value")->second);
+                if(name == "version") {
+                    return {true, value};
+                }
+            }
+        }
+        return {false, string{}};
+    }
+    // 用户注册时搜索 user_id 是否可用  // 仅查找在用的用户 ID 即可
+    std::tuple<bool, bool> search_active_user_id(const string&user_id) {
+        // =========================== 参数校验 =========================== //
+        if(user_id.empty()) {
+            return {false, false};
+        }
+        // =========================== 执行操作 =========================== //
+        // 构造参数
+        auto sql_params = make_shared<SqlParams>();
+        (*sql_params)[":user_id"] = user_id;
+        auto sql_result = execute(SQL_QUERY_EXIST_ACTIVE_USER_ID, sql_params);
+        if(sql_result && sql_result->done) {
+            // 查询命令执行成功
+            return search_active_user_id(sql_result->rows);
+        }
+        return {false, false};
+    }
+    std::tuple<bool, bool> search_active_user_id(const SqlRows&rows) {
+        // 解析是否为 1
+        if(rows.size()) {
+            return {true, true};  // 有数据即可认为存在
+            // // 找到时判断值？
+            // for(auto&row : rows) {
+            //     if(row.contains("1")) {
+            //         auto value = get_string(row.find("1")->second);
+            //         if(value == "1") {
+            //             return {true, true};
+            //         }
+            //     }
+            // }
+        }
+        else {
+            return {true, false}; // 无数据时认为不存在
+        }
+        return {false, false};
+    }
+    // 通过用户 ID 查询账号 ID  // 账号停用时返回空，表示失败
+    std::tuple<bool, string> get_active_account_id(const string&user_id) {
+        // =========================== 参数校验 =========================== //
+        if(user_id.empty()) {
+            return {false, string{}};
+        }
+        // =========================== 执行操作 =========================== //
+        // 构造参数
+        auto sql_params = make_shared<SqlParams>();
+        (*sql_params)[":user_id"] = user_id;
+        auto sql_result = execute(SQL_QUERY_GET_ACTIVE_ACCOUNT_ID, sql_params);
+        if(sql_result && sql_result->done) {
+            // 查询命令执行成功
+            return get_active_account_id(sql_result->rows);
+        }
+        return {false, string{}};
+    }
+    std::tuple<bool, string> get_active_account_id(const SqlRows&rows) {
+        // 解析获取 account_id 并返回
+        for(auto&row : rows) {
+            if(row.contains("account_id")) {
+                return {true, get_string(row.find("account_id" )->second)};
+            }
+        }
+        // 调用该函数就说明执行成功，返回结果为空时是有效值
+        return {true, string{}};
+    }
+    std::tuple<bool, Contacts> get_active_account_info(const string&account_id) {
+        // =========================== 参数校验 =========================== //
+        if(account_id.empty()) {
+            return {false, Contacts()};
+        }
+        // =========================== 执行操作 =========================== //
+        // 构造参数
+        auto sql_params = make_shared<SqlParams>();
+        (*sql_params)[":account_id"] = account_id;
+        auto sql_result = execute(SQL_QUERY_GET_ACCOUNT_INFO, sql_params);
+        if(sql_result && sql_result->done) {
+            // 查询命令执行成功
+            return get_active_account_info(sql_result->rows);
+        }
+        return {false, Contacts()};
+    }
+    std::tuple<bool, Contacts> get_active_account_info(const SqlRows&rows) {
+        // // 执行数据库查询命令  // 传入查询语句及相关参数
+        // auto sql_reply = execute(SQL_QUERY_GET_ACCOUNT_INFO_BY_USER_ID.data(), sql_params);
+        // // TODO:check
+
+
+        // // 数据库查询命令执行失败
+        // if(!query_search_users->done) {
+        //     return error_reply<Reply>(reply, ErrorCode::DB_QUERY, std::format("Query users keyword failed."));
+        // }
+
+        // // 数据库查询命令执行成功，但没有有效数据  // 返回的结果为空
+        // if(query_search_users->results.empty()) {
+        //     LOG_DEBUG("DB query_search_users result empty, message: {}", query_search_users->error_message);
+        //     return error_reply<Reply>(reply, ErrorCode::TARGET_USER_ID_NOT_FOUND, std::format("Search target user not found."));
+        // }
+
+        // // 查询命令执行成功且有有效数据  // 返回的结果不为空，至少包含一条有效数据
+        // set_success(reply->mutable_result(), SuccessCode::SUCCESS);
+        // for(auto&db_user_info : query_search_users->results) {
+        //     Contact * contact = reply->mutable_contacts()->add_contact();
+        //     auto ite_end      = db_user_info.end();
+        //     auto ite_user_id  = db_user_info.find("user_id" );
+        //     auto ite_nickname = db_user_info.find("nickname");
+        //     auto ite_avatar   = db_user_info.find("avatar"  );
+        //     auto ite_sign     = db_user_info.find("sign"    );
+        //     auto ite_gender   = db_user_info.find("gender"  );
+        //     auto ite_region   = db_user_info.find("region"  );
+        //     auto ite_birthday = db_user_info.find("birthday");
+        //     auto ite_phones   = db_user_info.find("phones"  );
+        //     auto ite_emails   = db_user_info.find("emails"  );
+        //     if(ite_user_id  != ite_end) { auto point_value = get_if<string >(&ite_user_id ->second); if(point_value) { contact->set_user_id (*point_value); } }
+        //     if(ite_nickname != ite_end) { auto point_value = get_if<string >(&ite_nickname->second); if(point_value) { contact->set_nickname(*point_value); } }
+        //     if(ite_avatar   != ite_end) { auto point_value = get_if<string >(&ite_avatar  ->second); if(point_value) { contact->set_avatar  (*point_value); } }
+        //     if(ite_sign     != ite_end) { auto point_value = get_if<string >(&ite_sign    ->second); if(point_value) { contact->set_sign    (*point_value); } }
+        //     if(ite_gender   != ite_end) { auto point_value = get_if<int32_t>(&ite_gender  ->second); if(point_value) { contact->set_gender  (*point_value); } }
+        //     if(ite_region   != ite_end) { auto point_value = get_if<string >(&ite_region  ->second); if(point_value) { contact->set_region  (*point_value); } }
+        //     if(ite_birthday != ite_end) { auto point_value = get_if<string >(&ite_birthday->second); if(point_value) { contact->set_birthday(*point_value); } }
+        //     if(ite_phones   != ite_end) { auto point_value = get_if<string >(&ite_phones  ->second); if(point_value) { for(auto&phone : split(*point_value, ";")) { contact->add_phones(phone); } } }
+        //     if(ite_emails   != ite_end) { auto point_value = get_if<string >(&ite_emails  ->second); if(point_value) { for(auto&email : split(*point_value, ";")) { contact->add_emails(email); } } }
+        // }
+        // TODO:
+        // 默认失败
+        return {false, Contacts()};
+    }
+    std::tuple<bool, bool> check_exist_account_id(const string&account_id) {
+        // =========================== 参数校验 =========================== //
+        if(account_id.empty()) {
+            return {false, false};
+        }
+        // =========================== 执行操作 =========================== //
+        // 构造参数
+        auto sql_params = make_shared<SqlParams>();
+        (*sql_params)[":account_id"] = account_id;
+        auto sql_result = execute(SQL_QUERY_EXIST_ACCOUNTID, sql_params);
+        if(sql_result && sql_result->done) {
+            // 查询命令执行成功
+            return check_exist_account_id(sql_result->rows);
+        }
+        return {false, false};
+    }
+    std::tuple<bool, bool> check_exist_account_id(const SqlRows&rows) {
+        // 解析是否为 1
+        if(rows.size()) {
+            return {true, true}; // 有数据即可认为存在
+        }
+        else {
+            return {true, false}; // 无数据时认为不存在
+        }
+        return {false, false};
+    }
+    std::tuple<bool, bool> check_password(const string&account_id, const string&password) {
+        // =========================== 参数校验 =========================== //
+        if(account_id.empty() || password.empty()) {
+            return {false, false};
+        }
+        // =========================== 执行操作 =========================== //
+        // 构造参数
+        auto password_hash = hash_password(password);
+        auto sql_params = make_shared<SqlParams>();
+        (*sql_params)[":account_id"   ] = account_id   ;
+        (*sql_params)[":password_hash"] = password_hash;
+        auto sql_result = execute(SQL_QUERY_CHECK_PASSWORD, sql_params);
+        if(sql_result && sql_result->done) {
+            // 查询命令执行成功
+            return check_password(sql_result->rows);
+        }
+        return {false, false};
+    }
+    std::tuple<bool, bool> check_password(const SqlRows&rows) {
+        // 解析是否为 1
+        if(rows.size()) {
+            return {true, true}; // 有数据即可认为存在
+        }
+        else {
+            return {true, false}; // 无数据时认为不存在
+        }
+        return {false, false};
+    }
+    std::tuple<bool, bool> check_token(const string&account_id, const string&token) {
+        // =========================== 参数校验 =========================== //
+        if(account_id.empty() || token.empty()) {
+            return {false, false};
+        }
+        // =========================== 执行操作 =========================== //
+        // 构造参数
+        string token_hash = hash_token(token);
+        auto sql_params = make_shared<SqlParams>();
+        (*sql_params)[":account_id"] = account_id;
+        (*sql_params)[":token_hash"] = token_hash;
+        auto sql_result = execute(SQL_QUERY_CHECK_TOKEN, sql_params);
+        if(sql_result && sql_result->done) {
+            // 查询命令执行成功
+            return check_token(sql_result->rows);
+        }
+        return {false, false};
+    }
+    std::tuple<bool, bool> check_token(const SqlRows&rows) {
+        // 解析是否为 1
+        if(rows.size()) {
+            return {true, true}; // 有数据即可认为存在
+        }
+        else {
+            return {true, false}; // 无数据时认为不存在
+        }
+        return {false, false};
+    }
+
+    std::tuple<bool, bool> write_meta_table() {
+        auto sql_result = execute(SQL_CREATE_TABLE_META.data());
+        if(sql_result && sql_result->done) {
+            return {true, true};
+        }
+        return {false, false};
+    }
+    std::tuple<bool, bool> write_meta_version() {
+        auto[success, result] = write_meta_table();
+        if(!success || !result) {
+            return {false, false};
+        }
+        auto sql_result = execute(SQL_INSERT_META_VERSION.data());
+        if(sql_result && sql_result->done) {
+            return {true, true};
+        }
+        return {false, false};
+    }
+    std::tuple<bool, bool> write_token(const string&account_id, const string&token) {
+        // =========================== 参数校验 =========================== //
+        if(account_id.empty() || token.empty()) {
+            return {false, false};
+        }
+        // =========================== 执行操作 =========================== //
+        // 构造参数
+        string token_hash = hash_token(token);
+        auto sql_params = make_shared<SqlParams>();
+        (*sql_params)[":account_id" ] = account_id;
+        (*sql_params)[":token_hash" ] = token_hash;
+        (*sql_params)[":create_time"] = to_utc_string(current_time_point());;
+        (*sql_params)[":expire_time"] = to_utc_string(current_time_point() + std::chrono::days(30));;
+        auto sql_result = execute(SQL_INSERT_USER_TOKEN, sql_params);
+        if(sql_result && sql_result->done) {
+            // 查询命令执行成功
+            return {true, true};
+        }
+        return {false, false};
+    }
+    std::tuple<bool, string> get_new_account_id() {
+        // 循环 1000 次还重复，说明数据库可能存在异常
+        for(int i = 0; i < 1000; ++i) {
+            // 生成 account_id
+            string account_id = generate_account_id();
+            // 账号 ID 不存在时则说明可用
+            auto[success, exist] = check_exist_account_id(account_id);
+            // 查询失败则返回错误
+            if(!success) {
+                return {false, string{}};
+            }
+            // 查询成功且没有该 ID
+            if(!exist) {
+                return {true, account_id};
+            }
+            // 账号 ID 存在就继续循环获取新的 ID
+            // else {
+            //     return {true, string()};
+            // }
+        }
+        LOG_ERROR("database account_id maybe full.");
+        return {false, string{}};
+    }
+    std::tuple<bool, string> get_new_token(const string&account_id) {
+        if(account_id.empty()) {
+            return {false, string{}};
+        }
+        // 循环 1000 次还重复，说明数据库可能存在异常
+        for(int i = 0; i < 1000; ++i) {
+            // 生成 account_id
+            string token = generate_token();
+            // 账号 ID 不存在时则说明可用
+            auto[success, exist] = check_token(account_id, token);
+            // 查询失败则返回错误
+            if(!success) {
+                return {false, string{}};
+            }
+            // 查询成功且没有该 ID
+            if(!exist) {
+                return {true, token};
+            }
+            // 账号 ID 存在就继续循环获取新的 ID
+        }
+        LOG_ERROR("database token maybe full. account_id:{}.", account_id);
+        return {false, string{}};
+    }
+    std::tuple<bool, string> user_register(const string&user_id, const string&password, const string&security_question, const string&security_answer) {
+        auto [success_get_new_account_id, account_id] = get_new_account_id();  // 一般不会枯竭
+        if(!success_get_new_account_id) {
+            return {false, string{}};
+        }
+        // auto user_id           = user_id;
+        // 获取可用的 account_id
+        // auto account_id           = get_new_account_id();  // 一般不会枯竭
+        // 不管用户端是否加密，服务端都对密码进行哈希加密存储
+        auto password_hash        = hash_password(password);
+        // auto security_question    = security_question;
+        // 安全问题答案也进行哈希加密存储，避免明文存储安全问题答案的风险
+        auto security_answer_hash = hash_security_answer(security_answer);
+        // 获取注册时间 // // 由于需要校验，因此手动生成便于比对
+        auto register_time_utc    = to_utc_string(current_time_point());
+        // 构造参数
+        auto sql_params = make_shared<SqlParams>();
+        (*sql_params)[":user_id"             ] = user_id             ;
+        (*sql_params)[":account_id"          ] = account_id          ;
+        (*sql_params)[":password_hash"       ] = password_hash       ;
+        (*sql_params)[":security_question"   ] = security_question   ;
+        (*sql_params)[":security_answer_hash"] = security_answer_hash;
+        (*sql_params)[":register_time"       ] = register_time_utc   ;
+        // 插入新记录
+        auto sql_result = execute(SQL_INSERT_USER_REGISTER.data(), sql_params);
+        if(sql_result && sql_result->done) {
+            return {true, account_id};
+        }
+        return {false, string{}};
+    }
+
+private:
+    path          m_db_path;
+    sqlite3*      m_db_sqlcipher = nullptr;
+    string        m_encryption_key;
+    int           SQL_RESULTS_MAX_LINES = 1000;  // 每次查询最多获取多少条数据
 };

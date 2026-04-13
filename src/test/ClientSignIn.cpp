@@ -84,6 +84,7 @@ std::string sign_up(shared_ptr<Channel> channel, std::string user_id, std::strin
     shared_ptr<Request> request = make_shared<Request>();
     request->set_user_id(user_id);
     request->set_password(password);
+    request->set_confirm(password);
     request->set_security_question("security_question");
     request->set_security_answer("security_answer");
     Reply result;
@@ -155,7 +156,7 @@ int main(int argc, char** argv) {
     std::string user_id    = "test_user_id_" + Register::random_string();
     std::string password   = "password";
     std::string account_id = Register::sign_up(channel, user_id, password);
-    std::string token;
+    std::string token      = "error_token";
 
     auto get_code = [](const Reply& reply) {
         if(reply.result().has_success_code()) {
@@ -171,58 +172,64 @@ int main(int argc, char** argv) {
     ABSL_LOG(INFO) << "SignIn test started.";
     shared_ptr<Request> request = make_shared<Request>();
 
-    // 用户 ID 为空
+    auto auth = request->mutable_request_user_auth();
+
+    // 登陆 ID 为空
     // request->set_user_id("");
-    request->clear_user_id();
-    request->set_password(password);
-    request->set_token("token");
-    ABSL_LOG(INFO) << "SignIn by user not registered. user_id=" << request->user_id() << ", password=" << request->password() << ", token=" << request->token();
+    // request->mutable_request_user_auth()->clear_user_id();
+    auth->clear_user_id();
+    auth->clear_password();
+    auth->set_token(token);
+    ABSL_LOG(INFO) <<    "SignIn by no user id. user_id=" << auth->user_id() << ", password=" << auth->password() << ", token=" << auth->token();
     SignIn(channel, *request, notify);
-    LOG_INFO(fmt::format("SignIn by user not registered. Result: code={:#010x}, message={}, account_id={}", get_code(result), result.result().message(), result.account_id()));
+    LOG_INFO(fmt::format("SignIn by no user id. Result: code={:#010x}, message={}, account_id={}", get_code(result), result.result().message(), result.account_id()));
+
+    // 登陆秘钥为空
+    auth->set_user_id(user_id + "_not_registered");
+    auth->clear_password();
+    auth->clear_token();
+    ABSL_LOG(INFO) <<    "SignIn by no token. user_id=" << auth->user_id() << ", password=" << auth->password() << ", token=" << auth->token();
+    SignIn(channel, *request, notify);
+    LOG_INFO(fmt::format("SignIn by no token. Result: code={:#010x}, message={}, account_id={}", get_code(result), result.result().message(), result.account_id()));
 
     // 未注册用户
-    request->set_user_id(user_id + "_not_registered");
-    request->set_password(password);
-    // request->set_token("");
-    request->clear_token();
-    ABSL_LOG(INFO) << "SignIn by user not registered. user_id=" << request->user_id() << ", password=" << request->password() << ", token=" << request->token();
+    auth->set_user_id(user_id + "_not_registered");
+    auth->clear_password();
+    auth->set_token(token);
+    ABSL_LOG(INFO) <<    "SignIn by user not registered. user_id=" << auth->user_id() << ", password=" << auth->password() << ", token=" << auth->token();
     SignIn(channel, *request, notify);
     LOG_INFO(fmt::format("SignIn by user not registered. Result: code={:#010x}, message={}, account_id={}", get_code(result), result.result().message(), result.account_id()));
 
     // 已注册用户，账户密码登录
-    request->set_user_id(user_id);
-    request->set_password(password);
-    // request->set_token("");
-    request->clear_token();
-    ABSL_LOG(INFO) << "SignIn by user_id + password. user_id=" << request->user_id() << ", password=" << request->password() << ", token=" << request->token();
+    auth->set_user_id(user_id);
+    auth->set_password(password);
+    auth->clear_token();
+    ABSL_LOG(INFO) <<    "SignIn by user_id + password. user_id=" << auth->user_id() << ", password=" << auth->password() << ", token=" << auth->token();
     SignIn(channel, *request, notify);
     LOG_INFO(fmt::format("SignIn by user_id + password. Result: code={:#010x}, message={}, account_id={}", get_code(result), result.result().message(), result.account_id()));
 
     token = result.token();
     // 已注册用户，账户 token 登录
-    request->set_user_id(user_id);
-    // request->set_password("");
-    request->clear_password();
-    request->set_token(token);
-    ABSL_LOG(INFO) << "SignIn by user_id + token. user_id=" << request->user_id() << ", password=" << request->password() << ", token=" << request->token();
+    auth->set_user_id(user_id);
+    auth->clear_password();
+    auth->set_token(token);
+    ABSL_LOG(INFO) <<    "SignIn by user_id + token. user_id=" << auth->user_id() << ", password=" << auth->password() << ", token=" << auth->token();
     SignIn(channel, *request, notify);
     LOG_INFO(fmt::format("SignIn by user_id + token. Result: code={:#010x}, message={}, account_id={}", get_code(result), result.result().message(), result.account_id()));
 
     // 已注册用户，错误密码登录
-    request->set_user_id(user_id);
-    request->set_password(password + "_not_correct");
-    // request->set_token("");
-    request->clear_token();
-    ABSL_LOG(INFO) << "SignIn by user_id + error password. user_id=" << request->user_id() << ", password=" << request->password() << ", token=" << request->token();
+    auth->set_user_id(user_id);
+    auth->set_password(password + "_not_correct");
+    auth->clear_token();
+    ABSL_LOG(INFO) <<    "SignIn by user_id + error password. user_id=" << auth->user_id() << ", password=" << auth->password() << ", token=" << auth->token();
     SignIn(channel, *request, notify);
     LOG_INFO(fmt::format("SignIn by user_id + error password. Result: code={:#010x}, message={}, account_id={}", get_code(result), result.result().message(), result.account_id()));
 
     // 已注册用户，错误 token 登录
-    request->set_user_id(user_id);
-    // request->set_password("");
-    request->clear_password();
-    request->set_token("token");
-    ABSL_LOG(INFO) << "SignIn by user_id + error token. user_id=" << request->user_id() << ", password=" << request->password() << ", token=" << request->token();
+    auth->set_user_id(user_id);
+    auth->clear_password();
+    auth->set_token(token + "_not_correct");
+    ABSL_LOG(INFO) <<    "SignIn by user_id + error token. user_id=" << auth->user_id() << ", password=" << auth->password() << ", token=" << auth->token();
     SignIn(channel, *request, notify);
     LOG_INFO(fmt::format("SignIn by user_id + error token. Result: code={:#010x}, message={}, account_id={}", get_code(result), result.result().message(), result.account_id()));
 

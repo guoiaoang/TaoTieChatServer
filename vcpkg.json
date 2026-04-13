@@ -13,6 +13,7 @@
         "yaml-cpp",
         "abseil",
         "glog",
+        "gtest",
         "spdlog",
         "boost-uuid"
     ],
@@ -48,14 +49,18 @@
                     "name": "nlohmann-json",
                     "version>=": "3.11.3"
                 },
-	        {
-	          "name": "abseil",
-	          "version>=": "20250127.0"
-	        },
-	        {
-	          "name": "glog",
-	          "version>=": "0.7.1"
-	        },
+                {
+                    "name": "abseil",
+                    "version>=": "20250127.0"
+                },
+                {
+                    "name": "glog",
+                    "version>=": "0.7.1"
+                },
+                {
+                    "name": "gtest",
+                    "version>=": "1.16.0"
+                },
                 {
                     "name": "yaml-cpp",
                     "version>=": "0.8.0"
@@ -67,6 +72,22 @@
                 {
                     "name": "boost-uuid",
                     "version>=": "1.87.0"
+                },
+                {
+                    "name": "better-enums",
+                    "version>=": "0.11.3"
+                },
+                {
+                    "name": "conjure-enum",
+                    "version>=": "1.1.0"
+                },
+                {
+                    "name": "magic-enum",
+                    "version>=": "0.9.7"
+                },
+                {
+                    "name": "nameof",
+                    "version>=": "0.10.4"
                 }
             ]
         }

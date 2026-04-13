@@ -31,6 +31,9 @@ elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
     add_compile_definitions(_DEBUG)
 endif()
 
+# gtest # For Windows: Prevent overriding the parent project's compiler/linker settings
+set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+
 # # add_definitions(-DSOURCE_ROOT="${CMAKE_CURRENT_SOURCE_DIR}/src")
 # add_compile_definitions(SOURCE_ROOT="${CMAKE_CURRENT_SOURCE_DIR}/src")
 add_compile_definitions(PROJECT_NAME=${PROJECT_NAME})
@@ -81,16 +84,19 @@ project(${PROJECT_NAME}
 # =============================   find_package   ============================= #
 
 # 查找依赖的包
-find_package(fmt           CONFIG REQUIRED)
-find_package(absl          CONFIG REQUIRED)
-find_package(spdlog        CONFIG REQUIRED)
-find_package(glog          CONFIG REQUIRED)
-find_package(sqlcipher     CONFIG REQUIRED)
-find_package(nlohmann_json CONFIG REQUIRED)
-find_package(Boost         CONFIG REQUIRED COMPONENTS uuid)
-find_package(Protobuf      CONFIG REQUIRED)
-find_package(gRPC          CONFIG REQUIRED)
-
+find_package(fmt           CONFIG   REQUIRED)
+find_package(absl          CONFIG   REQUIRED)
+find_package(spdlog        CONFIG   REQUIRED)
+find_package(glog          CONFIG   REQUIRED)
+find_package(sqlcipher     CONFIG   REQUIRED)
+find_package(nlohmann_json CONFIG   REQUIRED)
+find_package(Boost         CONFIG   REQUIRED   COMPONENTS   uuid)
+find_package(Protobuf      CONFIG   REQUIRED)
+find_package(gRPC          CONFIG   REQUIRED)
+# find_package(magic_enum  CONFIG   REQUIRED)
+# find_path(CONJURE_ENUM_INCLUDE_DIRS   "fix8/conjure_enum.hpp")
+enable_testing()
+find_package(GTest         CONFIG   REQUIRED)
 # ============================= add_executable ============================= #
 
 # 主可执行程序
@@ -110,6 +116,8 @@ target_link_libraries(${PROJECT_NAME}   PRIVATE   nlohmann_json::nlohmann_json)
 target_link_libraries(${PROJECT_NAME}   PRIVATE   Boost::uuid)
 target_link_libraries(${PROJECT_NAME}   PRIVATE   protobuf::libprotoc protobuf::libprotobuf protobuf::libprotobuf-lite)
 target_link_libraries(${PROJECT_NAME}   PRIVATE   gRPC::gpr gRPC::grpc gRPC::grpc++ gRPC::grpc++_alts)
+# target_link_libraries(${PROJECT_NAME} PRIVATE   magic_enum::magic_enum)
+# target_include_directories(${PROJECT_NAME}   PRIVATE   ${CONJURE_ENUM_INCLUDE_DIRS})
 
 # ======================= 生成 gRPC 和 Protobuf 代码 ======================= #
 
@@ -129,7 +137,8 @@ target_link_libraries(${PROJECT_NAME} PRIVATE lib_proto_taotie_chat)
 # ========================================================================= #
 
 # 添加测试子目录
-subdirs(src/test)
+add_subdirectory(src/test)
+add_subdirectory(src/gtest)
 
 # =============================== 安装打包 =============================== #
 

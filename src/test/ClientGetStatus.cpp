@@ -18,25 +18,37 @@
 // protos
 #include "taotie_chat.grpc.pb.h"
 
-ABSL_FLAG(std::string, target, "localhost:50051", "Server address");
+using std::string;
+using std::shared_ptr;
+using std::unique_ptr;
+using std::function;
+using ::grpc::Channel;
+using ::grpc::ClientContext;
+using ::grpc::Status;
+using ::TaoTieChat::StatusService;
+using ::TaoTieChat::StatusRequest;
+using ::TaoTieChat::StatusReply;
 
-using CallbackGetStatusNotify = std::function<void(::grpc::ClientContext* context, const ::TaoTieChat::StatusRequest* request, ::TaoTieChat::StatusReply* response, ::grpc::Status status)>;
-void GetStatus(std::shared_ptr<grpc::Channel> channel, const std::string& target_id, const std::string& user_id, const std::string& token, CallbackGetStatusNotify callback) {
-    using grpc::Channel;
-    using grpc::ClientContext;
-    using grpc::Status;
-    using TaoTieChat::StatusService;
-    using TaoTieChat::StatusRequest;
-    using TaoTieChat::StatusReply;
+// using Stub = StatusService::Stub;
+// auto NewStub = StatusService::NewStub;
+
+ABSL_FLAG(string, target, "localhost:50051", "Server address");
+
+using CallbackGetStatusNotify = function<void(ClientContext* context,
+    const StatusRequest* request, StatusReply* response, Status status)>;
+void GetStatus(
+    shared_ptr<Channel> channel, const string& target_user_id,
+    const string& request_user_id, const string& request_user_token,
+    CallbackGetStatusNotify callback) {
 
     // 创建 gRPC 通道
-    std::unique_ptr<StatusService::Stub> stub = StatusService::NewStub(channel);
+    unique_ptr<StatusService::Stub> stub = StatusService::NewStub(channel);
 
     // 创建请求并调用 GetStatus 方法
     StatusRequest request;
-    request.set_target_id(target_id);
-    request.set_request_user_id(user_id);
-    request.set_request_user_token(token);
+    request.set_target_user_id(target_user_id);
+    request.mutable_request_user_auth()->set_user_id(request_user_id);
+    request.mutable_request_user_auth()->set_token(request_user_token);
 
     StatusReply response;
     ClientContext context;
@@ -82,10 +94,6 @@ int main(int argc, char** argv) {
     string target_str = absl::GetFlag(FLAGS_target);
     shared_ptr<Channel> channel = grpc::CreateChannel(target_str, grpc::InsecureChannelCredentials());
 
-    using ::grpc::ClientContext;
-    using ::TaoTieChat::StatusRequest;
-    using ::TaoTieChat::StatusReply;
-    using ::grpc::Status;
     auto notify = [](ClientContext* context, const StatusRequest* request, StatusReply* response, Status status) {
         if (status.ok()) {
             std::cout << "RPC succeeded" << std::endl;

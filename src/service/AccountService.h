@@ -1,189 +1,119 @@
 #include "headers.h"
+#include "types.h"
 #include "utils.h"
 #include "DBSQLCipher.h"
-#include "types.h"
 
-using ::TaoTieChat::AccountService;
-using ::TaoTieChat::SignUpRequest;
-using ::TaoTieChat::SignUpReply;
-using ::TaoTieChat::SignInRequest;
-using ::TaoTieChat::SignInReply;
+using ::grpc::ServerContext;
+
+using std::string;
+using std::vector;
+using std::shared_ptr;
+using std::make_shared;
+using ::grpc::StatusCode;
+using ::google::protobuf::Timestamp;
+
+using Utils::set_success;
+using Utils::set_error;
+using Utils::log_grpc_context;
+using Utils::to_string;
+using Utils::error_status;
 
 // 服务端实现
 class AccountServiceImpl final : public AccountService::Service {
 public:
     // UserRegister 返回给定请求的注册信息。
     Status SignUp(ServerContext* context, const SignUpRequest* request, SignUpReply* response) override {
-        using Request = ::TaoTieChat::SignUpRequest;
-        using Reply   = ::TaoTieChat::SignUpReply;
-        using sc      = ::TaoTieChat::SuccessCode;
-        using ec      = ::TaoTieChat::ErrorCode;
-
-        // reply 不是使用智能指针创建的，此处只能使用裸指针，不能使用智能指针，否则会被智能指针再次析构
-        auto set_success = [&](Reply* reply, sc code) {
-            if(!reply) {
-                return;
-            }
-            reply->mutable_result()->set_success_code(code);
-            reply->mutable_result()->set_message(Utils::to_message_string(code));
-            reply->set_account_id("");
-        };
-        auto set_error = [&](Reply* reply, ec code) {
-            if(!reply) {
-                return;
-            }
-            reply->mutable_result()->set_error_code(code);
-            reply->mutable_result()->set_message(Utils::to_message_string(code));
-            reply->set_account_id("");
-        };
-
-        // ================================================================== //
-
-        // 打印客户端 IP 地址
-        // “ipv4:127.0.0.1:11669”
-        std::string client_peer = context->peer();
-        LOG_TRACE("SignUp peer: {}", client_peer.data());
-        // 打印元数据
-        // "accept-encoding" = "identity,gzip"
-        // "service-name" = "TaoTieChat.AccountService"
-        const std::multimap<grpc::string_ref, grpc::string_ref>& metadata = context->client_metadata();
-        for(const auto& item : metadata) {
-            std::string key(item.first.data(), item.first.size());  // 直接打印会导致长度越界
-            std::string value(item.second.data(), item.second.size());
-            LOG_TRACE("SignUp metadata: {} = {}", key, value);
-        }
-        // SSL 证书验证
-        std::shared_ptr<const grpc::AuthContext> auth_ctx = context->auth_context();
-        if (auth_ctx->IsPeerAuthenticated()) {
-            std::vector<grpc::string_ref> peers = auth_ctx->GetPeerIdentity();
-            for (auto it = peers.begin(); it != peers.end(); ++it) {
-            std::string value(it->data(), it->size());
-                LOG_TRACE("SignUp peer identity: {}", value);
-            }
-        }
-
+        using Request = SignUpRequest;
+        using Reply   = SignUpReply;
+        // =========================== 初始化操作 =========================== //
         if(!context || !request || !response) {
-            return Status(::grpc::StatusCode::INTERNAL, "Invalid request or response pointer");
+            return Status(StatusCode::INTERNAL, std::format("Invalid request or response pointer"));
         }
-
-        // ================================================================== //
-
-        // 复制请求
-        response->mutable_request()->CopyFrom(*request);  // 获取可变的请求字段并复制内容
-
-        // 用户 ID 不能为空
-        if(request->user_id().empty()) {
-            set_error(response, ec::SIGN_UP_USER_ID_EMPTY);
-            LOG_DEBUG("User ID is empty, code: {:#010x}, message: {}", (int)response->mutable_result()->error_code(), response->mutable_result()->message());
-            return Status::OK;
-        }
-
-        // 密码不能为空
-        if(request->password().empty()) {
-            set_error(response, ec::SIGN_UP_PASSWORD_EMPTY);
-            LOG_DEBUG("Password is empty, code: {:#010x}, message: {}", (int)response->mutable_result()->error_code(), response->mutable_result()->message());
-            return Status::OK;
-        }
-
-        // 密保问题不能为空
-        if(request->security_question().empty()) {
-            set_error(response, ec::SIGN_UP_SECURITY_QUESTION_EMPTY);
-            LOG_DEBUG("Security question is empty, code: {:#010x}, message: {}", (int)response->mutable_result()->error_code(), response->mutable_result()->message());
-            return Status::OK;
-        }
-
-        // 密保答案不能为空
-        if(request->security_answer().empty()) {
-            set_error(response, ec::SIGN_UP_SECURITY_ANSWER_EMPTY);
-            LOG_DEBUG("Security answer is empty, code: {:#010x}, message: {}", (int)response->mutable_result()->error_code(), response->mutable_result()->message());
-            return Status::OK;
-        }
-
-        // 参数合法，执行注册
-        // 初始化相关参数
+        log_grpc_context(context);
+        response->mutable_request()->CopyFrom(*request);  // 复制请求
         DBSQLCipher& db_sqlcipher = DBSQLCipher::instance();
-        std::shared_ptr<::TaoTieChat::SignUpRequest> params = std::make_shared<::TaoTieChat::SignUpRequest>(*request);
+        shared_ptr<Request> params = make_shared<Request>(*request);
+        // =========================== 执行操作 =========================== //
         // 执行注册
-        std::shared_ptr<::TaoTieChat::SignUpReply> result = db_sqlcipher.sign_up(params);
+        shared_ptr<Reply> result = db_sqlcipher.sign_up(params);
+        // 判断结果是否为 nullptr，防止拷贝时崩溃
         if(!result) {
-            set_error(response, ec::DB_EXECUTE);
-            LOG_DEBUG("SignUp failed, code: {:#010x}, message: {}", (int)response->mutable_result()->error_code(), response->mutable_result()->message());
-            return Status::OK;
+            return error_status<Reply>(response, ErrorCode::DB_EXECUTE, std::format("SignUp failed."));
         }
-        // set_success(response, sc::SUCCESS);
+        // set_success(response, SuccessCode::SUCCESS);
         response->CopyFrom(*result);
         return Status::OK;
     }
 
     // SignIn 验证用户登录信息并返回登录结果。
     Status SignIn(ServerContext* context, const SignInRequest* request, SignInReply* response) override {
-        using Request = ::TaoTieChat::SignInRequest;
-        using Reply   = ::TaoTieChat::SignInReply;
-        using sc      = ::TaoTieChat::SuccessCode;
-        using ec      = ::TaoTieChat::ErrorCode;
-
-        // reply 不是使用智能指针创建的，此处只能使用裸指针，不能使用智能指针，否则会被智能指针再次析构
-        auto set_success = [&](Reply*reply, sc code) {
-            if(!reply) {
-                return;
-            }
-            reply->mutable_result()->set_success_code(code);
-            reply->mutable_result()->set_message(Utils::to_message_string(code));
-            reply->set_account_id("");
-            reply->set_token("");
-        };
-        auto set_error = [&](Reply*reply, ec code) {
-            if(!reply) {
-                return;
-            }
-            reply->mutable_result()->set_error_code(code);
-            reply->mutable_result()->set_message(Utils::to_message_string(code));
-            reply->set_account_id("");
-            reply->set_token("");
-        };
-
-        // ================================================================== //
-
+        using Request = SignInRequest;
+        using Reply   = SignInReply;
+        // =========================== 初始化操作 =========================== //
         if(!context || !request || !response) {
-            return Status(::grpc::StatusCode::INTERNAL, "Invalid request or response pointer");
+            return Status(StatusCode::INTERNAL, std::format("Invalid request or response pointer"));
         }
-
-        // ================================================================== //
-
-        // 复制请求
-        response->mutable_request()->CopyFrom(*request);  // 获取可变的请求字段并复制内容
-
-        // 用户 ID 不能为空
-        if(request->user_id().empty()) {
-            set_error(response, ec::SIGN_UP_USER_ID_EMPTY);
-            LOG_DEBUG("User ID is empty, code: {:#010x}, message: {}", (int)response->mutable_result()->error_code(), response->mutable_result()->message());
-            return Status::OK;
-        }
-
-        // 默认 token 登录
-        // 使用 token 登录时也生成一个新的 token，用来添加登录记录
-        // 校验逻辑在数据库中
-
-        // // 密码不能为空
-        // if(request->password().empty()) {
-        //     set_error(response, ec::LOGIN_PASSWORD_EMPTY);
-        //     LOG_DEBUG("Password is empty, code: {:#010x}, message: {}", (int)response->mutable_result()->error_code(), response->mutable_result()->message());
-        //     return Status::OK;
-        // }
-
-        // 参数合法，执行登录验证
-        // 初始化相关参数
+        log_grpc_context(context);
+        response->mutable_request()->CopyFrom(*request);  // 复制请求
         DBSQLCipher& db_sqlcipher = DBSQLCipher::instance();
-        std::shared_ptr<::TaoTieChat::SignInRequest> params = std::make_shared<::TaoTieChat::SignInRequest>(*request);
+        shared_ptr<SignInRequest> params = make_shared<::SignInRequest>(*request);
+        // =========================== 执行操作 =========================== //
         // 执行登录验证
-        std::shared_ptr<::TaoTieChat::SignInReply> result = db_sqlcipher.sign_in(params);
-        // if(!result) {
-        //     set_error(response, ec::DB_EXECUTE);
-        //     LOG_DEBUG("SignIn failed, code: {:#010x}, message: {}", (int)response->mutable_result()->error_code(), response->mutable_result()->message());
-        //     return Status::OK;
-        // }
-        // set_success(response, sc::SUCCESS);
+        shared_ptr<SignInReply> result = db_sqlcipher.sign_in(params);
+        // 判断结果是否为 nullptr，防止拷贝时崩溃
+        if(!result) {
+            return error_status<Reply>(response, ErrorCode::DB_EXECUTE, std::format("SignIn failed."));
+        }
+        // set_success(response, SuccessCode::SUCCESS);
         response->CopyFrom(*result);
+        return Status::OK;
+    }
+
+    // update 获取更新内容
+    Status GetUpdate(ServerContext* context, const UpdateResuest* request, UpdateReply* response) override {
+        using Request = UpdateResuest;
+        using Reply   = UpdateReply;
+        // =========================== 初始化操作 =========================== //
+        if(!context || !request || !response) {
+            return Status(StatusCode::INTERNAL, std::format("Invalid request or response pointer"));
+        }
+        log_grpc_context(context);
+        response->mutable_request()->CopyFrom(*request);  // 复制请求
+        DBSQLCipher& db_sqlcipher = DBSQLCipher::instance();
+        // shared_ptr<UpdateReply> params = make_shared<::UpdateReply>(*request);
+        // // =========================== 参数校验 =========================== //
+        // // 获取信息
+        // // 请求
+        // auto type        = request->type       ();  // 请求类型
+        // auto auth_params = request->auth_params();  // 认证信息
+        // auto timestamp   = request->timestamp  ();  // 时间戳
+        // // 鉴权
+        // auto auto_result = response->mutable_auth_result();
+        // // auto_result->set_account_id("");
+
+        // auto func_auth = []() -> bool { return false; };
+        // // 可能部分接口不需要鉴权，因此鉴权放在具体的请求类型内
+        // if(type == UpdateType::CONTACTS) {
+        //     auto get_contacts_update = [&](const SignInRequest&auth, const Timestamp &timestamp) {
+        //         // 鉴权失败
+        //         if(func_auth()) {
+        //             return;
+        //         }
+        //         // 获取结果
+        //     };
+        //     get_contacts_update(auth_params, timestamp);
+        // }
+
+        // =========================== 执行操作 =========================== //
+        // response->mutable_auth()->set_account_id("");
+        // response->result();  // 返回结果
+        // response->auth();  // 返回内容
+        // if(response->has_contacts()) {
+        //     response->contacts().contact();
+        // }
+        // response->timestamp();
+
+        // response->CopyFrom(*result);
         return Status::OK;
     }
 };

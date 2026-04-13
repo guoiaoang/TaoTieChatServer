@@ -3,6 +3,11 @@
 
 // 类型声明等
 
+// sqlcipher taotie_chat_server.db
+// > PRAGMA key='your_secure_encryption_key'; # 密码
+// > SELECT * FROM meta; # `1|version|1.0|`
+// > .exit
+
 namespace SQL{
     namespace COMMANDS {
         // SQL 语句模板
@@ -127,9 +132,9 @@ namespace SQL{
                     deactivate_time   DATETIME,              -- 账号停用/冻结/注销时间
 
                     -- 安全与扩展
-                    security_question TEXT,                  -- 安全问题
-                    security_answer   TEXT,                  -- 安全答案
-                    common            TEXT                   -- 用于存储扩展的 JSON 配置
+                    security_question    TEXT,                  -- 安全问题
+                    security_answer_hash TEXT,                  -- 安全答案
+                    common               TEXT                   -- 用于存储扩展的 JSON 配置
                 );
             )";
 
@@ -268,92 +273,91 @@ namespace SQL{
             //     R"();)";
         }
 
+        // 在有索引的情况下，SQL 多条件查找会先过滤前面的条件，
+        // 在过滤结果中再进行后面条件的判断，每个条件过滤的时间为 O(Log N)
+        // 优先推荐使用复杂的 SQL 语句，而不是手动比对
+
+        // // 查询
+        // namespace QUERY {
+        //     // 只使用基础的查询语句，参数合法性在函数内自行比较  // 性能较差
+        //
+        //     // 查询数据版本
+        //     constexpr std::string_view SQL_QUERY_META_VERSION =
+        //         R"(SELECT name, value FROM meta where name = 'version' LIMIT 1;)";
+        //     // 通过 user_id 查找账号信息    # user_id 可用唯一
+        //     constexpr std::string_view SQL_QUERY_GET_ACCOUNT_INFO_BY_USER_ID =
+        //         R"(SELECT * FROM users WHERE user_id = :user_id AND status = 0 LIMIT 10;)";
+        //     // 通过 account_id 查找账号信息 # account_id 全局唯一
+        //     constexpr std::string_view SQL_QUERY_GET_ACCOUNT_INFO_BY_ACCOUNT_ID =
+        //         R"(SELECT * FROM users WHERE account_id = :account_id AND status = 0 LIMIT 10;)";
+        //     // 通过 account_id 查找 token 信息
+        //     constexpr std::string_view SQL_QUERY_GET_TOKENS_BY_ACCOUNT_ID =
+        //         R"(SELECT * FROM token WHERE account_id = :account_id;)";
+        // }
+
         // 查询
         namespace QUERY {
-            // // 查询账号 uuid 的 SQL 语句模板
-            // constexpr std::string_view SQL_QUERY_ACCOUNT_ID = "SELECT account_id FROM users WHERE account_id = :account_id;";
-            // // 查询用户 uuid 的 SQL 语句模板
-            // constexpr std::string_view SQL_QUERY_USER_ID = "SELECT user_id FROM users WHERE user_id = :user_id;";
-            // // 查询账号和用户是否匹配的 SQL 语句模板
-            // constexpr std::string_view SQL_QUERY_ACCOUNT_USER_MATCH = "SELECT 1 FROM users WHERE account_id = :account_id AND user_id = :user_id LIMIT 1;";
+            // 内部需要转换 user_id 为 account_id，使用 account_id 进行查询
 
             // 查询数据版本
-            constexpr std::string_view SQL_QUERY_META_VERSION = R"(
-                SELECT name, value FROM meta where name = 'version' LIMIT 1;
-            )";
+            constexpr std::string_view SQL_QUERY_META_VERSION      = R"(SELECT name, value FROM meta where name = 'version' LIMIT 1;)";
 
-            // 查询账号是否存在的 SQL 语句模板 // 始终唯一，因此不考虑账号状态
-            constexpr std::string_view SQL_QUERY_ACCOUNT_EXISTS = R"(
-                SELECT 1 FROM users WHERE account_id = :account_id LIMIT 1;
-            )";
+            // 用户注册时搜索 account_id 是否可用 // account_id 全局唯一，要求包含停用或已经注销的账号 ID  // 用户注册时使用该筛选条件
+            constexpr std::string_view SQL_QUERY_EXIST_ACCOUNTID         = R"(SELECT 1          FROM users WHERE account_id = :account_id                 LIMIT 10;)";
+            // 搜索在用的 account_id
+            constexpr std::string_view SQL_QUERY_EXIST_ACTIVE_ACCOUNTID  = R"(SELECT 1          FROM users WHERE account_id = :account_id  AND status = 0 LIMIT 10;)";
+            // 通过账号 ID 查询用户 ID  // 包含停用的账号
+            constexpr std::string_view SQL_QUERY_GET_USERID              = R"(SELECT user_id    FROM users WHERE account_id = :account_id                  LIMIT 10;)";
+            // 通过账号 ID 查询用户 ID  // 查询状态正常的用户 ID
+            constexpr std::string_view SQL_QUERY_GET_ACTIVE_USERID       = R"(SELECT user_id    FROM users WHERE account_id = :account_id   AND status = 0 LIMIT 10;)";
+            // 通过账号 ID 查询用户信息
+            constexpr std::string_view SQL_QUERY_GET_ACCOUNT_INFO        = R"(SELECT *          FROM users WHERE account_id = :account_id                  LIMIT 10;)";
+            // 通过账号 ID 查询用户信息
+            constexpr std::string_view SQL_QUERY_GET_ACTIVE_ACCOUNT_INFO = R"(SELECT *          FROM users WHERE account_id = :account_id   AND status = 0 LIMIT 10;)";
 
-            // 查询用户是否存在的 SQL 语句模板  // 排除已注销的账号
-            constexpr std::string_view SQL_QUERY_USER_EXISTS = R"(
-                SELECT 1 FROM users WHERE user_id = :user_id AND status = 0 LIMIT 1;
-            )";
+            // 用户注册时搜索 user_id 是否可用  // 仅包含正在使用的用户 ID
+            constexpr std::string_view SQL_QUERY_EXIST_ACTIVE_USER_ID    = R"(SELECT 1          FROM users WHERE user_id    = :user_id    AND status = 0 LIMIT 10;)";
+            // 通过用户 ID 查询账号 ID  // 包含停用的用户 ID，数量可以无限多
+            constexpr std::string_view SQL_QUERY_GET_ACCOUNT_ID          = R"(SELECT account_id FROM users WHERE user_id    = :user_id                   LIMIT 10;)";
+            // 通过用户 ID 查询账号 ID  // 统一将 user_id 转换为 account_id  // 在用账号的用户 ID 唯一，一般只返回一条数据
+            constexpr std::string_view SQL_QUERY_GET_ACTIVE_ACCOUNT_ID   = R"(SELECT account_id FROM users WHERE user_id    = :user_id    AND status = 0 LIMIT 10;)";
 
             // 校验用户注册是否成功/一致
-            constexpr std::string_view SQL_QUERY_USER_REGISTER_CHECK = R"(
+            constexpr std::string_view SQL_QUERY_CHECK_REGISTER = R"(
                 SELECT 1
-                FROM users
+                FROM   users
                 WHERE
-                    account_id            = :account_id         -- 账号 ID 匹配
-                    AND user_id           = :user_id            -- 用户 ID 匹配
-                    AND password_hash     = :password_hash      -- 密码哈希匹配
-                    AND register_time     = :register_time      -- 注册时间匹配
-                    AND security_question = :security_question  -- 安全问题匹配
-                    AND security_answer   = :security_answer    -- 安全答案匹配
-                    AND status            = 0                   -- 账号状态正常
+                        account_id           = :account_id         -- 账号 ID 匹配
+                    AND user_id              = :user_id            -- 用户 ID 匹配
+                    AND password_hash        = :password_hash      -- 密码哈希匹配
+                    AND register_time        = :register_time      -- 注册时间匹配
+                    AND security_question    = :security_question  -- 安全问题匹配
+                    AND security_answer_hash = :security_answer_hash    -- 安全答案匹配
+                    AND status               = 0                   -- 账号状态正常
                 LIMIT 1;
             )";
 
-            // 用户密码登录时校验用户 ID 和密码
-            constexpr std::string_view SQL_QUERY_USER_LOGIN_BY_PASSWORD = R"(
-                SELECT account_id
-                FROM users
+            // 密码登录校验
+            constexpr std::string_view SQL_QUERY_CHECK_PASSWORD = R"(
+                SELECT 1
+                FROM   users
                 WHERE
-                        user_id       = :user_id
+                        account_id    = :account_id
                     AND password_hash = :password_hash
                     AND status        = 0              -- 要求用户账户状态正常，排除冻结或注销的账户
                 LIMIT 1;
             )";
 
-            // 用户 token 登录时校验用户 ID 和 token
-            // token 表没有 user_id 字段，需要通过 account_id 进行关联查询
-            constexpr std::string_view SQL_QUERY_TOKEN_VALIDITY_BY_USER_ID = R"(
-                SELECT u.account_id, u.status
-                FROM users u
-                JOIN user_tokens t ON u.account_id = t.account_id
+            // token 登录校验
+            constexpr std::string_view SQL_QUERY_CHECK_TOKEN = R"(
+                SELECT 1
+                FROM   user_tokens
                 WHERE
-                        u.user_id      = :user_id       -- 传入的用户可改 ID
-                    AND t.token_hash   = :token_hash    -- 传入的 token 哈希值
-                    AND u.status       = 0              -- 确保账号状态正常
-                    AND t.token_status = 0              -- 确保 Token 未被手动撤销
-                    AND t.expire_time > datetime('now') -- 确保 Token 未过期
+                        account_id   = :account_id     -- 传入的账号 ID
+                    AND token_hash   = :token_hash     -- token_hash 匹配
+                    AND token_status = 0               -- Token 未手动撤销
+                    AND expire_time  > datetime('now') -- Token 未过期
                 LIMIT 1;
-            )";
-
-            // 校验用户的 token 是否有效的 SQL 语句模板，验证条件包括：
-            // 1. token_hash 匹配（由用户端传输的 token 经过 SHA-256 哈希后与数据库中存储的 token_hash 进行匹配）
-            // 2. token_status = 0（Token 未手动撤销）
-            // 3. expire_time > 当前时间（Token 未过期）
-            // 4. 用户账号状态正常（JOIN users 表验证 status = 0）
-            constexpr std::string_view SQL_QUERY_TOKEN_VALIDITY_BY_ACCOUNT_ID = R"(
-                SELECT t.account_id, u.status
-                FROM user_tokens t
-                JOIN users u ON t.account_id = u.account_id
-                WHERE
-                        t.account_id   = :account_id     -- 传入的账号 ID
-                    AND t.token_hash   = :token_hash     -- token_hash 匹配
-                    AND t.token_status = 0               -- Token 未手动撤销
-                    AND t.expire_time  > datetime('now') -- Token 未过期
-                    AND u.status       = 0;              -- 用户账号状态正常
-                LIMIT 1;
-            )";
-
-            // 查询用户是否存在的 SQL 语句模板  // 排除已注销的账号  // 实际为精准匹配 user_id，最多只包含一条数据
-            constexpr std::string_view SQL_QUERY_SEARCH_USERS = R"(
-                SELECT * FROM users WHERE user_id = :user_id AND status = 0 LIMIT 10;
             )";
         }
 
@@ -367,11 +371,11 @@ namespace SQL{
             )";
             // 用户注册的 SQL 语句模板，注意：SQLCipher 不支持参数绑定，所以只能使用字符串替换，这会导致数据库注入风险，但由于这是一个注册语句，且参数都是由系统生成的，不直接暴露给用户，所以风险相对较小，可以接受。
             constexpr std::string_view SQL_INSERT_USER_REGISTER = R"(
-                INSERT INTO users ( account_id,  user_id,  password_hash,  security_question,  security_answer,  register_time, status)
-                VALUES            (:account_id, :user_id, :password_hash, :security_question, :security_answer, :register_time, 0     );
+                INSERT INTO users ( account_id,  user_id,  password_hash,  security_question,  security_answer_hash,  register_time, status)
+                VALUES            (:account_id, :user_id, :password_hash, :security_question, :security_answer_hash, :register_time, 0     );
             )";
             // 用户登录记录的 SQL 语句模板
-            constexpr std::string_view SQL_INSERT_USER_LOGIN_RECORD = R"(
+            constexpr std::string_view SQL_INSERT_USER_TOKEN = R"(
                 INSERT INTO user_tokens ( account_id,  token_hash,  create_time,  expire_time)
                 VALUES                  (:account_id, :token_hash, :create_time, :expire_time);
             )";

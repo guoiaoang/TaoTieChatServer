@@ -1,5 +1,19 @@
 syntax = "proto3";
 
+// protobuf 定义的类型
+// import "google/protobuf/any.proto";
+// import "google/protobuf/api.proto";
+// import "google/protobuf/cpp_features.proto";
+// import "google/protobuf/descriptor.proto";
+// import "google/protobuf/duration.proto";  //
+// import "google/protobuf/empty.proto";
+// import "google/protobuf/field_mask.proto";
+// import "google/protobuf/source_context.proto";
+// import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";  // 时间戳
+// import "google/protobuf/type.proto";
+// import "google/protobuf/wrappers.proto";
+
 package TaoTieChat;
 
 // ============================  ErrorCode  ============================ //
@@ -11,72 +25,88 @@ enum SuccessCode {
   option allow_alias = true;  // 允许不同名但同值的枚举值  // 没有重名会报错
 
   // 成功
-  SUCCESS            = 0x0000000;  // 成功
-  STATUS_SUCCESS     = 0x0000000;  // 成功
-  STATUS_RUNNING     = 0x0000000;  // 运行中
-  STATUS_ONLINE      = 0x0000000;  // 在线
+  SUCCESS        = 0x00000000;  // 成功
+  STATUS_SUCCESS = 0x00000000;  // 成功
+  STATUS_RUNNING = 0x00000000;  // 运行中
+  STATUS_ONLINE  = 0x00000000;  // 在线
+  SUCCESS_INIT   = 0x00000101;  // 返回初始值
 }
 
-// 错误码格式：`0xAABBCCDD`
-// * AA:服务类型
-// * BB:业务模块
-//   * 01:用户注册
-//   * 02:用户登录
-// * CC:错误发生原因
-//   * 01:输入错误
-//   * 02:执行失败
-// * DD:具体错误信息
+// // 错误码格式：`0xAABBCCDD`
+// // * AA:服务类型
+// //   * 00:非业务
+// //   * 01:业务 (非 00)
+// // * BB:业务模块
+// //   * 01:用户注册
+// //   * 02:用户登录
+// // * CC:错误发生原因
+// //   * 01:输入错误
+// //   * 02:执行失败
+// // * DD:具体错误信息
 enum ErrorCode {
   // option allow_alias = true;  // 允许不同名但同值的枚举值  // 没有重名会报错
 
   UNSET                           = 0x00000000;  // 未设置错误码
   UNKNOWN                         = 0x00000001;  // 未知错误
-  ERROR_INIT                      = 0x00000101;  // 返回初始值
-  ERROR_CONN                      = 0x00000102;  // QT 建立连接失败，无法触发 connect 动作
-  ERROR_RECV                      = 0x00000103;  // 接收到的数据不完整或解析失败
-  ERROR_SEND                      = 0x00000104;  // 发送数据失败
-  // 数据库相关错误码
-  DB_QUERY                        = 0x00000201;  // 数据库查询失败
-  DB_QUERY_EMPTY                  = 0x00000202;  // 数据库查询为空
-  DB_EXECUTE                      = 0x00000203;  // 数据库命令执行失败
-  DB_EXECUTE_EMPTY                = 0x00000204;  // 数据库命令执行为空
-  DB_CHECK                        = 0x00000205;  // 数据库数据插入检查失败
-  DB_CHECK_EMPTY                  = 0x00000206;  // 数据库数据插入检查为空
-
-  // status 相关错误码           // 0x010101DD 输入错误
-  STATUS_TARGET_ID_EMPTY          = 0x01010101;  // 目标 ID 为空
-  STATUS_REQUEST_USER_ID_EMPTY    = 0x01010102;  // 无效的查询者用户 ID
-  STATUS_REQUEST_USER_TOKEN_EMPTY = 0x01010103;  // 无效的查询者认证令牌
-  // status 相关错误码           // 0x010102DD 结果失败
-  STATUS_TARGET_ID_NOT_FOUND      = 0x01010204;  // 目标 ID 不存在
-  STATUS_USER_ID_INVALID          = 0x01010205;  // 用户 ID 无效  // 不存在或无权限
-  STATUS_USER_TOKEN_INVALID       = 0x01010206;  // 用户认证令牌无效  // 不存在、过期或无权限
-
-  // 用户注册相关错误码           // 0x010201DD 输入错误
-  SIGN_UP_USER_ID_EMPTY           = 0x01020101;  // 用户 ID 为空
-  SIGN_UP_PASSWORD_EMPTY          = 0x01020102;  // 密码为空
-  SIGN_UP_CONFIRM_PASSWORD_EMPTY  = 0x01020103;  // 确认密码为空
-  SIGN_UP_SECURITY_QUESTION_EMPTY = 0x01020104;  // 安全问题为空
-  SIGN_UP_SECURITY_ANSWER_EMPTY   = 0x01020105;  // 安全答案为空
-  SIGN_UP_DIFF_CONFIRM_PASSWORD   = 0x01020106;  // 确认密码与密码不一致
-  // 用户注册相关错误码           // 0x010202DD 结果失败
-  SIGN_UP_USER_ID_EXISTS          = 0x01020201;  // 用户 ID 已存在
-
-  // 用户登录相关错误码           // 0x010301DD 输入错误
-  SIGN_IN_USER_ID_EMPTY           = 0x01030101;  // 用户 ID 为空
-  SIGN_IN_PASSWORD_EMPTY          = 0x01030102;  // 密码 为空
-  SIGN_IN_TOKEN_EMPTY             = 0x01030103;  // token 为空
-  SIGN_IN_INVALID_LOGIN_METHOD    = 0x01030104;  // 无效的登录方法
-  // 用户登录相关错误码           // 0x010302DD 结果失败
-  SIGN_IN_USER_ID_NOT_FOUND       = 0x01030201;  // 用户 ID 不存在
-  SIGN_IN_PASSWORD_INCORRECT      = 0x01030202;  // 密码错误
-  SIGN_IN_TOKEN_INCORRECT         = 0x01030203;  // token 错误
-  SIGN_IN_AUTH_FAILED             = 0x01030204;  // 用户 ID 或密码或 token 等错误导致登录失败  // 请检查登录信息
-
-  // 搜索服务相关错误码           // 0x010401DD 输入错误
-  SEARCH_USERS_KEYWORD_EMPTY      = 0x01040101;  // 用户 ID 为空
-  SEARCH_USERS_KEYWORD_NOT_FOUND  = 0x01040102;  // 用户 ID 不存在
+  DEFAULT                         = 0x00000002;  // 未知错误
   //
+  ERROR_INIT                      = 0x00010001;  // 返回初始值
+  ERROR_CONN                      = 0x00010002;  // QT 建立连接失败，无法触发 connect 动作
+  ERROR_RECV                      = 0x00010003;  // 接收到的数据不完整或解析失败
+  ERROR_SEND                      = 0x00010004;  // 发送数据失败
+  // 数据库相关错误码
+  DB_QUERY                        = 0x00020001;  // 数据库查询失败
+  DB_QUERY_EMPTY                  = 0x00020002;  // 数据库查询为空
+  DB_EXECUTE                      = 0x00020003;  // 数据库命令执行失败
+  DB_EXECUTE_EMPTY                = 0x00020004;  // 数据库命令执行为空
+  DB_CHECK                        = 0x00020005;  // 数据库数据插入检查失败
+  DB_CHECK_EMPTY                  = 0x00020006;  // 数据库数据插入检查为空
+  // 单参数
+  USER_ID_ERROR                   = 0x00030101;  //
+  USER_ID_EMPTY                   = 0x00030102;  // 用户 ID 为空
+  USER_ID_NOT_FOUND               = 0x00030103;  // 用户 ID 不存在
+  USER_ID_EXISTS                  = 0x00030104;  // 用户 ID 已存在
+  ACCOUNT_ID_ERROR                = 0x00030201;  //
+  ACCOUNT_ID_EMPTY                = 0x00030202;  //
+  ACCOUNT_ID_NOT_FOUND            = 0x00030203;  //
+  PASSWORD_ERROR                  = 0x00030301;  //
+  PASSWORD_EMPTY                  = 0x00030302;  // 密码为空
+  PASSWORD_NOT_FOUND              = 0x00030303;  //
+  TOKEN_ERROR                     = 0x00030401;  //
+  TOKEN_EMPTY                     = 0x00030402;  // token 为空
+  TOKEN_NOT_FOUND                 = 0x00030403;  //
+  CONFIRM_PASSWORD_ERROR          = 0x00030501;  //
+  CONFIRM_PASSWORD_EMPTY          = 0x00030502;  // 确认密码为空
+  CONFIRM_PASSWORD_NOT_FOUND      = 0x00030503;  //
+  SECURITY_QUESTION_ERROR         = 0x00030601;  //
+  SECURITY_QUESTION_EMPTY         = 0x00030602;  // 安全问题为空
+  SECURITY_QUESTION_NOT_FOUND     = 0x00030603;  //
+  SECURITY_ANSWER_ERROR           = 0x00030701;  //
+  SECURITY_ANSWER_EMPTY           = 0x00030702;  // 安全答案为空
+  SECURITY_ANSWER_NOT_FOUND       = 0x00030703;  //
+  TARGET_USER_ID_ERROR            = 0x00030801;  //
+  TARGET_USER_ID_EMPTY            = 0x00030802;  // 目标用户 ID 为空
+  TARGET_USER_ID_NOT_FOUND        = 0x00030803;  // 目标用户 ID 不存在
+  TARGET_USER_ID_EXISTS           = 0x00030804;  // 目标用户 ID 已存在
+  TARGET_ACCOUNT_ID_ERROR         = 0x00030901;  //
+  TARGET_ACCOUNT_ID_EMPTY         = 0x00030902;  //
+  TARGET_ACCOUNT_ID_NOT_FOUND     = 0x00030903;  //
+  // 多参
+  DIFF_PASSWORD_WITH_CONFIRM      = 0x00040001;  // 确认密码与密码不一致
+
+  //
+  AUTH_INFO_NONE                  = 0x10010001;  // 没有必要的鉴权信息
+  // 鉴权
+  AUTH_ID_EMPTY                   = 0x10010002;  // ID 为空   // 无 user_id 及 account_id
+  AUTH_METHOD_EMPTY               = 0x10010003;  // 方法为空  // 无 token 及 password
+  AUTH_FAILED                     = 0x10010004;  // 鉴权失败
+
+  // TODO:待移除
+  // 用户登录相关错误码          // 0x010301DD 输入错误
+  SIGNIN_INVALID_LOGIN_METHOD     = 0x10010101;  // 无效的登录方法
+  // 用户登录相关错误码          // 0x010302DD 结果失败
+  SIGNIN_AUTH_FAILED              = 0x10010201;  // 用户 ID 或密码或 token 等错误导致登录失败  // 请检查登录信息
+
 }
 
 // Result 结果消息
@@ -88,36 +118,18 @@ message Result {
   string        message      = 3;  // 可选的错误消息字段
 }
 
-// ============================== StatusService ============================== //
-
-// 服务器在线状态及用户在线状态检查
-service StatusService {
-  // GetStatus 返回给定请求的状态信息。
-  rpc GetStatus (StatusRequest) returns (StatusReply) {}
-}
-
-// StatusRequest 要检查的用户或服务器 ID
-message StatusRequest {
-  string target_id          = 1;  // 被查询的用户 ID 或服务器 ID
-  string request_user_id    = 2;  // 查询者的用户 ID（可选，某些请求可能不需要）
-  string request_user_token = 3;  // 查询者的认证令牌（可选，某些请求可能不需要）
-}
-
-// 最终的状态响应消息
-message StatusReply {
-  optional StatusRequest request = 1;  // 可选的原始请求信息字段
-           Result        result  = 2;  // 状态信息字段
-           string        status  = 3;  // 自定义的用户状态字段
-}
-
 // ============================  AccountService  ============================ //
 
 // 用户注册服务
 service AccountService {
   // Register 接收用户注册请求并返回注册结果。
   rpc SignUp(SignUpRequest) returns (SignUpReply) {}
+  // 鉴权，实际为内部接口
+  rpc AuthCheck(AuthRequest) returns (AuthReply) {}
   // UserLogin 接收用户登录请求并返回登录结果。
   rpc SignIn(SignInRequest) returns (SignInReply) {}
+  // 获取更新
+  rpc GetUpdate(UpdateResuest) returns (UpdateReply) {}
 }
 
 // 用户注册请求
@@ -136,13 +148,29 @@ message SignUpReply {
            string        account_id = 3;  // 注册成功后返回的账号 ID
 }
 
-// 用户登录请求
-message SignInRequest {
-  string user_id    = 1;  // 昵称
-  oneof auth_method {
-    string password = 2;  // 密码;  // 有 token 时就不要使用密码
-    string token    = 3;  // 认证令牌
+// 鉴权参数
+message AuthRequest {
+  oneof auth_id {
+    string account_id = 1;
+    string user_id    = 2;
   }
+  oneof auth_method {
+    string password = 3;  // 密码;  // 有 token 时就不要使用密码
+    string token    = 4;  // 认证令牌
+  }
+}
+
+// 鉴权结果
+message AuthReply {
+  optional AuthRequest request    = 1;  // 可选的原始请求信息字段
+           Result      result     = 2;  // 状态信息字段 // 校验结果也设置在这里
+           string      account_id = 3;  // 如果传入的有则复制返回，否则返回获取到的
+  optional string      token      = 4;  // 如果传入的有则返回，否则不设置
+}
+
+// 用户登录请求  // 只有认证信息也要添加包装
+message SignInRequest {
+  AuthRequest request_user_auth = 1;  // 认证信息  // 必须
 }
 
 // 用户登录响应
@@ -150,7 +178,39 @@ message SignInReply {
   optional SignInRequest request    = 1;  // 可选的原始请求信息字段
            Result        result     = 2;  // 状态信息字段
            string        account_id = 3;  // 登录成功后返回的账号 ID
-           string        token      = 4;  // 登录成功后返回的认证令牌
+           string        token      = 4;  // 登录成功后返回新获取的认证令牌
+}
+
+// 获取更新
+
+// 要获取更新的消息类型
+enum UpdateType {
+  CONTACTS = 0;  // 联系人列表
+  GROUPS   = 1;  // 群组列表
+  MESSAGES = 2;  // 消息列表
+}
+
+// 缩短名称  // protobuf 不支持别名
+message Timestamp{
+  google.protobuf.Timestamp timestamp = 1;
+}
+
+// 请求信息
+message UpdateResuest{
+  optional AuthRequest request_user_auth = 1;  // 鉴权  // 可能不需要
+           UpdateType  type              = 2;  // 请求类型  // 主要
+           Timestamp   timestamp         = 3;  // 获取该时间戳之后的新内容
+}
+
+// 返回内容
+message UpdateReply{
+  optional UpdateResuest request     = 1;
+           Result        result      = 2;
+           // SignInReply   auth_result = 3;  // 鉴权结果
+  // 消息内容
+  oneof                  body {
+           Contacts      contacts = 3;
+  }
 }
 
 // ============================  SearchService  ============================ //
@@ -165,19 +225,24 @@ service SearchService {
 
 // 搜索用户需要的参数
 message SearchUsersRequest{
-  string users_keyword = 1;  // user_id/nickname/phone/email，其一即可
-  string users_filter  = 2;  // gender/region/birthday, 过滤条件
+  optional AuthRequest request_user_auth = 1;  // 鉴权
+           string      user_id           = 2;  // user_id/nickname/phone/email，其一即可
+           string      user_filter       = 3;  // gender/region/birthday, 过滤条件
 }
 
 // 返回搜索用户的结果
 message SearchUsersReply{
   optional SearchUsersRequest request   = 1;  // 可选的原始请求信息字段
            Result             result    = 2;  // 状态信息字段
-  repeated UserBaseInfo       user_info = 3;  // 用户信息  // 默认最多只返回 10 条信息 // 暂不设置可过滤或分页
+           Contacts           contacts  = 3;  // 用户/账号信息
+}
+
+message Contacts {
+    repeated Contact contact = 1;
 }
 
 // 用户的基本信息
-message UserBaseInfo{
+message Contact{
            string user_id  = 1;  // 用户 ID
            string nickname = 2;  // 昵称
            string avatar   = 3;  // 头像
@@ -191,22 +256,51 @@ message UserBaseInfo{
 
 // 搜索群组需要的参数
 message SearchGroupsRequest{
-  string groups_keyword = 1;  // user_id/nickname/phone/email，其一即可
-  string groups_filter  = 2;  // gender/region/birthday, 过滤条件
+  optional AuthRequest request_user_auth = 1;  // 鉴权
+           string      groups_keyword    = 2;  // user_id/nickname/phone/email，其一即可
+           string      groups_filter     = 3;  // gender/region/birthday, 过滤条件
 }
 
 // 返回搜索群组的结果
 message SearchGroupsReply{
-  optional SearchGroupsRequest request    = 1;  // 可选的原始请求信息字段
-           Result              result     = 2;  // 状态信息字段
-  repeated GroupBaseInfo       group_info = 3;  // 群组信息  // 默认最多只返回 10 条信息 // 暂不设置可过滤或分页
+  optional SearchGroupsRequest request = 1;  // 鉴权
+           Result              result  = 2;  // 状态信息字段
+           Groups              groups  = 3;  // 群组信息  // 默认最多只返回 10 条信息 // 暂不设置可过滤或分页
+}
+
+//
+message Groups {
+    repeated Group group = 1;
 }
 
 // 群组的基本信息
-message GroupBaseInfo{
-  string group_id    = 1;  // 群组 ID
-  string group_name  = 2;  // 群组名称
-  string avatar      = 3;  // 头像
-  string sign        = 4;  // 简介
-  string region      = 6;  // 地区
+message Group{
+  string id     = 1;  // 群组 ID
+  string name   = 2;  // 群组名称
+  string avatar = 3;  // 头像
+  string sign   = 4;  // 简介
+  string region = 5;  // 地区
 }
+
+// ============================== StatusService ============================== //
+
+// 服务器在线状态及用户在线状态检查
+service StatusService {
+  // 返回给定请求的状态信息。
+  rpc GetStatus (StatusRequest) returns (StatusReply) {}
+}
+
+// StatusRequest 要检查的用户或服务器 ID
+message StatusRequest {
+  optional AuthRequest request_user_auth = 1;  //
+           string      target_user_id    = 2;  // 被查询的用户 ID 或服务器 ID
+}
+
+// 最终的状态响应消息
+message StatusReply {
+  optional StatusRequest request = 1;  // 可选的原始请求信息字段
+           Result        result  = 2;  // 状态信息字段
+           string        status  = 3;  // 自定义的用户状态字段
+}
+
+// ============================  SearchService  ============================ //
