@@ -48,7 +48,7 @@ const string& request_user_id, const string& request_user_token) {
 
 // 测试 StatusService 的 GetStatus 方法
 // 目标用户 ID 为空，返回服务器运行状态
-TEST(StatusServiceGetStatus, target_id_empty) {
+TEST(ServiceStatusGetStatus, target_id_empty) {
     // DBSQLCipherInit::init();
     auto [status, response] = GetStatus("", "user1", "token1");
     // 验证返回状态
@@ -57,7 +57,7 @@ TEST(StatusServiceGetStatus, target_id_empty) {
 }
 
 // 请求认证信息完全为空，返回错误码 AUTH_INFO_NONE
-TEST(StatusServiceGetStatus, request_auth_none) {
+TEST(ServiceStatusGetStatus, request_auth_none) {
     // DBSQLCipherInit::init();
     auto [status, response] = GetStatus("user1", "", "");
     // 验证返回状态
@@ -66,7 +66,7 @@ TEST(StatusServiceGetStatus, request_auth_none) {
 }
 
 // 请求用户 ID 为空，返回错误码 USER_ID_EMPTY
-TEST(StatusServiceGetStatus, request_user_id_empty) {
+TEST(ServiceStatusGetStatus, request_user_id_empty) {
     // DBSQLCipherInit::init();
     auto [status, response] = GetStatus("user1", "", "token1");
     // 验证返回状态
@@ -75,7 +75,7 @@ TEST(StatusServiceGetStatus, request_user_id_empty) {
 }
 
 // 请求用户认证信息中 Token 为空，返回错误码 TOKEN_EMPTY
-TEST(StatusServiceGetStatus, request_user_token_empty) {
+TEST(ServiceStatusGetStatus, request_user_token_empty) {
     // DBSQLCipherInit::init();
     auto [status, response] = GetStatus("user1", "user1", "");
     // 验证返回状态
@@ -84,7 +84,7 @@ TEST(StatusServiceGetStatus, request_user_token_empty) {
 }
 
 // 请求用户 ID 错误，返回错误码 USER_ID_NOT_FOUND
-TEST(StatusServiceGetStatus, request_user_id_error) {
+TEST(ServiceStatusGetStatus, request_user_id_error) {
     // DBSQLCipherInit::init();
     auto [status, response] = GetStatus("user1", "user_", "token1");
     // 验证返回状态
@@ -93,7 +93,7 @@ TEST(StatusServiceGetStatus, request_user_id_error) {
 }
 
 // 请求用户认证信息中 Token 错误，返回错误码 TOKEN_NOT_FOUND
-TEST(StatusServiceGetStatus, request_user_token_error) {
+TEST(ServiceStatusGetStatus, request_user_token_error) {
     // DBSQLCipherInit::init();
     auto [status, response] = GetStatus("user1", "user1", "token_");
     // 验证返回状态
@@ -102,7 +102,7 @@ TEST(StatusServiceGetStatus, request_user_token_error) {
 }
 
 // 目标用户 ID 错误，返回错误码 TARGET_USER_ID_NOT_FOUND
-TEST(StatusServiceGetStatus, target_id_error) {
+TEST(ServiceStatusGetStatus, target_id_error) {
     // DBSQLCipherInit::init();
     auto [status, response] = GetStatus("user_", "user1", "token1");
     // 验证返回状态
@@ -111,7 +111,7 @@ TEST(StatusServiceGetStatus, target_id_error) {
 }
 
 // 请求用户认证信息正确，目标用户 ID 正确，返回目标用户状态
-TEST(StatusServiceGetStatus, self_status) {
+TEST(ServiceStatusGetStatus, self_status) {
     // DBSQLCipherInit::init();
     auto [status, response] = GetStatus("user1", "user1", "token1");
     // 验证返回状态
@@ -121,7 +121,7 @@ TEST(StatusServiceGetStatus, self_status) {
 }
 
 // 请求用户认证信息正确，目标用户 ID 正确，返回目标用户状态
-TEST(StatusServiceGetStatus, other_user_status_user2) {
+TEST(ServiceStatusGetStatus, other_user_status_user2) {
     // DBSQLCipherInit::init();
     auto [status, response] = GetStatus("user2", "user1", "token1");
     // 验证返回状态
@@ -131,7 +131,7 @@ TEST(StatusServiceGetStatus, other_user_status_user2) {
 }
 
 // 请求用户认证信息正确，目标用户 ID 正确，返回目标用户状态
-TEST(StatusServiceGetStatus, other_user_status_user3) {
+TEST(ServiceStatusGetStatus, other_user_status_user3) {
     // DBSQLCipherInit::init();
     auto [status, response] = GetStatus("user3", "user1", "token11");
     // 验证返回状态

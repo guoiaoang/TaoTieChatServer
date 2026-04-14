@@ -138,7 +138,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE lib_proto_taotie_chat)
 
 # 添加测试子目录
 add_subdirectory(src/test)
-add_subdirectory(src/gtest)
+# add_subdirectory(src/test/server)
 
 # =============================== 安装打包 =============================== #
 

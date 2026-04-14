@@ -113,6 +113,12 @@ protected:
 
 // 静态成员变量需要在类外定义
 SharedResource* BigDataTest::resource = nullptr;
+
+// 这里的 test_fixture 名称要与 `::testing::Test` 子类一致，以便宏展开时正确调用
+TEST_F(BigDataTest, TestCase1) {
+    // 这里可以使用 resource 进行测试
+    EXPECT_TRUE(resource != nullptr);
+}
 }
 
 // ========================================================================== //
@@ -136,7 +142,7 @@ public:
 // 在 main 函数中注册
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
-    ::testing::AddGlobalTestEnvironment(new GlobalEnvironment);
+    ::testing::AddGlobalTestEnvironment(new GlobalEnvironment);  // 这里需要调用实例化函数
     return RUN_ALL_TESTS();
 }
 }

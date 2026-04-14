@@ -11,6 +11,14 @@
 
 3. 测试用例的 `std::cout` 输出可以在测试面板中的相关测试用例输出捕获中进行查看。
 
+4. GTest 无法保证测试执行顺序，每一个测试都应该是独立且可单独运行的。
+
+5. `TEST_F(test_fixture,test_name)` 中的 `test_fixture` 与 `::testing::Test` 的
+   子类名称完全一致时才会调用相关实现。
+
+6. `ASSERT_FALSE(false);` 会中断测试并标记为失败，
+   而 `EXPECT_FALSE(false);` 会记录失败但继续执行测试。
+
 <!--
 4. `TEST_F(test_fixture,test_name)` 中两个名称均完全一致时计数才会累积。
 

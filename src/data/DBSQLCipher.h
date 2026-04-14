@@ -189,7 +189,7 @@ public:
         LOG_TRACE("Encryption key set successfully, not check rw.");
 
 #ifdef DEBUG
-        std::ofstream debug_key(parent_path / "debug_key.txt", std::ios::app);
+        std::ofstream debug_key(str_db_path + ".key", std::ios::out | std::ios::trunc);
         if(debug_key.is_open()) {
             debug_key << "debug key : " << m_encryption_key << std::endl;
             debug_key.close();
@@ -259,6 +259,36 @@ public:
             return true;
         }while(false);
         return false;
+    }
+
+    bool database_close() {
+        if (m_db_sqlcipher) {
+            int rc = sqlite3_close(m_db_sqlcipher);
+            if (rc == SQLITE_OK) {
+                // 关闭成功
+                m_db_sqlcipher = nullptr;
+                LOG_INFO("Closed database connection");
+            }
+            else if (rc == SQLITE_ERROR) {
+                // 关闭失败，可能是因为数据库文件损坏或其他 I/O 错误
+                LOG_ERROR("Failed to close database connection. msg: {}", sqlite3_errmsg(m_db_sqlcipher));
+                return false;
+            }
+            else if (rc == SQLITE_BUSY) {
+                // 还有未完成的 statement（查询）或未关闭的 blob 句柄
+                LOG_ERROR("Failed to close database connection because it is busy. msg: {}", sqlite3_errmsg(m_db_sqlcipher));
+                LOG_ERROR("Please Check Code Ensure All Statements Are Finalized.");
+                LOG_ERROR("Call sqlite3_finalize(stmt) for every sqlite3_prepare_v2() statement. ");
+                LOG_ERROR("Unfinalized statements will keep the database connection busy and prevent it from closing.");
+                return false;
+            }
+            else {
+                // 其他未知错误
+                LOG_ERROR("Failed to close database connection with unknown error code {}. msg: {}", rc, sqlite3_errmsg(m_db_sqlcipher));
+                return false;
+            }
+        }
+        return true; // 数据库未打开
     }
 
 public:
@@ -347,10 +377,13 @@ public:
             results->msg  = "sql is empty.";
             return results;
         }
+        // **每次调用 `sqlite3_stmt` 都必须调用 `sqlite3_finalize()` **来清理，
+        // 否则 `sqlite3_close(db) == SQLITE_BUSY`，无法关闭数据库
         sqlite3_stmt* stmt;
         if (sqlite3_prepare_v2(m_db_sqlcipher, sql.data(), -1, &stmt, nullptr) != SQLITE_OK) {
             results->done = false;
             results->msg  = sqlite3_errmsg(m_db_sqlcipher);
+            sqlite3_finalize(stmt);
             return results;
         }
 
@@ -385,6 +418,7 @@ public:
         if(rc == SQLITE_DONE) {
             // 执行过程没有错误
             results->done = true;
+            sqlite3_finalize(stmt);
             return results;
         }
         else {
@@ -394,11 +428,12 @@ public:
             // 执行过程发生错误
             results->done = false;
             results->msg  = sqlite3_errmsg(m_db_sqlcipher);
+            sqlite3_finalize(stmt);
             return results;
         }
 
         results->done = false;
-        sqlite3_finalize(stmt); // 清理
+        sqlite3_finalize(stmt);
         return results;
     }
 

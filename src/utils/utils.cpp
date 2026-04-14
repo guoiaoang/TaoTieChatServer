@@ -327,10 +327,7 @@ string to_message(ErrorCode code) {
     if (map_codes.contains(code)) {
         return map_codes.at(code);
     }
-#ifdef DEBUG
-    auto debug_string = std::format("[{}(0x{:010x})]", ::TaoTieChat::ErrorCode_Name(code), int{code});
-#endif // DEBUG
-    return std::format("[{}({:010x})]", ::TaoTieChat::ErrorCode_Name(code), int{code});
+    return std::format("[{}(0x{:010x})]", ::TaoTieChat::ErrorCode_Name(code), int{code});
 }
 
 //
@@ -352,12 +349,12 @@ string to_string(const TaoTieChat::Result&result) {
     if(result.has_success_code()) {
         const auto&code = result.success_code();
         const auto&msg  = result.message     ();
-        return std::format("success, code: {:010x}, message: {}", int{code}, msg);
+        return std::format("success, code: 0x{:010x}, message: {}", int{code}, msg);
     }
     if(result.has_error_code()) {
         const auto&code = result.error_code();
         const auto&msg  = result.message   ();
-        return std::format("success, code: {:010x}, message: {}", int{code}, msg);
+        return std::format("error, code: 0x{:010x}, message: {}", int{code}, msg);
     }
     return "[UNDEFINED]";
 }
