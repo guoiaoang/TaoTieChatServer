@@ -10,7 +10,7 @@ target_link_libraries(${TEST_ITEM}
 )
 gtest_discover_tests(${TEST_ITEM})
 
-set(TEST_TARGETS test_account_service test_db_sqlcipher)
+set(TEST_TARGETS test_service_status_getstatus test_account_service test_db_sqlcipher)
 foreach(TEST_ITEM ${TEST_TARGETS})
     add_executable(${TEST_ITEM}
         ${TEST_ITEM}.cc

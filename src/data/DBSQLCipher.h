@@ -419,6 +419,10 @@ public:
 
     // 获取在线状态
     shared_ptr<StatusReply> get_status(shared_ptr<StatusRequest> request) {
+#ifdef DEBUG
+        // LOG_DEBUG("Received get_status request: {}", request ? request->DebugString() : "null");
+        std::cout << "Received get_status request: " << (request ? request->DebugString() : "null") << std::endl;
+#endif // DEBUG
         using Request = StatusRequest;
         using Reply   = StatusReply;
         // =========================== 初始化操作 =========================== //
@@ -433,10 +437,8 @@ public:
         reply->mutable_request()->CopyFrom(*request.get());
         set_error(reply->mutable_result(), ErrorCode::UNKNOWN);
         // =========================== 参数校验 =========================== //
-        // 被查询用户 id 为空时返回服务器的状态信息
         if(request->target_user_id().empty()) {
-            // request->DebugString();
-            return success_reply<Reply>(reply, SuccessCode::STATUS_RUNNING, std::format("Server is running."));
+            return error_reply<Reply>(reply, ErrorCode::TARGET_USER_ID_EMPTY, std::format("Target user ID is required."));
         }
         if(!request->has_request_user_auth()) {
             return error_reply<Reply>(reply, ErrorCode::AUTH_INFO_NONE, std::format("Auth info is required."));

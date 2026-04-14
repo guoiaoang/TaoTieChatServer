@@ -383,7 +383,7 @@ void log_grpc_context(::grpc::ServerContext* context) {
     }
     // SSL 证书验证
     shared_ptr<const AuthContext> auth_ctx = context->auth_context();
-    if (auth_ctx->IsPeerAuthenticated()) {
+    if (auth_ctx && auth_ctx->IsPeerAuthenticated()) {
         vector<string_ref> peers = auth_ctx->GetPeerIdentity();
         for (auto it = peers.begin(); it != peers.end(); ++it) {
         string value(it->data(), it->size());
