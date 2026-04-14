@@ -669,6 +669,16 @@ public:
             }
             account_id = result_account_id;
         }
+        else {
+            // 校验账号 ID 是否在用
+            auto[success_check_account_id, result_check_account_id] = check_active_account_id(account_id);
+            if(!success_check_account_id) {
+                return error_reply<Reply>(reply, ErrorCode::DB_QUERY, std::format("Check active account ID error, account_id:{}.", account_id));
+            }
+            if(!result_check_account_id) {
+                return error_reply<Reply>(reply, ErrorCode::ACCOUNT_ID_NOT_FOUND, std::format("Account ID not found or inactive, account_id:{}.", account_id));
+            }
+        }
 
         // 不要生成新的凭证
         // if(token.empty() && !password.empty()) {
@@ -988,7 +998,7 @@ private:
         // 构造参数
         auto sql_params = make_shared<SqlParams>();
         (*sql_params)[":account_id"] = account_id;
-        auto sql_result = execute(SQL_QUERY_EXIST_ACCOUNTID, sql_params);
+        auto sql_result = execute(SQL_QUERY_EXIST_ACTIVE_ACCOUNTID, sql_params);
         if(sql_result && sql_result->done) {
             // 查询命令执行成功
             return check_exist_account_id(sql_result->rows);
@@ -996,6 +1006,32 @@ private:
         return {false, false};
     }
     std::tuple<bool, bool> check_exist_account_id(const SqlRows&rows) {
+        // 解析是否为 1
+        if(rows.size()) {
+            return {true, true}; // 有数据即可认为存在
+        }
+        else {
+            return {true, false}; // 无数据时认为不存在
+        }
+        return {false, false};
+    }
+    std::tuple<bool, bool> check_active_account_id(const string&account_id) {
+        // =========================== 参数校验 =========================== //
+        if(account_id.empty()) {
+            return {false, false};
+        }
+        // =========================== 执行操作 =========================== //
+        // 构造参数
+        auto sql_params = make_shared<SqlParams>();
+        (*sql_params)[":account_id"] = account_id;
+        auto sql_result = execute(SQL_QUERY_EXIST_ACCOUNTID, sql_params);
+        if(sql_result && sql_result->done) {
+            // 查询命令执行成功
+            return check_active_account_id(sql_result->rows);
+        }
+        return {false, false};
+    }
+    std::tuple<bool, bool> check_active_account_id(const SqlRows&rows) {
         // 解析是否为 1
         if(rows.size()) {
             return {true, true}; // 有数据即可认为存在

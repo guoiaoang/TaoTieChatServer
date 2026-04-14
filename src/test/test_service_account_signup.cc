@@ -42,13 +42,13 @@ using std::mutex;
 using std::string;
 using std::string;
 using std::function;
-using Context = ::grpc::ClientContext;
-using Channel = ::grpc::Channel;
-using Status  = ::grpc::Status;
-using Stub    = ::TaoTieChat::AccountService::Stub;
-using Service = ::TaoTieChat::AccountService;
-using Request = ::TaoTieChat::SignUpRequest;
-using Reply   = ::TaoTieChat::SignUpReply;
+using ::grpc::ClientContext;
+using ::grpc::Channel;
+using ::grpc::Status;
+using ::TaoTieChat::AccountService;
+using ::TaoTieChat::SignUpRequest;
+using ::TaoTieChat::SignUpReply;
+using Stub = ::TaoTieChat::AccountService::Stub;
 
 class ServiceAccountSignUp : public ::testing::Test {
 protected:
@@ -75,7 +75,6 @@ protected:
                 // 如果文件正在被占用或权限不足，会抛出异常
                 std::cerr << std::format("remove {} failed: {}", db_path.string(), e.what()) << std::endl;
             }
-            // remove(db_path);
         }
         ASSERT_FALSE(exists(db_path)) << std::format("Failed to remove old database file: {}", db_path.string());
 

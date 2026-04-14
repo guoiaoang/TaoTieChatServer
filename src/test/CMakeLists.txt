@@ -13,7 +13,10 @@ gtest_discover_tests(${TEST_ITEM})
 set(
     TEST_TARGETS
         test_service_status_getstatus
-        test_service_account_signup
+        test_service_account_signup  # 账号注册
+        test_service_account_signin  # 账号登录
+        # test_service_account_signout     # 账号登出
+        # test_service_account_deactivate  # 账号停用
         test_account_service
         test_db_sqlcipher
 )
