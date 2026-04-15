@@ -217,7 +217,7 @@ message UpdateReply{
 
 // 搜索服务
 service SearchService {
-  // 搜索用户
+  // 搜索用户  // 公共信息，与好友列表不同
   rpc SearchUsers(SearchUsersRequest) returns (SearchUsersReply) {}
   // 搜索群组
   rpc SearchGroups(SearchGroupsRequest) returns (SearchGroupsReply) {}
@@ -241,7 +241,7 @@ message Contacts {
     repeated Contact contact = 1;
 }
 
-// 用户的基本信息
+// 用户的基本信息  // 暂时设为都必须有
 message Contact{
            string user_id  = 1;  // 用户 ID
            string nickname = 2;  // 昵称

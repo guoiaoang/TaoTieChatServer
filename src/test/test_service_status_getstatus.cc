@@ -10,6 +10,21 @@
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
 
+using std::shared_ptr;
+using std::make_shared;
+using std::unique_ptr;
+using std::lock_guard;
+using std::unique_lock;
+using std::condition_variable;
+using std::mutex;
+using std::string;
+using std::function;
+using std::filesystem::path;
+using std::filesystem::current_path;
+using std::filesystem::exists;
+using std::filesystem::filesystem_error;
+using std::format;
+
 std::tuple<grpc::Status, StatusReply> GetStatus(const string& target_user_id,
 const string& request_user_id, const string& request_user_token) {
     // 创建 StatusServiceImpl 实例

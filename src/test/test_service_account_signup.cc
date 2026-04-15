@@ -1,25 +1,3 @@
-// std
-#include <condition_variable>
-#include <functional>
-#include <iostream>
-#include <memory>
-#include <mutex>
-#include <string>
-// absl
-#include "absl/flags/flag.h"
-#include "absl/flags/parse.h"
-#include "absl/log/absl_log.h"
-#include "absl/log/check.h"
-#include "absl/log/initialize.h"
-#include "absl/log/globals.h"
-#include "absl/strings/str_format.h"
-// grpc
-#include <grpcpp/grpcpp.h>
-// protos
-#include "taotie_chat.grpc.pb.h"
-// service parameters
-#include "DBSQLCipher.h"
-
 #include "headers.h"
 #include "utils.h"
 #include "types.h"
@@ -40,15 +18,12 @@ using std::unique_lock;
 using std::condition_variable;
 using std::mutex;
 using std::string;
-using std::string;
 using std::function;
-using ::grpc::ClientContext;
-using ::grpc::Channel;
-using ::grpc::Status;
-using ::TaoTieChat::AccountService;
-using ::TaoTieChat::SignUpRequest;
-using ::TaoTieChat::SignUpReply;
-using Stub = ::TaoTieChat::AccountService::Stub;
+using std::filesystem::path;
+using std::filesystem::current_path;
+using std::filesystem::exists;
+using std::filesystem::filesystem_error;
+using std::format;
 
 class ServiceAccountSignUp : public ::testing::Test {
 protected:

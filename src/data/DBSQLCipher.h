@@ -945,49 +945,32 @@ private:
         return {false, Contacts()};
     }
     std::tuple<bool, Contacts> get_active_account_info(const SqlRows&rows) {
-        // // 执行数据库查询命令  // 传入查询语句及相关参数
-        // auto sql_reply = execute(SQL_QUERY_GET_ACCOUNT_INFO_BY_USER_ID.data(), sql_params);
-        // // TODO:check
-
-
-        // // 数据库查询命令执行失败
-        // if(!query_search_users->done) {
-        //     return error_reply<Reply>(reply, ErrorCode::DB_QUERY, std::format("Query users keyword failed."));
-        // }
-
-        // // 数据库查询命令执行成功，但没有有效数据  // 返回的结果为空
-        // if(query_search_users->results.empty()) {
-        //     LOG_DEBUG("DB query_search_users result empty, message: {}", query_search_users->error_message);
-        //     return error_reply<Reply>(reply, ErrorCode::TARGET_USER_ID_NOT_FOUND, std::format("Search target user not found."));
-        // }
-
-        // // 查询命令执行成功且有有效数据  // 返回的结果不为空，至少包含一条有效数据
-        // set_success(reply->mutable_result(), SuccessCode::SUCCESS);
-        // for(auto&db_user_info : query_search_users->results) {
-        //     Contact * contact = reply->mutable_contacts()->add_contact();
-        //     auto ite_end      = db_user_info.end();
-        //     auto ite_user_id  = db_user_info.find("user_id" );
-        //     auto ite_nickname = db_user_info.find("nickname");
-        //     auto ite_avatar   = db_user_info.find("avatar"  );
-        //     auto ite_sign     = db_user_info.find("sign"    );
-        //     auto ite_gender   = db_user_info.find("gender"  );
-        //     auto ite_region   = db_user_info.find("region"  );
-        //     auto ite_birthday = db_user_info.find("birthday");
-        //     auto ite_phones   = db_user_info.find("phones"  );
-        //     auto ite_emails   = db_user_info.find("emails"  );
-        //     if(ite_user_id  != ite_end) { auto point_value = get_if<string >(&ite_user_id ->second); if(point_value) { contact->set_user_id (*point_value); } }
-        //     if(ite_nickname != ite_end) { auto point_value = get_if<string >(&ite_nickname->second); if(point_value) { contact->set_nickname(*point_value); } }
-        //     if(ite_avatar   != ite_end) { auto point_value = get_if<string >(&ite_avatar  ->second); if(point_value) { contact->set_avatar  (*point_value); } }
-        //     if(ite_sign     != ite_end) { auto point_value = get_if<string >(&ite_sign    ->second); if(point_value) { contact->set_sign    (*point_value); } }
-        //     if(ite_gender   != ite_end) { auto point_value = get_if<int32_t>(&ite_gender  ->second); if(point_value) { contact->set_gender  (*point_value); } }
-        //     if(ite_region   != ite_end) { auto point_value = get_if<string >(&ite_region  ->second); if(point_value) { contact->set_region  (*point_value); } }
-        //     if(ite_birthday != ite_end) { auto point_value = get_if<string >(&ite_birthday->second); if(point_value) { contact->set_birthday(*point_value); } }
-        //     if(ite_phones   != ite_end) { auto point_value = get_if<string >(&ite_phones  ->second); if(point_value) { for(auto&phone : split(*point_value, ";")) { contact->add_phones(phone); } } }
-        //     if(ite_emails   != ite_end) { auto point_value = get_if<string >(&ite_emails  ->second); if(point_value) { for(auto&email : split(*point_value, ";")) { contact->add_emails(email); } } }
-        // }
-        // TODO:
-        // 默认失败
-        return {false, Contacts()};
+        // 调用该函数就说明执行成功，返回结果为空时依然是有效值
+        Contacts contacts;
+        // 解析获取 account_id 并返回
+        for(auto&row : rows) {
+            Contact * contact = contacts.add_contact();
+            auto ite_end      = row.end();
+            auto ite_user_id  = row.find("user_id" );
+            auto ite_nickname = row.find("nickname");
+            auto ite_avatar   = row.find("avatar"  );
+            auto ite_sign     = row.find("sign"    );
+            auto ite_gender   = row.find("gender"  );
+            auto ite_region   = row.find("region"  );
+            auto ite_birthday = row.find("birthday");
+            auto ite_phones   = row.find("phones"  );
+            auto ite_emails   = row.find("emails"  );
+            if(ite_user_id  != ite_end) { contact->set_user_id (get_string(ite_user_id ->second)); }
+            if(ite_nickname != ite_end) { contact->set_nickname(get_string(ite_nickname->second)); }
+            if(ite_avatar   != ite_end) { contact->set_avatar  (get_string(ite_avatar  ->second)); }
+            if(ite_sign     != ite_end) { contact->set_sign    (get_string(ite_sign    ->second)); }
+            if(ite_gender   != ite_end) { contact->set_gender  (get_int   (ite_gender  ->second)); }
+            if(ite_region   != ite_end) { contact->set_region  (get_string(ite_region  ->second)); }
+            if(ite_birthday != ite_end) { contact->set_birthday(get_string(ite_birthday->second)); }
+            if(ite_phones   != ite_end) { for(auto&phone : split(get_string(ite_phones->second), ";")) { contact->add_phones(phone); } }
+            if(ite_emails   != ite_end) { for(auto&email : split(get_string(ite_emails->second), ";")) { contact->add_emails(email); } }
+        }
+        return {true, contacts};
     }
     std::tuple<bool, bool> check_exist_account_id(const string&account_id) {
         // =========================== 参数校验 =========================== //

@@ -303,12 +303,15 @@
 #include <grpcpp/grpcpp.h>
 #include <grpcpp/ext/proto_server_reflection_plugin.h>
 #include <grpcpp/health_check_service_interface.h>
-using grpc::Status;
-using grpc::Server;
-using grpc::ServerBuilder;
-using grpc::ServerContext;
-using grpc::ServerUnaryReactor;
-using grpc::CallbackServerContext;
+using ::grpc::CallbackServerContext;
+using ::grpc::Channel;
+using ::grpc::ClientContext;
+using ::grpc::Server;
+using ::grpc::ServerBuilder;
+using ::grpc::ServerContext;
+using ::grpc::ServerUnaryReactor;
+using ::grpc::Status;
+using ::grpc::StatusCode;
 #endif // ENABLE_GOOGLE_GRPC
 
 #ifdef ENABLE_ABSL_LIB
@@ -333,11 +336,17 @@ using TaoTieChat::StatusService::Client;
 #include "taotie_chat.grpc.pb.h"
 using grpc::ServerReaderWriter;
 #endif // ENABLE_CLIENT
+
 using ::TaoTieChat::AccountService;
 using ::TaoTieChat::AuthReply;
 using ::TaoTieChat::AuthRequest;
 using ::TaoTieChat::ErrorCode;
 using ::TaoTieChat::Result;
+using ::TaoTieChat::SearchGroupsReply;
+using ::TaoTieChat::SearchGroupsRequest;
+using ::TaoTieChat::SearchService;
+using ::TaoTieChat::SearchUsersReply;
+using ::TaoTieChat::SearchUsersRequest;
 using ::TaoTieChat::SignInReply;
 using ::TaoTieChat::SignInRequest;
 using ::TaoTieChat::SignUpReply;
@@ -349,6 +358,9 @@ using ::TaoTieChat::SuccessCode;
 using ::TaoTieChat::UpdateReply;
 using ::TaoTieChat::UpdateResuest;
 using ::TaoTieChat::UpdateType;
+using AccountStub = ::TaoTieChat::AccountService::Stub;
+using SearchStub  = ::TaoTieChat::SearchService::Stub;
+using StatusStub  = ::TaoTieChat::StatusService::Stub;
 
 // logs
 // VERBOSE / NOTICE / EMERGENCY / PANIC / AUDIT / ALERT
