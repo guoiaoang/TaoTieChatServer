@@ -214,49 +214,67 @@ namespace SQL{
             //     UPDATE user_tokens SET token_status = 2 WHERE account_id = :account_id;
             // )";
 
-                // 好友关系 // 好友的个人信息不进行缓存
-            constexpr std::string_view SQL_CREATE_TABLE_FRIENDS =
-                R"(CREATE TABLE IF NOT EXISTS friends ()"
-                R"(    id INTEGER PRIMARY KEY AUTOINCREMENT,)"
-                R"(    account_id        TEXT,)"  // 当前用户的账号 ID
-                R"(    friend_account_id TEXT,)"  // friend_account_id 好友的账号 ID
-                R"(    remark            TEXT,)"  // remark 对该好友的备注
-                R"(    tags              TEXT,)"  // tags 好友关系的标签
-                R"(    form              TEXT,)"  // form 好友关系的来源
-                R"(    add_time          DATETIME DEFAULT (datetime('now')),)"  // add_time 添加为好友的时间
-                R"(    add_time_str      TEXT,)"      // add_time 添加为好友的时间
-                R"(    remove_time       DATETIME,)"  // remove_time 删除好友的时间
-                R"(    remove_time_str   TEXT,)"     // remove_time 删除好友的时间
-                R"(    starred           BOOLEAN,)"  // starred 好友关系的星标
-                // R"(    pin            BOOLEAN,)"  // pin 好友关系的置顶  // 应当存储在聊天列表中
-                R"(    silent            BOOLEAN,)"  // silent 好友关系的静音
-                R"(    common            TEXT)"  // common 通用字段
-                R"();)";
+            // 好友关系 // 好友的个人信息不进行缓存
+            constexpr std::string_view SQL_CREATE_TABLE_FRIENDS = R"(
+                CREATE TABLE IF NOT EXISTS friends (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    account_id        TEXT,  -- 当前用户的账号 ID
+                    friend_account_id TEXT,  -- friend_account_id 好友的账号 ID
+
+                    -- 时间戳为辅助验证，状态码为主要依据
+                    -- 状态字段：0:非好友关系, 1:已经是好友关系, 2:被定向拉黑
+                    status            INTEGER DEFAULT 0,
+
+                    -- 关系属性
+                    starred           BOOLEAN,   -- starred 好友关系的星标
+                    silent            BOOLEAN,   -- silent 好友关系的静音
+                    remark            TEXT,      -- remark 对该好友的备注
+                    tags              TEXT,      -- tags 好友关系的标签
+                    form              TEXT,      -- form 好友关系的来源
+
+                    -- 时间戳  -- SQLite 中的 DATETIME 类型实际上是一个文本类型，存储格式为 "YYYY-MM-DD HH:MM:SS"(UTC)
+                    add_time             DATETIME DEFAULT (datetime('now')),  -- add_time 添加为好友的时间
+                    -- add_time_str      TEXT,      -- add_time 添加为好友的时间
+                    remove_time          DATETIME,  -- remove_time 删除好友的时间
+                    -- remove_time_str   TEXT,      -- remove_time 删除好友的时间
+
+                    -- pin            BOOLEAN,   -- pin 好友关系的置顶     -- 应当存储在聊天列表中
+
+                    common            TEXT       -- common 通用字段
+                );
+            )";
+
             // 群组信息  // 暂定，后续根据实际需求调整
-            constexpr std::string_view SQL_CREATE_TABLE_GROUPS =
-                R"(CREATE TABLE IF NOT EXISTS groups ()"
-                R"(    id INTEGER PRIMARY KEY AUTOINCREMENT,)"
-                R"(    group_id    TEXT,)"  // group_id 群 ID，唯一，注册时由系统生成，不可被用户修改，销号时不回收
-                R"(    name        TEXT,)"  // name 群名称
-                R"(    avatar      TEXT,)"  // avatar 群头像 URL
-                R"(    owner_id    TEXT,)"  // owner_id 群主的账号 ID
-                R"(    member_ids  TEXT,)"  // member_ids 群成员的账号 ID 列表，逗号分隔
-                R"(    create_time TEXT,)"  // create_time 创建时间
-                R"(    update_time TEXT,)"  // update_time 更新时间
-                R"(    common      TEXT)"   // common 通用字段
-                R"();)";
-            // 聊天记录 // 一对一的聊天记录和群聊记录都存储在同一个表中，通过 receiver_id 来区分是单聊还是群聊，单聊时 receiver_id 是好友的账号 ID，群聊时 receiver_id 是群 ID。
-            constexpr std::string_view SQL_CREATE_TABLE_MESSAGES =
-                R"(CREATE TABLE IF NOT EXISTS messages ()"
-                R"(    id INTEGER PRIMARY KEY AUTOINCREMENT,)"
-                R"(    message_id  TEXT,)"  // message_id 消息 ID，对于消息唯一
-                R"(    sender_id   TEXT,)"  // sender_id 发送者的账号 ID
-                R"(    receiver_id TEXT,)"  // receiver_id 接收者的账号 ID，单聊时为好友的账号 ID，群聊时为群 ID
-                R"(    content     TEXT,)"  // content 消息内容
-                R"(    type        TEXT,)"  // type 消息类型，如文本、图片、文件等
-                R"(    timestamp   TEXT,)"  // timestamp 消息时间戳
-                R"(    common      TEXT)"   // common 通用字段
-                R"();)";
+            constexpr std::string_view SQL_CREATE_TABLE_GROUPS = R"(
+                CREATE TABLE IF NOT EXISTS groups (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    group_id    TEXT,  -- group_id 群 ID，唯一，注册时由系统生成，不可被用户修改，销号时不回收
+                    name        TEXT,  -- name 群名称
+                    avatar      TEXT,  -- avatar 群头像 URL
+                    owner_id    TEXT,  -- owner_id 群主的账号 ID
+                    member_ids  TEXT,  -- member_ids 群成员的账号 ID 列表，逗号分隔
+                    create_time TEXT,  -- create_time 创建时间
+                    update_time TEXT,  -- update_time 更新时间
+                    common      TEXT   -- common 通用字段
+                );
+            )";
+
+            // 聊天记录
+            // 一对一的聊天记录和群聊记录都存储在同一个表中，
+            // 通过 receiver_id 来区分是单聊还是群聊，
+            // 单聊时 receiver_id 是好友的账号 ID，群聊时 receiver_id 是群 ID。
+            constexpr std::string_view SQL_CREATE_TABLE_MESSAGES = R"(
+                CREATE TABLE IF NOT EXISTS messages (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    message_id  TEXT,  -- message_id 消息 ID，对于消息唯一
+                    sender_id   TEXT,  -- sender_id 发送者的账号 ID
+                    receiver_id TEXT,  -- receiver_id 接收者的账号 ID，单聊时为好友的账号 ID，群聊时为群 ID
+                    content     TEXT,  -- content 消息内容
+                    type        TEXT,  -- type 消息类型，如文本、图片、文件等
+                    timestamp   TEXT,  -- timestamp 消息时间戳
+                    common      TEXT   -- common 通用字段
+                );
+            )";
             // // 群聊消息记录 // 群聊消息记录表可以存储一些特定于群聊的信息，如 @提及 的用户列表等
             // // 也可以不单独存储，而是在 messages 表中通过 content 字段
             // // 来存储一个 JSON 对象，包含消息内容和一些额外的元信息，这样可以避免表结构的复杂化，同时也更灵活地适应未来可能出现的需求变化。
@@ -276,24 +294,6 @@ namespace SQL{
         // 在有索引的情况下，SQL 多条件查找会先过滤前面的条件，
         // 在过滤结果中再进行后面条件的判断，每个条件过滤的时间为 O(Log N)
         // 优先推荐使用复杂的 SQL 语句，而不是手动比对
-
-        // // 查询
-        // namespace QUERY {
-        //     // 只使用基础的查询语句，参数合法性在函数内自行比较  // 性能较差
-        //
-        //     // 查询数据版本
-        //     constexpr std::string_view SQL_QUERY_META_VERSION =
-        //         R"(SELECT name, value FROM meta where name = 'version' LIMIT 1;)";
-        //     // 通过 user_id 查找账号信息    # user_id 可用唯一
-        //     constexpr std::string_view SQL_QUERY_GET_ACCOUNT_INFO_BY_USER_ID =
-        //         R"(SELECT * FROM users WHERE user_id = :user_id AND status = 0 LIMIT 10;)";
-        //     // 通过 account_id 查找账号信息 # account_id 全局唯一
-        //     constexpr std::string_view SQL_QUERY_GET_ACCOUNT_INFO_BY_ACCOUNT_ID =
-        //         R"(SELECT * FROM users WHERE account_id = :account_id AND status = 0 LIMIT 10;)";
-        //     // 通过 account_id 查找 token 信息
-        //     constexpr std::string_view SQL_QUERY_GET_TOKENS_BY_ACCOUNT_ID =
-        //         R"(SELECT * FROM token WHERE account_id = :account_id;)";
-        // }
 
         // 查询
         namespace QUERY {
@@ -359,6 +359,17 @@ namespace SQL{
                     AND expire_time  > datetime('now') -- Token 未过期
                 LIMIT 1;
             )";
+
+            // 检查是否为好友关系
+            constexpr std::string_view SQL_QUERY_GET_FRIEND_STATUS = R"(
+                SELECT status
+                FROM   friends
+                WHERE
+                        account_id        = :account_id        -- 当前用户的账号 ID
+                    AND friend_account_id = :friend_account_id -- 好友的账号 ID
+                    -- AND status         = 1                  -- 好友关系
+                LIMIT 1;
+            )";
         }
 
         // 插入
@@ -379,6 +390,12 @@ namespace SQL{
                 INSERT INTO user_tokens ( account_id,  token_hash,  create_time,  expire_time)
                 VALUES                  (:account_id, :token_hash, :create_time, :expire_time);
             )";
+
+            // 添加好友
+            constexpr std::string_view SQL_INSERT_FRIEND = R"(
+                INSERT INTO friends ( account_id,  friend_account_id, status, add_time       )
+                VALUES              (:account_id, :friend_account_id,      1, datetime('now'));
+             )";
         }
     }
 }

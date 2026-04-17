@@ -3,14 +3,11 @@
 #include "utils.h"
 #include "DBSQLCipher.h"
 
-using ::grpc::ServerContext;
-
 using std::string;
 using std::vector;
 using std::shared_ptr;
 using std::make_shared;
-using ::grpc::StatusCode;
-using ::google::protobuf::Timestamp;
+using google::protobuf::Timestamp;
 
 using Utils::set_success;
 using Utils::set_error;
@@ -70,8 +67,8 @@ public:
     }
 
     // update 获取更新内容
-    Status GetUpdate(ServerContext* context, const UpdateResuest* request, UpdateReply* response) override {
-        using Request = UpdateResuest;
+    Status GetUpdate(ServerContext* context, const UpdateRequest* request, UpdateReply* response) override {
+        using Request = UpdateRequest;
         using Reply   = UpdateReply;
         // =========================== 初始化操作 =========================== //
         if(!context || !request || !response) {
@@ -114,6 +111,30 @@ public:
         // response->timestamp();
 
         // response->CopyFrom(*result);
+        return Status::OK;
+    }
+
+    //
+    Status AddContact(ServerContext* context, const AddContactRequest* request, AddContactReply* response) override {
+        using Request = AddContactRequest;
+        using Reply   = AddContactReply;
+        // =========================== 初始化操作 =========================== //
+        if(!context || !request || !response) {
+            return Status(StatusCode::INTERNAL, std::format("Invalid request or response pointer"));
+        }
+        log_grpc_context(context);
+        response->mutable_request()->CopyFrom(*request);  // 复制请求
+        DBSQLCipher& db_sqlcipher = DBSQLCipher::instance();
+        shared_ptr<Request> params = make_shared<Request>(*request);
+        // =========================== 执行操作 =========================== //
+        // 执行添加联系人
+        shared_ptr<Reply> result = db_sqlcipher.add_contact(params);
+        // 判断结果是否为 nullptr，防止拷贝时崩溃
+        if(!result) {
+            return error_status<Reply>(response, ErrorCode::DB_EXECUTE, std::format("AddContact failed."));
+        }
+        // set_success(response, SuccessCode::SUCCESS);
+        response->CopyFrom(*result);
         return Status::OK;
     }
 };

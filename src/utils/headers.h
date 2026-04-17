@@ -312,6 +312,8 @@ using ::grpc::ServerContext;
 using ::grpc::ServerUnaryReactor;
 using ::grpc::Status;
 using ::grpc::StatusCode;
+using ::grpc::ServerContext;
+// using google::protobuf::Timestamp;
 #endif // ENABLE_GOOGLE_GRPC
 
 #ifdef ENABLE_ABSL_LIB
@@ -356,8 +358,10 @@ using ::TaoTieChat::StatusRequest;
 using ::TaoTieChat::StatusService;
 using ::TaoTieChat::SuccessCode;
 using ::TaoTieChat::UpdateReply;
-using ::TaoTieChat::UpdateResuest;
+using ::TaoTieChat::UpdateRequest;
 using ::TaoTieChat::UpdateType;
+using ::TaoTieChat::AddContactRequest;
+using ::TaoTieChat::AddContactReply;
 using AccountStub = ::TaoTieChat::AccountService::Stub;
 using SearchStub  = ::TaoTieChat::SearchService::Stub;
 using StatusStub  = ::TaoTieChat::StatusService::Stub;

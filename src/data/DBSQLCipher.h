@@ -634,7 +634,7 @@ public:
         shared_ptr<Reply> reply = make_shared<Reply>();
         set_error(reply->mutable_result(), ErrorCode::ERROR_INIT);
         if(!request) {
-            return error_reply<Reply>(reply, ErrorCode::ERROR_INIT, std::format("Invalid Param."));
+            return error_reply<Reply>(reply, ErrorCode::AUTH_INFO_NONE, std::format("Invalid Param."));
         }
         reply->mutable_request()->CopyFrom(*request.get());
         set_error(reply->mutable_result(), ErrorCode::UNKNOWN);
@@ -828,6 +828,77 @@ public:
         }
         else {
             return error_reply<Reply>(reply, ErrorCode::TARGET_USER_ID_NOT_FOUND, std::format("Search target user not found."));
+        }
+        return error_reply<Reply>(reply, ErrorCode::DEFAULT, std::format("Default error."));
+    }
+
+    // 添加联系人
+    shared_ptr<AddContactReply> add_contact(shared_ptr<AddContactRequest> request) {
+        using Request  = AddContactRequest;
+        using Reply    = AddContactReply;
+        // =========================== 初始化操作 =========================== //
+        // 复制请求
+        shared_ptr<Reply> reply = make_shared<Reply>();
+        set_error(reply->mutable_result(), ErrorCode::ERROR_INIT);
+        if(!request) {
+            return error_reply<Reply>(reply, ErrorCode::ERROR_INIT, std::format("Invalid Param."));
+        }
+        reply->mutable_request()->CopyFrom(*request.get());
+        set_error(reply->mutable_result(), ErrorCode::UNKNOWN);
+        // =========================== 参数校验 =========================== //
+        // 参数校验
+        if(request->target_user_id().empty()) {
+            return error_reply<Reply>(reply, ErrorCode::TARGET_USER_ID_EMPTY, std::format("Contact user ID is empty."));
+        }
+        // =========================== 执行操作 =========================== //
+        // 验证鉴权是否成功
+        shared_ptr<AuthRequest> auth_request = make_shared<AuthRequest>(request->request_user_auth());
+        auto auth_reply  = auth_check(auth_request);
+        auto&auth_result = auth_reply->result();
+        if(!auth_result.has_success_code()) {
+            return error_reply<Reply>(reply, auth_result.error_code(), auth_result.message());
+        }
+        // 获取当前用户的账号 ID
+        auto request_account_id = auth_reply->account_id();
+        if(request_account_id.empty()) {
+            return error_reply<Reply>(reply, ErrorCode::AUTH_FAILED, std::format("Auth failed to get account_id."));
+        }
+        // 获取要添加的联系人的账号 ID
+        auto target_user_id = request->target_user_id();
+        auto [success_get_active_account_id, target_account_id] = get_active_account_id(target_user_id);
+        if(!success_get_active_account_id) {
+            return error_reply<Reply>(reply, ErrorCode::DB_QUERY, std::format("db get active account id error."));
+        }
+        if(target_account_id.empty()) {
+            return error_reply<Reply>(reply, ErrorCode::TARGET_USER_ID_NOT_FOUND, std::format("Search target user not found."));
+        }
+        // 先检查是否已经是好友
+        auto [success_check_contact, result_check_contact] = get_contact_status(request_account_id, target_account_id);
+        if(!success_check_contact) {
+            return error_reply<Reply>(reply, ErrorCode::DB_QUERY, std::format("Check contact error."));
+        }
+        // 判断是否为异常状态  // 已经添加与被拉黑均在这里返回
+        auto associated_status = contact_status_to_error_code(result_check_contact);
+        if(associated_status != ErrorCode::UNASSOCIATED) {
+            return error_reply<Reply>(reply, associated_status, std::format("Contact status error."));
+        }
+        // 执行添加好友的操作
+        auto[success_add_contact, result_add_contact] = add_contact(request_account_id, target_account_id);
+        if(!success_add_contact || !result_add_contact) {
+            return error_reply<Reply>(reply, ErrorCode::DB_EXECUTE, std::format("Add contact error."));
+        }
+        // 再次读取好友列表确认添加结果
+        auto [success_check_contact_ensure, result_check_contact_ensure] = get_contact_status(request_account_id, target_account_id);
+        if(!success_check_contact_ensure) {
+            return error_reply<Reply>(reply, ErrorCode::DB_QUERY, std::format("Check contact ensure error."));
+        }
+        // 返回添加结果
+        auto associated_status_ensure = contact_status_to_error_code(result_check_contact_ensure);
+        if(associated_status_ensure == ErrorCode::ASSOCIATED) {
+            return success_reply<Reply>(reply, SuccessCode::SUCCESS, std::format("Add contact Successed."));
+        }
+        else {
+            return error_reply<Reply>(reply, associated_status_ensure, std::format("Contact status error."));
         }
         return error_reply<Reply>(reply, ErrorCode::DEFAULT, std::format("Default error."));
     }
@@ -1080,6 +1151,47 @@ private:
         }
         return {false, false};
     }
+    // 获取好友状态。0：非好友，1：好友，2：被对方拉黑了（可能没有这个状态，先预留）
+    std::tuple<bool, int> get_contact_status(const string&request_account_id, const string&target_account_id) {
+        // =========================== 参数校验 =========================== //
+        if(request_account_id.empty() || target_account_id.empty()) {
+            return {false, -1};
+        }
+        // =========================== 执行操作 =========================== //
+        // 构造参数
+        auto sql_params = make_shared<SqlParams>();
+        (*sql_params)[":account_id"       ] = request_account_id;
+        (*sql_params)[":friend_account_id"] = target_account_id;
+        auto sql_result = execute(SQL_QUERY_GET_FRIEND_STATUS, sql_params);
+        if(sql_result && sql_result->done) {
+            // 查询命令执行成功
+            return get_contact_status(sql_result->rows);
+        }
+        return {false, -1};
+    }
+    std::tuple<bool, int> get_contact_status(const SqlRows&rows) {
+        if(rows.empty()) {
+            return {true, 0};  // 没有搜索结果时也返回这个
+        }
+        for(auto&row : rows) {
+            if(row.contains("status")) {
+                return {true, get_int(row.find("status")->second)};
+            }
+        }
+        return {true, 0};  // 没有搜索结果时也返回这个
+    }
+    ErrorCode contact_status_to_error_code(int result) {
+        if(result == 0) {
+            return ErrorCode::UNASSOCIATED;
+        }
+        else if(result == 1) {
+            return ErrorCode::ASSOCIATED;
+        }
+        else if(result == 2) {
+            return ErrorCode::ASSOCIATION_REFUSED;
+        }
+        return ErrorCode::DEFAULT;
+    }
 
     std::tuple<bool, bool> write_meta_table() {
         auto sql_result = execute(SQL_CREATE_TABLE_META.data());
@@ -1194,6 +1306,23 @@ private:
             return {true, account_id};
         }
         return {false, string{}};
+    }
+    std::tuple<bool, bool> add_contact(const string&request_account_id, const string&target_account_id) {
+        // =========================== 参数校验 =========================== //
+        if(request_account_id.empty() || target_account_id.empty()) {
+            return {false, false};
+        }
+        // =========================== 执行操作 =========================== //
+        // 构造参数
+        auto sql_params = make_shared<SqlParams>();
+        (*sql_params)[":account_id"       ] = request_account_id;
+        (*sql_params)[":friend_account_id"] = target_account_id;
+        auto sql_result = execute(SQL_INSERT_FRIEND, sql_params);
+        if(sql_result && sql_result->done) {
+            // 查询命令执行成功
+            return {true, true};
+        }
+        return {false, false};
     }
 
 private:

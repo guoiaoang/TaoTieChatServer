@@ -100,6 +100,10 @@ enum ErrorCode {
   AUTH_ID_EMPTY                   = 0x10010002;  // ID 为空   // 无 user_id 及 account_id
   AUTH_METHOD_EMPTY               = 0x10010003;  // 方法为空  // 无 token 及 password
   AUTH_FAILED                     = 0x10010004;  // 鉴权失败
+  // 关系状态
+  UNASSOCIATED                    = 0x10010011;  // 未关联    // 如：还不是好友
+  ASSOCIATED                      = 0x10010012;  // 已关联    // 如：已经是好友
+  ASSOCIATION_REFUSED             = 0x10010013;  // 拒绝关联  // 如：被对方拉黑了
 
   // TODO:待移除
   // 用户登录相关错误码          // 0x010301DD 输入错误
@@ -129,7 +133,9 @@ service AccountService {
   // UserLogin 接收用户登录请求并返回登录结果。
   rpc SignIn(SignInRequest) returns (SignInReply) {}
   // 获取更新
-  rpc GetUpdate(UpdateResuest) returns (UpdateReply) {}
+  rpc GetUpdate(UpdateRequest) returns (UpdateReply) {}
+  //
+  rpc AddContact(AddContactRequest) returns (AddContactReply) {}
 }
 
 // 用户注册请求
@@ -196,7 +202,7 @@ message Timestamp{
 }
 
 // 请求信息
-message UpdateResuest{
+message UpdateRequest{
   optional AuthRequest request_user_auth = 1;  // 鉴权  // 可能不需要
            UpdateType  type              = 2;  // 请求类型  // 主要
            Timestamp   timestamp         = 3;  // 获取该时间戳之后的新内容
@@ -204,13 +210,27 @@ message UpdateResuest{
 
 // 返回内容
 message UpdateReply{
-  optional UpdateResuest request     = 1;
-           Result        result      = 2;
+  optional UpdateRequest request     = 1;  // 可选的原始请求信息字段
+           Result        result      = 2;  // 状态信息字段
            // SignInReply   auth_result = 3;  // 鉴权结果
   // 消息内容
   oneof                  body {
            Contacts      contacts = 3;
   }
+}
+
+// 添加联系人请求
+// AuthRequest 没有添加 optional 字段，
+// 即使调用 has_request_user_auth() ，
+// 然后再使用 has_request_user_auth() 判断，也依然返回 true。
+message AddContactRequest {
+  AuthRequest request_user_auth = 1;  // 鉴权
+  string      target_user_id    = 2;  // 要添加的联系人 ID
+}
+
+message AddContactReply {
+  optional AddContactRequest request = 1;  // 可选的原始请求信息字段
+           Result            result  = 2;  // 状态信息字段
 }
 
 // ============================  SearchService  ============================ //
