@@ -19,9 +19,10 @@ using string_ref = ::grpc::string_ref;
 using ::grpc::AuthContext;
 
 namespace {
-    static vector<string> s_args{};
-    static string s_product_name{"TaoTieChatServer"};
-    static random_generator m_uuid_generator;
+    static vector<string>     s_args{};
+    static string             s_product_name{"TaoTieChatServer"};
+    static random_generator   s_uuid_generator;
+    static std::random_device s_stduuid_random_device;
 };
 
 tuple<bool, const vector<string>&> store_args(int argc, char** argv);
@@ -37,6 +38,8 @@ uuid generate_uuid();
 uuid to_uuid(const string& s);
 string generate_account_id();
 string generate_token();
+// 可包含时间戳，可使用雪花算法等生成，保证全局唯一且有序，便于数据库索引优化和消息排序等
+string generate_message_id();
 // 计算字符串的 SHA-1 哈希值，返回 40 字符的十六进制字符串
 string sha1(const string& input);
 // 计算字符串的 MD5 哈希值，返回 32 字符的十六进制字符串
@@ -73,6 +76,8 @@ string local_date_time_str();
 time_point to_time_point(const string& utc_str);
 // 将 UTC 时间字符串转换为本地时间字符串
 string utc_to_local(const string& utc_str);
+// 将时间点设置到 Timestamp 消息中
+void set_timestamp(TaoTieChat::Timestamp& timestamp, const std::chrono::system_clock::time_point& time_point);
 
 // ============================== std 扩展 ============================== //
 vector<string> split(const string&src, const string&div);

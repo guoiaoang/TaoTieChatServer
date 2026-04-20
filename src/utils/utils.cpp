@@ -111,7 +111,7 @@ tuple<bool, const path&> mkdir(const path& path) {
 
 uuid generate_uuid() {
     // inline uuid boost::uuids::basic_random_generator<boost::uuids::detail::chacha20_12>::operator()()
-    return m_uuid_generator();
+    return s_uuid_generator();
 }
 
 string generate_account_id() {
@@ -120,6 +120,24 @@ string generate_account_id() {
 
 string generate_token() {
     return to_string(generate_uuid());
+}
+
+// TODO: 可包含时间戳，可使用雪花算法生成，保证全局唯一且有序，便于数据库索引优化和消息排序等
+string generate_message_id() {
+    // return to_string(generate_uuid());
+    // std::random_device s_stduuid_random_device;
+    auto stduuid_mt19937_seed_data = std::array<int, std::mt19937::state_size> {};
+    std::generate(std::begin(stduuid_mt19937_seed_data), std::end(stduuid_mt19937_seed_data), std::ref(s_stduuid_random_device));
+    std::seed_seq stduuid_mt19937_seq(std::begin(stduuid_mt19937_seed_data), std::end(stduuid_mt19937_seed_data));
+    std::mt19937 stduuid_mt19937_generator(stduuid_mt19937_seq);
+    uuids::uuid_random_generator stduuid_gen{stduuid_mt19937_generator};
+
+    uuids::uuid const stduuid_id = stduuid_gen();
+    // assert(!id.is_nil());
+    // assert(id.as_bytes().size() == 16);
+    // assert(id.version() == uuids::uuid_version::random_number_based);
+    // assert(id.variant() == uuids::uuid_variant::rfc);
+    return uuids::to_string(stduuid_id);
 }
 
 // 计算字符串的 SHA-1 哈希值，返回 40 字符的十六进制字符串
@@ -233,6 +251,19 @@ time_point to_time_point(const string& utc_str) {
 string utc_to_local(const string& utc_str) {
     auto tp = to_time_point(utc_str);
     return to_local_string(tp);
+}
+
+void set_timestamp(TaoTieChat::Timestamp& timestamp, const std::chrono::system_clock::time_point& time_point) {
+    // 1. 获取自 Unix 纪元以来的持续时间
+    auto duration = time_point.time_since_epoch();
+
+    // 2. 提取秒数
+    auto seconds = std::chrono::duration_cast<std::chrono::seconds>(duration);
+    timestamp.mutable_timestamp()->set_seconds(seconds.count());
+
+    // 3. 提取剩余的纳秒数
+    auto nanos = std::chrono::duration_cast<std::chrono::nanoseconds>(duration - seconds);
+    timestamp.mutable_timestamp()->set_nanos(static_cast<int32_t>(nanos.count()));
 }
 
 // ============================== std 扩展 ============================== //

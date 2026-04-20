@@ -58,6 +58,8 @@ set(SRC_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/service/AccountService.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/service/SearchService.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/service/StatusService.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/service/MessageService.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/service/FileService.h
 )
 
 # 定义源文件列表
@@ -83,20 +85,25 @@ project(${PROJECT_NAME}
 
 # =============================   find_package   ============================= #
 
+set(GFLAGS_USE_TARGET_NAMESPACE ON)
+include(CTest)
 # 查找依赖的包
-find_package(fmt           CONFIG   REQUIRED)
 find_package(absl          CONFIG   REQUIRED)
-find_package(spdlog        CONFIG   REQUIRED)
-find_package(glog          CONFIG   REQUIRED)
-find_package(sqlcipher     CONFIG   REQUIRED)
-find_package(nlohmann_json CONFIG   REQUIRED)
-find_package(Boost         CONFIG   REQUIRED   COMPONENTS   uuid)
 find_package(Protobuf      CONFIG   REQUIRED)
 find_package(gRPC          CONFIG   REQUIRED)
+find_package(gflags        CONFIG   REQUIRED)
+find_package(glog          CONFIG   REQUIRED)
+find_package(GTest         CONFIG   REQUIRED)
+find_package(benchmark     CONFIG   REQUIRED)
+find_package(fmt           CONFIG   REQUIRED)
+find_package(sqlcipher     CONFIG   REQUIRED)
+find_package(nlohmann_json CONFIG   REQUIRED)
+find_package(yaml-cpp      CONFIG   REQUIRED)
+find_package(spdlog        CONFIG   REQUIRED)
+find_package(Boost         CONFIG   REQUIRED   COMPONENTS   uuid)
+find_package(stduuid       CONFIG   REQUIRED)
 # find_package(magic_enum  CONFIG   REQUIRED)
 # find_path(CONJURE_ENUM_INCLUDE_DIRS   "fix8/conjure_enum.hpp")
-include(CTest)
-find_package(GTest         CONFIG   REQUIRED)
 # ============================= add_executable ============================= #
 
 # 主可执行程序
@@ -107,15 +114,20 @@ add_executable(${PROJECT_NAME}
 # ========================== target_link_libraries ========================== #
 
 # 链接依赖库
-target_link_libraries(${PROJECT_NAME}   PRIVATE   fmt::fmt)
 target_link_libraries(${PROJECT_NAME}   PRIVATE   absl::any absl::log absl::base absl::bits)  # 需要根据实际使用的 absl 模块调整
-target_link_libraries(${PROJECT_NAME}   PRIVATE   spdlog::spdlog)
-target_link_libraries(${PROJECT_NAME}   PRIVATE   glog::glog)
-target_link_libraries(${PROJECT_NAME}   PRIVATE   sqlcipher::sqlcipher)
-target_link_libraries(${PROJECT_NAME}   PRIVATE   nlohmann_json::nlohmann_json)
-target_link_libraries(${PROJECT_NAME}   PRIVATE   Boost::uuid)
 target_link_libraries(${PROJECT_NAME}   PRIVATE   protobuf::libprotoc protobuf::libprotobuf protobuf::libprotobuf-lite)
 target_link_libraries(${PROJECT_NAME}   PRIVATE   gRPC::gpr gRPC::grpc gRPC::grpc++ gRPC::grpc++_alts)
+target_link_libraries(${PROJECT_NAME}   PRIVATE   gflags::gflags)
+target_link_libraries(${PROJECT_NAME}   PRIVATE   glog::glog)
+# target_link_libraries(${PROJECT_NAME} PRIVATE   GTest::gtest GTest::gtest_main)
+# target_link_libraries(${PROJECT_NAME} PRIVATE   benchmark::benchmark benchmark::benchmark_main)
+target_link_libraries(${PROJECT_NAME}   PRIVATE   fmt::fmt)
+target_link_libraries(${PROJECT_NAME}   PRIVATE   sqlcipher::sqlcipher)
+target_link_libraries(${PROJECT_NAME}   PRIVATE   nlohmann_json::nlohmann_json)
+target_link_libraries(${PROJECT_NAME}   PRIVATE   yaml-cpp::yaml-cpp)
+target_link_libraries(${PROJECT_NAME}   PRIVATE   spdlog::spdlog)
+target_link_libraries(${PROJECT_NAME}   PRIVATE   Boost::uuid)
+target_link_libraries(${PROJECT_NAME}   PRIVATE   stduuid)
 # target_link_libraries(${PROJECT_NAME} PRIVATE   magic_enum::magic_enum)
 # target_include_directories(${PROJECT_NAME}   PRIVATE   ${CONJURE_ENUM_INCLUDE_DIRS})
 

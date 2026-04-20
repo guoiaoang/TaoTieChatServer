@@ -16,9 +16,32 @@ import "google/protobuf/timestamp.proto";  // 时间戳
 
 package TaoTieChat;
 
-// ============================  ErrorCode  ============================ //
+// =========================================================================== //
 
-// proto 不支持 enum 按位操作
+// protobuf 不支持 enum 按位操作
+
+// 在 C++ 中，Stub 是轻量级的，但 Channel 是重量级的，只要复用同一个 Channel 就是长连接。
+
+// 客户端与服务端时间不一致时，收发消息可以使用雪花算法生成消息 ID，保证消息 ID 的唯一性和时间顺序性。
+// 当前为简单程序，暂不考虑雪花算法与分布式、时间回调等情况，一切以服务端时间为准。
+
+// Protobuf 有默认的消息大小限制（通常为 64MB 或 128MB，取决于实现），
+// 建议每个 chunk_data 设置在 32KB 到 64KB 之间。这能平衡网络吞吐量和内存占用。
+//
+// gRPC 保证了 Stream 内部消息的顺序，服务器按接收顺序写入文件即可。
+//
+// 大量用户大规模上传建议服务器开启上传 URL 进行分片上传。
+
+// > 使用 SQLite 时，官方文档曾做过测试：对于 100KB 以下 的数据，存入 SQLite 的 Blob 速度其实比直接读写文件系统快。
+// 绝大多数关系型数据库（如 MySQL, PostgreSQL, SQL Server）的数据页大小通常是 8KB。
+// 对于 8KB 到 1MB 的文本，可以存储为 BLOB/TEXT 类型。1MB 以上的内容强烈建议存储为文件。
+
+// 缩短名称  // protobuf 不支持别名
+message Timestamp{
+  google.protobuf.Timestamp timestamp = 1;
+}
+
+// ===============================  ErrorCode  =============================== //
 
 // 成功码
 enum SuccessCode {
@@ -32,24 +55,14 @@ enum SuccessCode {
   SUCCESS_INIT   = 0x00000101;  // 返回初始值
 }
 
-// // 错误码格式：`0xAABBCCDD`
-// // * AA:服务类型
-// //   * 00:非业务
-// //   * 01:业务 (非 00)
-// // * BB:业务模块
-// //   * 01:用户注册
-// //   * 02:用户登录
-// // * CC:错误发生原因
-// //   * 01:输入错误
-// //   * 02:执行失败
-// // * DD:具体错误信息
+// 错误码
 enum ErrorCode {
   // option allow_alias = true;  // 允许不同名但同值的枚举值  // 没有重名会报错
 
   UNSET                           = 0x00000000;  // 未设置错误码
   UNKNOWN                         = 0x00000001;  // 未知错误
   DEFAULT                         = 0x00000002;  // 未知错误
-  //
+  // grpc 相关的错误码
   ERROR_INIT                      = 0x00010001;  // 返回初始值
   ERROR_CONN                      = 0x00010002;  // QT 建立连接失败，无法触发 connect 动作
   ERROR_RECV                      = 0x00010003;  // 接收到的数据不完整或解析失败
@@ -61,6 +74,8 @@ enum ErrorCode {
   DB_EXECUTE_EMPTY                = 0x00020004;  // 数据库命令执行为空
   DB_CHECK                        = 0x00020005;  // 数据库数据插入检查失败
   DB_CHECK_EMPTY                  = 0x00020006;  // 数据库数据插入检查为空
+  // 不支持的消息类型
+  UNSUPPORTED_OPERATION           = 0x00030001;  // 不支持的操作
   // 单参数
   USER_ID_ERROR                   = 0x00030101;  //
   USER_ID_EMPTY                   = 0x00030102;  // 用户 ID 为空
@@ -91,8 +106,22 @@ enum ErrorCode {
   TARGET_ACCOUNT_ID_ERROR         = 0x00030901;  //
   TARGET_ACCOUNT_ID_EMPTY         = 0x00030902;  //
   TARGET_ACCOUNT_ID_NOT_FOUND     = 0x00030903;  //
+  TARGET_GROUP_ID_ERROR           = 0x00031001;  //
+  TARGET_GROUP_ID_EMPTY           = 0x00031002;  //
+  TARGET_GROUP_ID_NOT_FOUND       = 0x00031003;  //
+  MESSAGE_TEXT_ERROR              = 0x00031101;  //
+  MESSAGE_TEXT_EMPTY              = 0x00031102;  //
+  MESSAGE_TEXT_NOT_FOUND          = 0x00031103;  //
+  MESSAGE_FILE_ERROR              = 0x00031201;  //
+  MESSAGE_FILE_EMPTY              = 0x00031202;  //
+  MESSAGE_FILE_NOT_FOUND          = 0x00031203;  //
   // 多参
   DIFF_PASSWORD_WITH_CONFIRM      = 0x00040001;  // 确认密码与密码不一致
+  TARGET_ID_REQUESTED             = 0x00040002;  // 需要目标 ID，但未提供
+  CONTEXT_REQUIRED                = 0x00040003;  // 需要上下文信息，但未提供
+  MESSAGE_CONTEXT_ERROR           = 0x00040101;  //
+  MESSAGE_CONTEXT_EMPTY           = 0x00040102;  // 消息内容为空
+  MESSAGE_CONTEXT_NOT_FOUND       = 0x00040103;  //
 
   //
   AUTH_INFO_NONE                  = 0x10010001;  // 没有必要的鉴权信息
@@ -109,8 +138,10 @@ enum ErrorCode {
   // 用户登录相关错误码          // 0x010301DD 输入错误
   SIGNIN_INVALID_LOGIN_METHOD     = 0x10010101;  // 无效的登录方法
   // 用户登录相关错误码          // 0x010302DD 结果失败
-  SIGNIN_AUTH_FAILED              = 0x10010201;  // 用户 ID 或密码或 token 等错误导致登录失败  // 请检查登录信息
-
+  SIGNIN_AUTH_FAILED              = 0x10010102;  // 用户 ID 或密码或 token 等错误导致登录失败  // 请检查登录信息
+  // 客户端消息发送
+  CLIENT_MESSAGE_ID_REQUIRED      = 0x10010103;  // 需要客户端消息 ID，但未提供
+  DUPLICATE_MESSAGE_ID            = 0x10010104;  // 重复的客户端消息 ID
 }
 
 // Result 结果消息
@@ -121,7 +152,6 @@ message Result {
   }
   string        message      = 3;  // 可选的错误消息字段
 }
-
 // ============================  AccountService  ============================ //
 
 // 用户注册服务
@@ -134,7 +164,7 @@ service AccountService {
   rpc SignIn(SignInRequest) returns (SignInReply) {}
   // 获取更新
   rpc GetUpdate(UpdateRequest) returns (UpdateReply) {}
-  //
+  // 添加联系人
   rpc AddContact(AddContactRequest) returns (AddContactReply) {}
 }
 
@@ -149,9 +179,9 @@ message SignUpRequest {
 
 // 用户注册响应
 message SignUpReply {
-  optional SignUpRequest request    = 1;  // 可选的原始请求信息字段
-           Result        result     = 2;  // 状态信息字段
-           string        account_id = 3;  // 注册成功后返回的账号 ID
+  optional  SignUpRequest request    = 1;  // 可选的原始请求信息字段
+            Result        result     = 2;  // 状态信息字段
+            string        account_id = 3;  // 注册成功后返回的账号 ID
 }
 
 // 鉴权参数
@@ -168,10 +198,10 @@ message AuthRequest {
 
 // 鉴权结果
 message AuthReply {
-  optional AuthRequest request    = 1;  // 可选的原始请求信息字段
-           Result      result     = 2;  // 状态信息字段 // 校验结果也设置在这里
-           string      account_id = 3;  // 如果传入的有则复制返回，否则返回获取到的
-  optional string      token      = 4;  // 如果传入的有则返回，否则不设置
+  optional  AuthRequest request    = 1;  // 可选的原始请求信息字段
+            Result      result     = 2;  // 状态信息字段 // 校验结果也设置在这里
+            string      account_id = 3;  // 如果传入的有则复制返回，否则返回获取到的
+  optional  string      token      = 4;  // 如果传入的有则返回，否则不设置
 }
 
 // 用户登录请求  // 只有认证信息也要添加包装
@@ -181,10 +211,10 @@ message SignInRequest {
 
 // 用户登录响应
 message SignInReply {
-  optional SignInRequest request    = 1;  // 可选的原始请求信息字段
-           Result        result     = 2;  // 状态信息字段
-           string        account_id = 3;  // 登录成功后返回的账号 ID
-           string        token      = 4;  // 登录成功后返回新获取的认证令牌
+  optional  SignInRequest request    = 1;  // 可选的原始请求信息字段
+            Result        result     = 2;  // 状态信息字段
+            string        account_id = 3;  // 登录成功后返回的账号 ID
+            string        token      = 4;  // 登录成功后返回新获取的认证令牌
 }
 
 // 获取更新
@@ -196,26 +226,21 @@ enum UpdateType {
   MESSAGES = 2;  // 消息列表
 }
 
-// 缩短名称  // protobuf 不支持别名
-message Timestamp{
-  google.protobuf.Timestamp timestamp = 1;
-}
-
 // 请求信息
 message UpdateRequest{
-  optional AuthRequest request_user_auth = 1;  // 鉴权  // 可能不需要
-           UpdateType  type              = 2;  // 请求类型  // 主要
-           Timestamp   timestamp         = 3;  // 获取该时间戳之后的新内容
+  optional  AuthRequest request_user_auth = 1;  // 鉴权  // 可能不需要
+            UpdateType  type              = 2;  // 请求类型  // 主要
+            Timestamp   timestamp         = 3;  // 获取该时间戳之后的新内容
 }
 
 // 返回内容
 message UpdateReply{
-  optional UpdateRequest request     = 1;  // 可选的原始请求信息字段
-           Result        result      = 2;  // 状态信息字段
-           // SignInReply   auth_result = 3;  // 鉴权结果
+  optional  UpdateRequest request     = 1;  // 可选的原始请求信息字段
+            Result        result      = 2;  // 状态信息字段
+            // SignInReply   auth_result = 3;  // 鉴权结果
   // 消息内容
-  oneof                  body {
-           Contacts      contacts = 3;
+  oneof                   body {
+            Contacts      contacts = 3;
   }
 }
 
@@ -229,11 +254,11 @@ message AddContactRequest {
 }
 
 message AddContactReply {
-  optional AddContactRequest request = 1;  // 可选的原始请求信息字段
-           Result            result  = 2;  // 状态信息字段
+  optional  AddContactRequest request = 1;  // 可选的原始请求信息字段
+            Result            result  = 2;  // 状态信息字段
 }
 
-// ============================  SearchService  ============================ //
+// =============================  SearchService  ============================= //
 
 // 搜索服务
 service SearchService {
@@ -245,16 +270,16 @@ service SearchService {
 
 // 搜索用户需要的参数
 message SearchUsersRequest{
-  optional AuthRequest request_user_auth = 1;  // 鉴权
-           string      user_id           = 2;  // user_id/nickname/phone/email，其一即可
-           string      user_filter       = 3;  // gender/region/birthday, 过滤条件
+  optional  AuthRequest request_user_auth = 1;  // 鉴权
+            string      user_id           = 2;  // user_id/nickname/phone/email，其一即可
+            string      user_filter       = 3;  // gender/region/birthday, 过滤条件
 }
 
 // 返回搜索用户的结果
 message SearchUsersReply{
-  optional SearchUsersRequest request   = 1;  // 可选的原始请求信息字段
-           Result             result    = 2;  // 状态信息字段
-           Contacts           contacts  = 3;  // 用户/账号信息
+  optional  SearchUsersRequest request   = 1;  // 可选的原始请求信息字段
+            Result             result    = 2;  // 状态信息字段
+            Contacts           contacts  = 3;  // 用户/账号信息
 }
 
 message Contacts {
@@ -263,29 +288,29 @@ message Contacts {
 
 // 用户的基本信息  // 暂时设为都必须有
 message Contact{
-           string user_id  = 1;  // 用户 ID
-           string nickname = 2;  // 昵称
-           string avatar   = 3;  // 头像
-           string sign     = 4;  // 签名
-           int32  gender   = 5;  // 性别
-           string region   = 6;  // 地区
-           string birthday = 7;  // 生日
-  repeated string phones   = 8;  // 手机号
-  repeated string emails   = 9;  // 邮箱
+            string user_id  = 1;  // 用户 ID
+            string nickname = 2;  // 昵称
+            string avatar   = 3;  // 头像
+            string sign     = 4;  // 签名
+            int32  gender   = 5;  // 性别
+            string region   = 6;  // 地区
+            string birthday = 7;  // 生日
+  repeated  string phones   = 8;  // 手机号
+  repeated  string emails   = 9;  // 邮箱
 }
 
 // 搜索群组需要的参数
 message SearchGroupsRequest{
-  optional AuthRequest request_user_auth = 1;  // 鉴权
-           string      groups_keyword    = 2;  // user_id/nickname/phone/email，其一即可
-           string      groups_filter     = 3;  // gender/region/birthday, 过滤条件
+  optional  AuthRequest request_user_auth = 1;  // 鉴权
+            string      groups_keyword    = 2;  // user_id/nickname/phone/email，其一即可
+            string      groups_filter     = 3;  // gender/region/birthday, 过滤条件
 }
 
 // 返回搜索群组的结果
 message SearchGroupsReply{
-  optional SearchGroupsRequest request = 1;  // 鉴权
-           Result              result  = 2;  // 状态信息字段
-           Groups              groups  = 3;  // 群组信息  // 默认最多只返回 10 条信息 // 暂不设置可过滤或分页
+  optional  SearchGroupsRequest request = 1;  // 鉴权
+            Result              result  = 2;  // 状态信息字段
+            Groups              groups  = 3;  // 群组信息  // 默认最多只返回 10 条信息 // 暂不设置可过滤或分页
 }
 
 //
@@ -312,15 +337,109 @@ service StatusService {
 
 // StatusRequest 要检查的用户或服务器 ID
 message StatusRequest {
-  optional AuthRequest request_user_auth = 1;  //
-           string      target_user_id    = 2;  // 被查询的用户 ID 或服务器 ID
+  optional  AuthRequest request_user_auth = 1;  //
+            string      target_user_id    = 2;  // 被查询的用户 ID 或服务器 ID
 }
 
 // 最终的状态响应消息
 message StatusReply {
-  optional StatusRequest request = 1;  // 可选的原始请求信息字段
-           Result        result  = 2;  // 状态信息字段
-           string        status  = 3;  // 自定义的用户状态字段
+  optional  StatusRequest request = 1;  // 可选的原始请求信息字段
+            Result        result  = 2;  // 状态信息字段
+            string        status  = 3;  // 自定义的用户状态字段
 }
 
-// ============================  SearchService  ============================ //
+// ============================  MessageService  ============================ //
+
+// 消息服务，包含发送和接收消息的接口
+service MessageService {
+  // 发送消息
+  rpc SendMessage(MessageContext) returns (MessageReply) {}
+  // 接收消息  // 双向流式 RPC，客户端发送 MessageRequest 请求，服务器持续返回 MessageContext 消息流
+  rpc ReceiveMessages(MessageRequest) returns (stream MessageContext) {}
+}
+
+// 消息上下文  // 发送消息时不要使用列表，每条消息都进行身份验证
+message MessageContext {
+  optional  AuthRequest  request_user_auth = 1;  // 鉴权
+            Timestamp    timestamp         = 2;  // 客户端消息发送的时间  // 用于客户端时间校准，服务端不处理该时间戳
+            string       client_message_id = 3;  // 客户端生成的消息 ID，用于判断消息是否重复发送
+            // `oneof{}` 相比较与 `enum Type {...}`
+            // 1. 更符合 protobuf 的设计理念。
+            // 2. 仅占用一个位置。
+            // 3. 语义明确，不会误设置 Type 导致混淆。
+            oneof         chat_room {
+              string      group_id  = 4;  // 群聊 ID
+              string      user_id   = 5;  // 私聊 ID
+            }
+            // 消息内容均不能为空
+            oneof         content {
+              // 客户端需要注意不同字符串类型占用的空间大小不一致的问题
+              string      short_text   = 6;  // 短文本消息内容  // [0, 8192) 个字节以内的文本消息内容
+              // FileContent long_text = 6;  // 长文本消息内容  // [8192, ...) 个字节以上的文本消息内容。
+              // FileContent image     = 7;  // 图片消息内容
+              // FileContent audio     = 8;  // 音频消息内容
+              // FileContent video     = 9;  // 视频消息内容
+              // FileContent file      = 10;  // 文件消息内容
+              // 单内容格式/多内容格式，自定义格式/使用 xml
+              // 通过特殊标记来区分文本和表情等非文本内容
+              // `hello[::emoji::smaile]world[::img::earth.png],listen[::audio::hi.mp3]and view[::audio::heard.mp4]`
+              // [] 中的内容表示特殊消息，格式为 `::type::data`，其中 type 可以是 emoji、img、audio、video、file 等，data 则是对应的内容，如表情名称、图片文件名、音频文件名等
+              // MuiltMessage muilt_message = 11;  // 混合消息
+            }
+}
+
+// 消息回应，返回服务端消息 ID 和时间戳，用于消息同步
+message MessageReply {
+  optional  MessageContext request           = 1;  // 可选的原始请求信息字段
+            Result         result            = 2;  // 状态信息字段
+            Timestamp      timestamp         = 3;  // 服务端接收到消息的时间
+            // 服务端生成的全局唯一的消息 ID，用于消息同步
+            // 目前为简单的服务器程序，仅单调递增即可，甚至可以使用 atom_int。
+            string         server_message_id = 4;
+            string         message           = 5;  // 可选的错误消息字段
+}
+
+message MessageRequest {
+  optional  AuthRequest request_user_auth = 1;  // 鉴权
+            string      target_id         = 2;  // 群聊 ID 或私聊 ID
+            Timestamp   timeStamp         = 3;  // 消息请求时间戳，由客户端设置，服务器可以选择使用或覆盖
+}
+
+// ==============================  FileService  ============================== //
+
+// 文件上传状态响应
+service FileService {
+  // 客户端流式上传
+  // FileUpload 上传文件。
+  rpc FileUpload(stream FileContent) returns (FileReply);
+  // FileDownload 下载文件。
+  rpc FileDownload(FileRequest) returns (stream FileContent);
+}
+
+// 文件上传请求
+message FileContent {
+  oneof data {
+    FileMetadata metadata   = 1; // 第一条消息发送元数据（文件名、哈希等）
+    bytes        chunk_data = 2; // 后续消息发送文件碎片
+  }
+}
+
+// 文件元数据
+message FileMetadata {
+  string filename  = 1;
+  int64  file_size = 2;
+}
+
+message FileReply {
+  FileMetadata metadata = 1; // 第一条消息发送元数据（文件名、哈希等）
+  Result       result  = 2;  // 状态信息字段
+  int32        status_code = 3; // 状态码
+  string       message = 4; // 可选的错误消息字段
+}
+
+message FileRequest {
+  optional  AuthRequest request_user_auth = 1;  // 鉴权
+            FileMetadata metadata = 2; // 第一条消息发送元数据（文件名、哈希等）
+}
+
+// =========================================================================== //

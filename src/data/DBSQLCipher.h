@@ -42,6 +42,12 @@ using ::TaoTieChat::Contact;
 using ::TaoTieChat::Contacts;
 using ::TaoTieChat::SearchUsersRequest;
 using ::TaoTieChat::SearchUsersReply;
+using ::TaoTieChat::MessageContext;
+using ::TaoTieChat::MessageReply;
+using ::TaoTieChat::MessageRequest;
+using ::TaoTieChat::FileContent;
+using ::TaoTieChat::FileReply;
+using ::TaoTieChat::FileRequest;
 
 using Utils::set_success;
 using Utils::set_error;
@@ -52,6 +58,7 @@ using Utils::hash_security_answer;
 using Utils::generate_uuid;
 using Utils::generate_account_id;
 using Utils::generate_token;
+using Utils::generate_message_id;
 using Utils::current_time_point;
 using Utils::to_utc_string;
 using Utils::split;
@@ -555,6 +562,8 @@ public:
     }
 
     // 用户注册
+    // TODO: account_id 建议全局全时段唯一，即无论该账号是否注销、是否为用户、群组、服务号等的 ID 都不应重复。
+    // TODO: user_id 在在用状态下，即是否为用户、群组、服务号等的 ID 时，也应该唯一。
     shared_ptr<SignUpReply> sign_up(shared_ptr<SignUpRequest> request) {
         using Request = SignUpRequest;
         using Reply   = SignUpReply;
@@ -624,7 +633,7 @@ public:
         return error_reply<Reply>(reply, ErrorCode::DEFAULT, std::format("Default error."));
     }
 
-    // 密码或 token 验证
+    // 密码或 token 验证  // 验证身份并返回 account_id  // 传入 user_id 时进行转换
     shared_ptr<AuthReply> auth_check(shared_ptr<AuthRequest> request) {
         using Request = AuthRequest;
         using Reply   = AuthReply;
@@ -833,6 +842,7 @@ public:
     }
 
     // 添加联系人
+    // TODO: 应该由联系人同意后方可完成添加
     shared_ptr<AddContactReply> add_contact(shared_ptr<AddContactRequest> request) {
         using Request  = AddContactRequest;
         using Reply    = AddContactReply;
@@ -903,6 +913,326 @@ public:
         return error_reply<Reply>(reply, ErrorCode::DEFAULT, std::format("Default error."));
     }
 
+    // // 删除联系人
+    // shared_ptr<DeleteContactReply> delete_contact(shared_ptr<DeleteContactRequest> request) {
+    //     using Request  = DeleteContactRequest;
+    //     using Reply    = DeleteContactReply;
+    //     // =========================== 初始化操作 =========================== //
+    //     // 复制请求
+    //     shared_ptr<Reply> reply = make_shared<Reply>();
+    //     set_error(reply->mutable_result(), ErrorCode::ERROR_INIT);
+    //     if(!request) {
+    //         return error_reply<Reply>(reply, ErrorCode::ERROR_INIT, std::format("Invalid Param."));
+    //     }
+    //     reply->mutable_request()->CopyFrom(*request.get());
+    //     set_error(reply->mutable_result(), ErrorCode::UNKNOWN);
+    //     // =========================== 参数校验 =========================== //
+    //     // 参数校验
+    //     if(request->target_user_id().empty()) {
+    //         return error_reply<Reply>(reply, ErrorCode::TARGET_USER_ID_EMPTY, std::format("Contact user ID is empty."));
+    //     }
+    //     // =========================== 执行操作 =========================== //
+    //     LOG_ERROR("TODO:delete_contact");
+    //     return error_reply<Reply>(reply, ErrorCode::DEFAULT, std::format("Default error."));
+    // }
+
+    // // 获取联系人列表
+    // shared_ptr<GetContactsReply> get_contacts(shared_ptr<GetContactsRequest> request) {
+    //     using Request  = GetContactsRequest;
+    //     using Reply    = GetContactsReply;
+    //     // =========================== 初始化操作 =========================== //
+    //     // 复制请求
+    //     shared_ptr<Reply> reply = make_shared<Reply>();
+    //     set_error(reply->mutable_result(), ErrorCode::ERROR_INIT);
+    //     if(!request) {
+    //         return error_reply<Reply>(reply, ErrorCode::ERROR_INIT, std::format("Invalid Param."));
+    //     }
+    //     reply->mutable_request()->CopyFrom(*request.get());
+    //     set_error(reply->mutable_result(), ErrorCode::UNKNOWN);
+    //     // =========================== 参数校验 =========================== //
+    //     // 参数校验
+    //     // =========================== 执行操作 =========================== //
+    //     LOG_ERROR("TODO:get_contacts");
+    //     return error_reply<Reply>(reply, ErrorCode::DEFAULT, std::format("Default error."));
+    // }
+
+    // // 修改联系人备注
+    // shared_ptr<ModifyContactRemarkReply> modify_contact_remark(shared_ptr<ModifyContactRemarkRequest> request) {
+    //     using Request  = ModifyContactRemarkRequest;
+    //     using Reply    = ModifyContactRemarkReply;
+    //     // =========================== 初始化操作 =========================== //
+    //     // 复制请求
+    //     shared_ptr<Reply> reply = make_shared<Reply>();
+    //     set_error(reply->mutable_result(), ErrorCode::ERROR_INIT);
+    //     if(!request) {
+    //         return error_reply<Reply>(reply, ErrorCode::ERROR_INIT, std::format("Invalid Param."));
+    //     }
+    //     reply->mutable_request()->CopyFrom(*request.get());
+    //     set_error(reply->mutable_result(), ErrorCode::UNKNOWN);
+    //     // =========================== 参数校验 =========================== //
+    //     // 参数校验
+    //     if(request->target_user_id().empty()) {
+    //         return error_reply<Reply>(reply, ErrorCode::TARGET_USER_ID_EMPTY, std::format("Contact user ID is empty."));
+    //     }
+    //     // =========================== 执行操作 =========================== //
+    //     LOG_ERROR("TODO:modify_contact_remark");
+    //     return error_reply<Reply>(reply, ErrorCode::DEFAULT, std::format("Default error."));
+    // }
+
+    // // 修改密码
+    // shared_ptr<ModifyPasswordReply> modify_password(shared_ptr<ModifyPasswordRequest> request) {
+    //     using Request  = ModifyPasswordRequest;
+    //     using Reply    = ModifyPasswordReply;
+    //     // =========================== 初始化操作 =========================== //
+    //     // 复制请求
+    //     shared_ptr<Reply> reply = make_shared<Reply>();
+    //     set_error(reply->mutable_result(), ErrorCode::ERROR_INIT);
+    //     if(!request) {
+    //         return error_reply<Reply>(reply, ErrorCode::ERROR_INIT, std::format("Invalid Param."));
+    //     }
+    //     reply->mutable_request()->CopyFrom(*request.get());
+    //     set_error(reply->mutable_result(), ErrorCode::UNKNOWN);
+    //     // =========================== 参数校验 =========================== //
+    //     // 参数校验
+    //     if(request->new_password().empty()) {
+    //         return error_reply<Reply>(reply, ErrorCode::PASSWORD_EMPTY, std::format("New password is empty."));
+    //     }
+    //     // =========================== 执行操作 =========================== //
+    //     LOG_ERROR("TODO:modify_password");
+    //     return error_reply<Reply>(reply, ErrorCode::DEFAULT, std::format("Default error."));
+    // }
+
+    // // 账号找回
+    // shared_ptr<AccountRecoveryReply> account_recovery(shared_ptr<AccountRecoveryRequest> request) {
+    //     using Request  = AccountRecoveryRequest;
+    //     using Reply    = AccountRecoveryReply;
+    //     // =========================== 初始化操作 =========================== //
+    //     // 复制请求
+    //     shared_ptr<Reply> reply = make_shared<Reply>();
+    //     set_error(reply->mutable_result(), ErrorCode::ERROR_INIT);
+    //     if(!request) {
+    //         return error_reply<Reply>(reply, ErrorCode::ERROR_INIT, std::format("Invalid Param."));
+    //     }
+    //     reply->mutable_request()->CopyFrom(*request.get());
+    //     set_error(reply->mutable_result(), ErrorCode::UNKNOWN);
+    //     // =========================== 参数校验 =========================== //
+    //     // 参数校验
+    //     if(request->user_id().empty()) {
+    //         return error_reply<Reply>(reply, ErrorCode::USER_ID_EMPTY, std::format("User ID is empty."));
+    //     }
+    //     if(request->security_answer().empty()) {
+    //         return error_reply<Reply>(reply, ErrorCode::SECURITY_ANSWER_EMPTY, std::format("Security answer is empty."));
+    //     }
+    //     // =========================== 执行操作 =========================== //
+    //     LOG_ERROR("TODO:account_recovery");
+    //     return error_reply<Reply>(reply, ErrorCode::DEFAULT, std::format("Default error."));
+    // }
+
+    // // 用户注销
+    // shared_ptr<SignOutReply> sign_out(shared_ptr<SignOutRequest> request) {
+    //     using Request  = SignOutRequest;
+    //     using Reply    = SignOutReply;
+    //     // =========================== 初始化操作 =========================== //
+    //     // 复制请求
+    //     shared_ptr<Reply> reply = make_shared<Reply>();
+    //     set_error(reply->mutable_result(), ErrorCode::ERROR_INIT);
+    //     if(!request) {
+    //         return error_reply<Reply>(reply, ErrorCode::ERROR_INIT, std::format("Invalid Param."));
+    //     }
+    //     reply->mutable_request()->CopyFrom(*request.get());
+    //     set_error(reply->mutable_result(), ErrorCode::UNKNOWN);
+    //     // =========================== 参数校验 =========================== //
+    //     // 参数校验
+    //     // =========================== 执行操作 =========================== //
+    //     LOG_ERROR("TODO:sign_out");
+    //     return error_reply<Reply>(reply, ErrorCode::DEFAULT, std::format("Default error."));
+    // }
+
+    // 客户端发送消息，服务端写入消息到数据库
+    shared_ptr<MessageReply> write_message(const shared_ptr<MessageContext>&request) {
+        using Request  = MessageContext;
+        using Reply    = MessageReply;
+        // =========================== 初始化操作 =========================== //
+        // 复制请求
+        shared_ptr<Reply> reply = make_shared<Reply>();
+        set_error(reply->mutable_result(), ErrorCode::ERROR_INIT);
+        if(!request) {
+            return error_reply<Reply>(reply, ErrorCode::ERROR_INIT, std::format("Invalid Param."));
+        }
+        reply->mutable_request()->CopyFrom(*request.get());
+        set_error(reply->mutable_result(), ErrorCode::UNKNOWN);
+        // =================================================================== //
+        auto has_terget_id = [](const shared_ptr<MessageContext>&request) -> bool {
+            if(request->has_group_id()) { return true; }
+            if(request->has_user_id ()) { return true; }
+            return false;
+        };
+        auto has_message_context = [](const shared_ptr<MessageContext>&request) -> bool {
+            if(request->has_short_text () && !request->short_text ().empty()) { return true; }
+            // if(request->has_image() && !request->image().empty()) { return true; }
+            // if(request->has_audio() && !request->audio().empty()) { return true; }
+            // if(request->has_video() && !request->video().empty()) { return true; }
+            // if(request->has_file () && !request->file ().empty()) { return true; }
+            return false;
+        };
+        auto has_client_message_id = [](const shared_ptr<MessageContext>&request) -> bool {
+            if(!request->client_message_id().empty()) { return true; }
+            return false;
+        };
+        auto is_short_text_message = [](const shared_ptr<MessageContext>&request) -> bool {
+            if(!request->has_short_text()) { return false; }
+            string short_text = request->short_text();
+            if(short_text.empty()) { return false; }
+            // 客户端需要注意不同字符串类型占用的空间大小不一致的问题
+            // [0, 8192) 为短文本，[8192, ...) 为长文本
+            // 8KB 的限制是为了兼容绝大多数数据库的单行数据大小限制
+            if(short_text.size() < SHORT_MESSAGE_MAX_LENGTH) { return true; }
+            return false;
+        };
+        auto is_context_message = [](const shared_ptr<MessageContext>&request) -> bool {
+            if(request->has_user_id()) { return true; }
+            return false;
+        };
+        // auto is_long_text_message = [](const shared_ptr<MessageContext>&request) -> bool {
+        //     if(request->has_long_text () && !request->long_text().empty()) { return true; }
+        //     return false;
+        // };
+        auto get_receiver_account_id = [this](const shared_ptr<MessageContext>&request) -> string {
+            if(request->has_user_id() && !request->user_id().empty()) {
+                auto user_id = request->user_id();
+                auto[success_get_active_account_id, result_account_id] = get_active_account_id(user_id);
+                if(!success_get_active_account_id) {
+                    return string{};
+                }
+                // 用户或账号 ID 未注册或停用等，返回账号不存在即可
+                if(result_account_id.empty()) {
+                    return string{};
+                }
+                return result_account_id;
+            }
+            if(request->has_group_id() && !request->group_id().empty()) {
+                return request->group_id();
+            }
+            return string{};
+        };
+        // =========================== 参数校验 =========================== //
+        // 参数校验
+        if(!has_terget_id(request)) {
+            return error_reply<Reply>(reply, ErrorCode::TARGET_ID_REQUESTED, std::format("Message receiver is empty."));
+        }
+        if(!has_message_context(request)){
+            return error_reply<Reply>(reply, ErrorCode::CONTEXT_REQUIRED, std::format("Message content is empty."));
+        }
+        if(!has_client_message_id(request)) {
+            return error_reply<Reply>(reply, ErrorCode::CLIENT_MESSAGE_ID_REQUIRED, std::format("Client message ID is empty."));
+        }
+        // =========================== 执行操作 =========================== //
+        // ============== 身份验证
+        // 验证鉴权是否成功
+        shared_ptr<AuthRequest> auth_request = make_shared<AuthRequest>(request->request_user_auth());
+        auto auth_reply  = auth_check(auth_request);
+        auto&auth_result = auth_reply->result();
+        if(!auth_result.has_success_code()) {
+            return error_reply<Reply>(reply, auth_result.error_code(), auth_result.message());
+        }
+        // 获取鉴权结果
+        auto account_id = auth_reply->account_id();
+        if(account_id.empty()) {
+            return error_reply<Reply>(reply, ErrorCode::AUTH_FAILED, std::format("Auth failed to get account_id."));
+        }
+        // 获取目标用户账号 ID
+        auto receiver_account_id = get_receiver_account_id(request);
+        if(receiver_account_id.empty()) {
+            return error_reply<Reply>(reply, ErrorCode::TARGET_USER_ID_NOT_FOUND, std::format("Message receiver is empty."));
+        }
+        // 检查是否是好友
+        auto [success_check_contact, result_check_contact] = get_contact_status(account_id, receiver_account_id);
+        if(!success_check_contact) {
+            return error_reply<Reply>(reply, ErrorCode::DB_QUERY, std::format("Check contact error."));
+        }
+        // 判断是否是好友关系
+        auto associated_status = contact_status_to_error_code(result_check_contact);
+        if(associated_status != ErrorCode::ASSOCIATED) {
+            return error_reply<Reply>(reply, associated_status, std::format("Contact status error."));
+        }
+        // ============== 消息验证
+        // 获取客户端消息 ID
+        auto client_message_id = request->client_message_id();
+        // 先验证消息是否已经写入过了，避免重复写入
+        auto [success_check_exist_client_message_id, result_check_exist_client_message_id] = check_exist_client_message_id(account_id, client_message_id);
+        if(!success_check_exist_client_message_id) {
+            return error_reply<Reply>(reply, ErrorCode::DB_QUERY, std::format("Check message ID error."));
+        }
+        if(result_check_exist_client_message_id) {
+            return error_reply<Reply>(reply, ErrorCode::DUPLICATE_MESSAGE_ID, std::format("Message ID already exists."));
+        }
+        // 生成服务端消息 ID
+        auto [success_get_new_message_id, server_message_id] = get_new_message_id();
+        if(!success_get_new_message_id) {
+            return error_reply<Reply>(reply, ErrorCode::DB_EXECUTE, std::format("Get new message ID error."));
+        }
+        // 数据库的默认时间格式是 UTC 时间
+        auto time_point = current_time_point();
+        string timestamp = to_utc_string(time_point);
+        // 根据消息类型执行不同的写入操作
+        if(is_short_text_message(request)) {
+            auto&sender_account_id = account_id;
+            auto[success_write_short_message, result_write_short_message] = write_short_message(server_message_id, client_message_id, sender_account_id, receiver_account_id, request->short_text(), timestamp);
+            if(!success_write_short_message || !result_write_short_message) {
+                return error_reply<Reply>(reply, ErrorCode::DB_EXECUTE, std::format("Write short message error."));
+            }
+            // 写入成功，返回消息 ID 和时间戳等信息
+            reply->set_server_message_id(server_message_id);
+            set_timestamp(*reply->mutable_timestamp(), time_point);
+            return success_reply<Reply>(reply, SuccessCode::SUCCESS, std::format("Write short message Successed."));
+        }
+        else {
+            return error_reply<Reply>(reply, ErrorCode::UNSUPPORTED_OPERATION, std::format("Message type is not supported."));
+        }
+        // if(is_long_text_message(request)) {
+        //     LOG_ERROR("TODO:write_long_text_message");
+        // }
+        return error_reply<Reply>(reply, ErrorCode::DEFAULT, std::format("Default error."));
+    }
+
+    // // 客户端拉取消息，服务端从数据库查询消息并返回
+    // shared_ptr<PullMessagesReply> pull_messages(shared_ptr<PullMessagesRequest> request) {
+    //     using Request  = PullMessagesRequest;
+    //     using Reply    = PullMessagesReply;
+    //     // =========================== 初始化操作 =========================== //
+    //     // 复制请求
+    //     shared_ptr<Reply> reply = make_shared<Reply>();
+    //     set_error(reply->mutable_result(), ErrorCode::ERROR_INIT);
+    //     if(!request) {
+    //         return error_reply<Reply>(reply, ErrorCode::ERROR_INIT, std::format("Invalid Param."));
+    //     }
+    //     reply->mutable_request()->CopyFrom(*request.get());
+    //     set_error(reply->mutable_result(), ErrorCode::UNKNOWN);
+    //     // =========================== 参数校验 =========================== //
+    //     // 参数校验
+    //     if(request->last_message_id().empty()) {
+    //         return error_reply<Reply>(reply, ErrorCode::LAST_MESSAGE_ID_EMPTY, std::format("Last message ID is empty."));
+    //     }
+    //     // =========================== 执行操作 =========================== //
+    //     LOG_ERROR("TODO:pull_messages");
+    //     return error_reply<Reply>(reply, ErrorCode::DEFAULT, std::format("Default error."));
+    // }
+
+private:
+    void set_timestamp(TaoTieChat::Timestamp& timestamp, const std::chrono::system_clock::time_point& time_point) {
+        // timestamp.mutable_timestamp()->set_seconds(time_point.time_since_epoch().count() / 1000); // 转换为秒
+        // timestamp.mutable_timestamp()->set_nanos((time_point.time_since_epoch().count() % 1000) * 1000000); // 转换为纳秒
+        // 1. 获取自 Unix 纪元以来的持续时间
+        auto duration = time_point.time_since_epoch();
+
+        // 2. 提取秒数
+        auto seconds = std::chrono::duration_cast<std::chrono::seconds>(duration);
+        timestamp.mutable_timestamp()->set_seconds(seconds.count());
+
+        // 3. 提取剩余的纳秒数
+        auto nanos = std::chrono::duration_cast<std::chrono::nanoseconds>(duration - seconds);
+        timestamp.mutable_timestamp()->set_nanos(static_cast<int32_t>(nanos.count()));
+    }
 private:
     // ========================= 包含 SQL 语句的函数 ========================= //
     // 执行失败、执行成功但无匹配均返回{false, {}}，执行成功且匹配才返回 {true,xx}
@@ -1151,6 +1481,62 @@ private:
         }
         return {false, false};
     }
+    // 检查服务端生成的消息 ID 是否重复，重复则代表消息已经存入
+    std::tuple<bool, bool> check_exist_server_message_id(const string&message_id) {
+        // =========================== 参数校验 =========================== //
+        if(message_id.empty()) {
+            return {false, false};
+        }
+        // =========================== 执行操作 =========================== //
+        // 构造参数
+        auto sql_params = make_shared<SqlParams>();
+        (*sql_params)[":message_id"] = message_id;
+        auto sql_result = execute(SQL_QUERY_EXIST_SERVER_MESSAGE_ID, sql_params);
+        if(sql_result && sql_result->done) {
+            // 查询命令执行成功
+            return check_exist_server_message_id(sql_result->rows);
+        }
+        return {false, false};
+    }
+    std::tuple<bool, bool> check_exist_server_message_id(const SqlRows&rows) {
+        // 解析是否为 1
+        if(rows.size()) {
+            return {true, true}; // 有数据即可认为存在
+        }
+        else {
+            return {true, false}; // 无数据时认为不存在
+        }
+        return {false, false};
+    }
+    // 客户端生成的消息 ID // 同一账号生成的 ID 不重复即可认为是新消息，不需要全局唯一性校验
+    // ID 存在代表消息重复发送
+    std::tuple<bool, bool> check_exist_client_message_id(const string&sender_account_id, const string&message_id) {
+        // =========================== 参数校验 =========================== //
+        if(sender_account_id.empty() || message_id.empty()) {
+            return {false, false};
+        }
+        // =========================== 执行操作 =========================== //
+        // 构造参数
+        auto sql_params = make_shared<SqlParams>();
+        (*sql_params)[":sender_account_id"] = sender_account_id;
+        (*sql_params)[":message_id"       ] = message_id       ;
+        auto sql_result = execute(SQL_QUERY_EXIST_CLIENT_MESSAGE_ID, sql_params);
+        if(sql_result && sql_result->done) {
+            // 查询命令执行成功
+            return check_exist_client_message_id(sql_result->rows);
+        }
+        return {false, false};
+    }
+    std::tuple<bool, bool> check_exist_client_message_id(const SqlRows&rows) {
+        // 解析是否为 1
+        if(rows.size()) {
+            return {true, true}; // 有数据即可认为存在
+        }
+        else {
+            return {true, false}; // 无数据时认为不存在
+        }
+        return {false, false};
+    }
     // 获取好友状态。0：非好友，1：好友，2：被对方拉黑了（可能没有这个状态，先预留）
     std::tuple<bool, int> get_contact_status(const string&request_account_id, const string&target_account_id) {
         // =========================== 参数校验 =========================== //
@@ -1277,6 +1663,27 @@ private:
         LOG_ERROR("database token maybe full. account_id:{}.", account_id);
         return {false, string{}};
     }
+    // 可包含时间戳，可使用雪花算法等
+    std::tuple<bool, string> get_new_message_id() {
+        // 循环 1000 次还重复，说明数据库可能存在异常
+        for(int i = 0; i < 1000; ++i) {
+            // 生成 message_id
+            string message_id = generate_message_id();
+            // message_id 不存在时则说明可用
+            auto[success, exist] = check_exist_server_message_id(message_id);
+            // 查询失败则返回错误
+            if(!success) {
+                return {false, string{}};
+            }
+            // 查询成功且没有该 ID
+            if(!exist) {
+                return {true, message_id};
+            }
+            // 账号 ID 存在就继续循环获取新的 ID
+        }
+        LOG_ERROR("database message_id maybe full.");
+        return {false, string{}};
+    }
     std::tuple<bool, string> user_register(const string&user_id, const string&password, const string&security_question, const string&security_answer) {
         auto [success_get_new_account_id, account_id] = get_new_account_id();  // 一般不会枯竭
         if(!success_get_new_account_id) {
@@ -1324,7 +1731,51 @@ private:
         }
         return {false, false};
     }
-
+    // std::tuple<bool, bool> delete_contact(const string&request_account_id, const string&target_account_id) {
+    //     // =========================== 参数校验 =========================== //
+    //     if(request_account_id.empty() || target_account_id.empty()) {
+    //         return {false, false};
+    //     }
+    //     // =========================== 执行操作 =========================== //
+    //     // 构造参数
+    //     auto sql_params = make_shared<SqlParams>();
+    //     (*sql_params)[":account_id"       ] = request_account_id;
+    //     (*sql_params)[":friend_account_id"] = target_account_id;
+    //     auto sql_result = execute(SQL_DELETE_FRIEND, sql_params);
+    //     if(sql_result && sql_result->done) {
+    //         // 查询命令执行成功
+    //         return {true, true};
+    //     }
+    //     return {false, false};
+    // }
+    // 记录文本消息到数据库
+    std::tuple<bool, bool> write_short_message(
+        const string&server_message_id, const string&client_message_id,
+        const string&sender_account_id, const string&receiver_account_id,
+        const string&short_text, const string&timestamp
+) {
+        // =========================== 参数校验 =========================== //
+        if( server_message_id.empty() || client_message_id  .empty() ||
+            sender_account_id.empty() || receiver_account_id.empty() ||
+            short_text.empty() || timestamp.empty()) {
+            return {false, false};
+        }
+        // =========================== 执行操作 =========================== //
+        // 构造参数
+        auto sql_params = make_shared<SqlParams>();
+        (*sql_params)[":server_message_id"  ] = server_message_id;
+        (*sql_params)[":client_message_id"  ] = client_message_id;
+        (*sql_params)[":sender_account_id"  ] = sender_account_id;
+        (*sql_params)[":receiver_account_id"] = receiver_account_id;
+        (*sql_params)[":short_text"         ] = short_text;
+        (*sql_params)[":timestamp"          ] = timestamp;
+        auto sql_result = execute(SQL_INSERT_SHORT_MESSAGE, sql_params);
+        if(sql_result && sql_result->done) {
+            // 查询命令执行成功
+            return {true, true};
+        }
+        return {false, false};
+    }
 private:
     path          m_db_path;
     sqlite3*      m_db_sqlcipher = nullptr;

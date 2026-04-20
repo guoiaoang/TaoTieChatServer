@@ -223,6 +223,7 @@ namespace SQL{
 
                     -- 时间戳为辅助验证，状态码为主要依据
                     -- 状态字段：0:非好友关系, 1:已经是好友关系, 2:被定向拉黑
+                    --           10:好友请求待处理, 11:好友请求被拒绝
                     status            INTEGER DEFAULT 0,
 
                     -- 关系属性
@@ -266,13 +267,31 @@ namespace SQL{
             constexpr std::string_view SQL_CREATE_TABLE_MESSAGES = R"(
                 CREATE TABLE IF NOT EXISTS messages (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    message_id  TEXT,  -- message_id 消息 ID，对于消息唯一
-                    sender_id   TEXT,  -- sender_id 发送者的账号 ID
-                    receiver_id TEXT,  -- receiver_id 接收者的账号 ID，单聊时为好友的账号 ID，群聊时为群 ID
-                    content     TEXT,  -- content 消息内容
-                    type        TEXT,  -- type 消息类型，如文本、图片、文件等
-                    timestamp   TEXT,  -- timestamp 消息时间戳
-                    common      TEXT   -- common 通用字段
+
+                    -- server_message_id 服务端生成的全局唯一的消息 ID，可用于消息同步
+                    server_message_id   TEXT NOT NULL,
+
+                    -- client_message_id 客户端发送消息时生成的消息 ID，可用于消息去重（防止重复发送）
+                    client_message_id   TEXT NOT NULL,
+
+                    -- sender_account_id 发送者的账号 ID
+                    sender_account_id   TEXT NOT NULL,
+
+                    -- receiver_account_id 接收者的账号 ID，单聊时为好友的账号 ID，群聊时为群 ID
+                    receiver_account_id TEXT NOT NULL,
+
+                    -- short_text 短文本消息内容直接存储在该字段，适用于 [0, 8192) 个字节以内的文本消息内容
+                    -- 短文本内容不允许为空，为空时认为发送的是大文件或长文本消息
+                    short_text          TEXT,
+
+                    -- big_context_id 长文本消息及文件内容的 ID，
+                    -- 指向存储长文本消息内容的表中的记录 ID，
+                    -- 适用于 [8192, ...) 个字节以上的文本消息内容或文件
+                    -- 建议存储 sha 值以便去重
+                    big_context_id    TEXT,
+
+                    timestamp         TEXT NOT NULL,  -- timestamp 消息时间戳
+                    common            TEXT   -- common 通用字段
                 );
             )";
             // // 群聊消息记录 // 群聊消息记录表可以存储一些特定于群聊的信息，如 @提及 的用户列表等
@@ -321,6 +340,11 @@ namespace SQL{
             constexpr std::string_view SQL_QUERY_GET_ACCOUNT_ID          = R"(SELECT account_id FROM users WHERE user_id    = :user_id                   LIMIT 10;)";
             // 通过用户 ID 查询账号 ID  // 统一将 user_id 转换为 account_id  // 在用账号的用户 ID 唯一，一般只返回一条数据
             constexpr std::string_view SQL_QUERY_GET_ACTIVE_ACCOUNT_ID   = R"(SELECT account_id FROM users WHERE user_id    = :user_id    AND status = 0 LIMIT 10;)";
+
+            // 检查服务端生成的消息 ID(server_message_id) 是否存在
+            constexpr std::string_view SQL_QUERY_EXIST_SERVER_MESSAGE_ID = R"(SELECT 1 FROM   messages WHERE  server_message_id = :message_id LIMIT 1; )";
+            // 检查客户端生成的消息 ID(client_message_id) 是否存在
+            constexpr std::string_view SQL_QUERY_EXIST_CLIENT_MESSAGE_ID = R"(SELECT 1 FROM   messages WHERE  client_message_id = :message_id AND sender_account_id = :sender_account_id LIMIT 1; )";
 
             // 校验用户注册是否成功/一致
             constexpr std::string_view SQL_QUERY_CHECK_REGISTER = R"(
@@ -395,6 +419,12 @@ namespace SQL{
             constexpr std::string_view SQL_INSERT_FRIEND = R"(
                 INSERT INTO friends ( account_id,  friend_account_id, status, add_time       )
                 VALUES              (:account_id, :friend_account_id,      1, datetime('now'));
+             )";
+
+             // 写入短消息记录
+             constexpr std::string_view SQL_INSERT_SHORT_MESSAGE = R"(
+                INSERT INTO messages ( server_message_id,  client_message_id,  sender_account_id,  receiver_account_id,  short_text,  timestamp)
+                VALUES               (:server_message_id, :client_message_id, :sender_account_id, :receiver_account_id, :short_text, :timestamp);
              )";
         }
     }

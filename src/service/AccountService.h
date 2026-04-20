@@ -114,7 +114,8 @@ public:
         return Status::OK;
     }
 
-    //
+    // 添加联系人
+    // TODO: 应该由联系人同意后方可完成添加
     Status AddContact(ServerContext* context, const AddContactRequest* request, AddContactReply* response) override {
         using Request = AddContactRequest;
         using Reply   = AddContactReply;

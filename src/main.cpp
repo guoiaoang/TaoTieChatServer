@@ -6,6 +6,8 @@
 #include "StatusService.h"
 #include "AccountService.h"
 #include "SearchService.h"
+#include "MessageService.h"
+#include "FileService.h"
 
 bool initialize_spdlog();
 
@@ -67,6 +69,10 @@ int main(int argc, char** argv) {
     server_builder.RegisterService(&service_account);
     SearchServiceImpl               service_search;
     server_builder.RegisterService(&service_search);
+    MessageServiceImpl              service_message;
+    server_builder.RegisterService(&service_message);
+    FileServiceImpl                 service_file;
+    server_builder.RegisterService(&service_file);
 
     // 校验端口是否绑定成功，以防 server 为 nullptr
     if (selected_port == 0) {

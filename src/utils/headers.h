@@ -2,10 +2,14 @@
 
 // ================ 设置 ================ //
 
+
+#define SHORT_MESSAGE_MAX_LENGTH 8192  // 短文本最大长度，单位为字节
+
 #define ENABLE_SQLCIPHER
 #define ENABLE_NLOHMANN_JSON
 #define ENABLE_BOOST_UUID
 #define ENABLE_FMT
+#define ENABLE_STDUUID
 // #define ENABLE_CONJURE_ENUM
 // #define ENABLE_MAGIC_ENUM
 // #define ENABLE_CLIENT
@@ -273,6 +277,10 @@
 #include <boost/uuid.hpp>
 #endif // ENABLE_BOOST_UUID
 
+#ifdef ENABLE_STDUUID
+#include <stduuid/uuid.h>
+#endif // ENABLE_STDUUID
+
 // #define ENABLE_FMT
 #ifdef ENABLE_FMT
 #include <fmt/format.h>
@@ -303,6 +311,7 @@
 #include <grpcpp/grpcpp.h>
 #include <grpcpp/ext/proto_server_reflection_plugin.h>
 #include <grpcpp/health_check_service_interface.h>
+#include <google/protobuf/util/time_util.h>  // google::protobuf::util::TimeUtil::GetCurrentTime();
 using ::grpc::CallbackServerContext;
 using ::grpc::Channel;
 using ::grpc::ClientContext;
