@@ -290,7 +290,7 @@ namespace SQL{
                     -- 建议存储 sha 值以便去重
                     big_context_id    TEXT,
 
-                    timestamp         TEXT NOT NULL,  -- timestamp 消息时间戳
+                    timestamp         TEXT NOT NULL,  -- timestamp 消息时间戳  -- 需要返回该值，以便客户端进行消息排序和去重
                     common            TEXT   -- common 通用字段
                 );
             )";
@@ -308,6 +308,33 @@ namespace SQL{
             //     R"(    timestamp  TEXT,)"  // timestamp 消息时间戳
             //     R"(    common     TEXT)"   // common 通用字段
             //     R"();)";
+
+            // 待处理的添加好友申请
+            constexpr std::string_view SQL_CREATE_TABLE_FRIEND_REQUESTS = R"(
+                CREATE TABLE IF NOT EXISTS friend_requests (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    -- request_account_id 发起好友请求的账号 ID
+                    request_account_id TEXT NOT NULL,
+
+                    -- target_account_id 接收好友请求的账号 ID
+                    target_account_id  TEXT NOT NULL,
+
+                    -- status 好友请求状态：0:待处理, 1:已接受, 2:已拒绝, 3:已忽略(不再提醒)
+                    status             INTEGER NOT NULL,
+
+                    -- timestamp 好友请求时间戳
+                    timestamp          DATETIME DEFAULT (datetime('now')),
+
+                    -- message 好友请求附带的消息
+                    message            TEXT,
+
+                    -- reply 好友请求附带的回复消息
+                    reply              TEXT,
+
+                    -- common 通用字段
+                    common             TEXT
+                );
+            )";
         }
 
         // 在有索引的情况下，SQL 多条件查找会先过滤前面的条件，
@@ -394,6 +421,16 @@ namespace SQL{
                     -- AND status         = 1                  -- 好友关系
                 LIMIT 1;
             )";
+
+            // 获取指定账号的好友添加请求状态
+            constexpr std::string_view SQL_QUERY_GET_FRIEND_REQUEST_STATUS = R"(
+                SELECT status
+                FROM   friend_requests
+                WHERE
+                        request_account_id = :request_account_id
+                    AND target_account_id  = :target_account_id
+                LIMIT 1;
+            )";
         }
 
         // 插入
@@ -415,17 +452,73 @@ namespace SQL{
                 VALUES                  (:account_id, :token_hash, :create_time, :expire_time);
             )";
 
+            // 添加好友请求记录
+            constexpr std::string_view SQL_INSERT_FRIEND_REQUEST = R"(
+                INSERT INTO friend_requests ( request_account_id,  target_account_id,  status,  message, timestamp)
+                VALUES                      (:request_account_id, :target_account_id,       0, :message, datetime('now'));
+            )";
+
             // 添加好友
+            // 事务操作：需要同时更新双方的好友关系表，确保数据一致性
+            // 1. 在自己的好友列表中添加对方，状态为已关联
+            // 2. 在对方的好友列表中添加自己，状态为已关联
+            // 3. 更新好友申请列表中的状态为已接受
             constexpr std::string_view SQL_INSERT_FRIEND = R"(
                 INSERT INTO friends ( account_id,  friend_account_id, status, add_time       )
                 VALUES              (:account_id, :friend_account_id,      1, datetime('now'));
              )";
+
+            // 幂等插入好友关系：不存在才插入，避免重复记录
+            constexpr std::string_view SQL_INSERT_FRIEND_IF_ABSENT = R"(
+                INSERT INTO friends ( account_id,  friend_account_id, status, add_time       )
+                SELECT               :account_id, :friend_account_id,      1, datetime('now')
+                WHERE NOT EXISTS (
+                        SELECT 1
+                        FROM   friends
+                        WHERE  account_id        = :account_id
+                          AND  friend_account_id = :friend_account_id
+                );
+            )";
 
              // 写入短消息记录
              constexpr std::string_view SQL_INSERT_SHORT_MESSAGE = R"(
                 INSERT INTO messages ( server_message_id,  client_message_id,  sender_account_id,  receiver_account_id,  short_text,  timestamp)
                 VALUES               (:server_message_id, :client_message_id, :sender_account_id, :receiver_account_id, :short_text, :timestamp);
              )";
+        }
+
+        // 更新
+        // 没有数据时执行 UPDATE 语句不会报错，但受影响的行数为 0
+        namespace UPDATE {
+            // 已存在的好友关系更新为已关联
+            constexpr std::string_view SQL_UPDATE_FRIEND_ASSOCIATED = R"(
+                UPDATE friends
+                SET    status   = 1,
+                       add_time = datetime('now')
+                WHERE  account_id        = :account_id
+                  AND  friend_account_id = :friend_account_id;
+            )";
+
+            // 将待处理的好友申请更新为已接受。
+            // request_account_id: 发起申请的一方
+            // target_account_id : 接收申请并执行同意的一方
+            constexpr std::string_view SQL_UPDATE_FRIEND_REQUEST_ACCEPTED = R"(
+                UPDATE friend_requests
+                SET status = 1
+                WHERE request_account_id = :request_account_id
+                  AND target_account_id  = :target_account_id
+                  AND status = 0;
+            )";
+
+            // 设置好友请求的状态
+            // request_account_id: 发起申请的一方
+            // target_account_id : 接收申请并执行拒绝的一方
+            constexpr std::string_view SQL_UPDATE_FRIEND_REQUEST_STATUS = R"(
+                UPDATE friend_requests
+                SET    status = :status
+                WHERE  request_account_id = :request_account_id
+                AND  target_account_id  = :target_account_id
+            )";
         }
     }
 }

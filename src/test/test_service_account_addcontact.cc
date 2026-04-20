@@ -25,9 +25,19 @@ using std::filesystem::exists;
 using std::filesystem::filesystem_error;
 using std::format;
 
+string get_current_file_name() {
+    // __FILE__ 是一个预定义的宏，包含当前源文件的路径
+    string full_path = __FILE__;
+    // 使用 std::filesystem::path 来处理路径
+    path p(full_path);
+    // 返回文件名部分
+    return p.stem    ().string();  // stem() 返回不带扩展名的文件名
+    return p.filename().string(); // filename() 返回带扩展名的文件名
+}
+
 class ServiceAccountAddContact : public ::testing::Test {
 protected:
-    const std::filesystem::path db_path = std::filesystem::current_path() / "test_service_account_addcontact.db";
+    const std::filesystem::path db_path = std::filesystem::current_path() / (get_current_file_name() + ".db");
     const std::string encryption_key = "your_secure_encryption_key";
 
     // 每个 TEST_F 运行前都会执行
@@ -139,6 +149,7 @@ std::tuple<grpc::Status, AddContactReply> AddContact(const string& target_user_i
 }
 
 // 测试 AccountService 的 AddContact 方法
+// 没有测试拉黑等异常情况
 
 // 未提供目标用户 ID，返回错误码 TARGET_USER_ID_EMPTY
 TEST_F(ServiceAccountAddContact, target_user_id_empty) {

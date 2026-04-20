@@ -110,8 +110,8 @@ std::tuple<grpc::Status, SignUpReply> SignUp(
     return {status, response};
 }
 
-// 添加好友测试
-std::tuple<grpc::Status, AddContactReply> AddContact(
+// 发送好友申请
+std::tuple<grpc::Status, ContactRequestReply> ContactRequest(
     const string& request_user_id, const string& request_user_password,
     const string& target_user_id
 ) {
@@ -119,15 +119,9 @@ std::tuple<grpc::Status, AddContactReply> AddContact(
     AccountServiceImpl service;
 
     // 构造测试请求
-    AddContactRequest request;
-    if(!target_user_id.empty()) {
-        request.set_target_user_id(target_user_id);
-    }
-    else {
-        request.clear_target_user_id();  // 无效，因为 target_user_id 是 string 类型，不是 optional string 类型。
-    }
+    ContactRequestRequest request;
     if(request_user_id.empty() && request_user_password.empty()) {
-        request.clear_request_user_auth();  // 无效，因为 request_user_auth 是 AuthRequest 类型，不是 optional AuthRequest 类型。
+        request.clear_request_user_auth();
     }
     else {
         if(!request_user_id.empty()) {
@@ -144,15 +138,111 @@ std::tuple<grpc::Status, AddContactReply> AddContact(
             request.mutable_request_user_auth()->clear_auth_method();
         }
     }
+    if(!target_user_id.empty()) {
+        request.set_target_user_id(target_user_id);
+    }
+    else {
+        request.clear_target_user_id();
+    }
 
     // 构造响应对象
-    AddContactReply response;
+    ContactRequestReply response;
 
-    // 调用 AddContact 方法
+    // 调用 ContactRequest 方法
     grpc::ServerContext context;  // 模拟 gRPC 上下文
-    grpc::Status status = service.AddContact(&context, &request, &response);
+    grpc::Status status = service.ContactRequest(&context, &request, &response);
     return {status, response};
 }
+
+// 好友申请的回复
+std::tuple<grpc::Status, ContactReplyReply> ContactReply(
+    const string& request_user_id, const string& request_user_password,
+    const string& target_user_id, const ContactReplyCode& reply
+) {
+    // 创建 AccountServiceImpl 实例
+    AccountServiceImpl service;
+
+    // 构造测试请求
+    ContactReplyRequest request;
+    if(request_user_id.empty() && request_user_password.empty()) {
+        request.clear_request_user_auth();
+    }
+    else {
+        if(!request_user_id.empty()) {
+            request.mutable_request_user_auth()->set_user_id(request_user_id);
+        }
+        else {
+            request.mutable_request_user_auth()->clear_auth_id();
+        }
+
+        if(!request_user_password.empty()) {
+            request.mutable_request_user_auth()->set_password(request_user_password);
+        }
+        else {
+            request.mutable_request_user_auth()->clear_auth_method();
+        }
+    }
+    if(!target_user_id.empty()) {
+        request.set_target_user_id(target_user_id);
+    }
+    else {
+        request.clear_target_user_id();
+    }
+    // 设置好友申请的回复
+    request.set_reply(reply);
+
+    // 构造响应对象
+    ContactReplyReply response;
+
+    // 调用 ContactReply 方法
+    grpc::ServerContext context;  // 模拟 gRPC 上下文
+    grpc::Status status = service.ContactReply(&context, &request, &response);
+    return {status, response};
+}
+
+// // 添加好友测试
+// std::tuple<grpc::Status, AddContactReply> AddContact(
+//     const string& request_user_id, const string& request_user_password,
+//     const string& target_user_id
+// ) {
+//     // 创建 AccountServiceImpl 实例
+//     AccountServiceImpl service;
+//
+//     // 构造测试请求
+//     AddContactRequest request;
+//     if(!target_user_id.empty()) {
+//         request.set_target_user_id(target_user_id);
+//     }
+//     else {
+//         request.clear_target_user_id();  // 无效，因为 target_user_id 是 string 类型，不是 optional string 类型。
+//     }
+//     if(request_user_id.empty() && request_user_password.empty()) {
+//         request.clear_request_user_auth();  // 无效，因为 request_user_auth 是 AuthRequest 类型，不是 optional AuthRequest 类型。
+//     }
+//     else {
+//         if(!request_user_id.empty()) {
+//             request.mutable_request_user_auth()->set_user_id(request_user_id);
+//         }
+//         else {
+//             request.mutable_request_user_auth()->clear_auth_id();
+//         }
+//
+//         if(!request_user_password.empty()) {
+//             request.mutable_request_user_auth()->set_password(request_user_password);
+//         }
+//         else {
+//             request.mutable_request_user_auth()->clear_auth_method();
+//         }
+//     }
+//
+//     // 构造响应对象
+//     AddContactReply response;
+//
+//     // 调用 AddContact 方法
+//     grpc::ServerContext context;  // 模拟 gRPC 上下文
+//     grpc::Status status = service.AddContact(&context, &request, &response);
+//     return {status, response};
+// }
 
 // 发送消息测试
 std::tuple<grpc::Status, MessageReply> SendMessage(
@@ -307,11 +397,15 @@ TEST_F(ServiceMessageSendMessage, send_message_success) {
     std::cout << std::format("Registered request account_id: {}", response_reciver.account_id()) << std::endl;
     auto receiver_account_id = response_reciver.account_id();
 
-    // 添加好友
-    // 可用自己添加自己
-    auto [status_add_contact, response_add_contact] = AddContact("user_id", "password", "receiver_user_id");
-    EXPECT_TRUE(status_add_contact.ok());
-    EXPECT_EQ(response_add_contact.result().success_code(), SuccessCode::SUCCESS);
+    // 申请添加好友
+    auto [status_request, response_request] = ContactRequest("user_id", "password", "receiver_user_id");
+    EXPECT_TRUE(status_request.ok());
+    EXPECT_EQ(response_request.result().success_code(), SuccessCode::SUCCESS);
+
+    // 同意添加好友的申请
+    auto [status_reply, response_reply] = ContactReply("receiver_user_id", "password", "user_id", ContactReplyCode::CONTACT_REPLY_ACCEPT);
+    EXPECT_TRUE(status_reply.ok());
+    EXPECT_EQ(response_reply.result().success_code(), SuccessCode::SUCCESS);
 
     // 发送消息
     string client_message_id = Utils::generate_message_id();
@@ -338,11 +432,15 @@ TEST_F(ServiceMessageSendMessage, send_message_repeat) {
     std::cout << std::format("Registered request account_id: {}", response_reciver.account_id()) << std::endl;
     auto receiver_account_id = response_reciver.account_id();
 
-    // 添加好友
-    // 可用自己添加自己
-    auto [status_add_contact, response_add_contact] = AddContact("user_id", "password", "receiver_user_id");
-    EXPECT_TRUE(status_add_contact.ok());
-    EXPECT_EQ(response_add_contact.result().success_code(), SuccessCode::SUCCESS);
+    // 申请添加好友
+    auto [status_request, response_request] = ContactRequest("user_id", "password", "receiver_user_id");
+    EXPECT_TRUE(status_request.ok());
+    EXPECT_EQ(response_request.result().success_code(), SuccessCode::SUCCESS);
+
+    // 同意添加好友的申请
+    auto [status_reply, response_reply] = ContactReply("receiver_user_id", "password", "user_id", ContactReplyCode::CONTACT_REPLY_ACCEPT);
+    EXPECT_TRUE(status_reply.ok());
+    EXPECT_EQ(response_reply.result().success_code(), SuccessCode::SUCCESS);
 
     // 发送消息
     string client_message_id = Utils::generate_message_id();

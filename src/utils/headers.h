@@ -2,7 +2,6 @@
 
 // ================ 设置 ================ //
 
-
 #define SHORT_MESSAGE_MAX_LENGTH 8192  // 短文本最大长度，单位为字节
 
 #define ENABLE_SQLCIPHER
@@ -369,11 +368,27 @@ using ::TaoTieChat::SuccessCode;
 using ::TaoTieChat::UpdateReply;
 using ::TaoTieChat::UpdateRequest;
 using ::TaoTieChat::UpdateType;
-using ::TaoTieChat::AddContactRequest;
-using ::TaoTieChat::AddContactReply;
+using ::TaoTieChat::Contact;
+using ::TaoTieChat::Contacts;
+using ::TaoTieChat::MessageContext;
+using ::TaoTieChat::MessageReply;
+using ::TaoTieChat::MessageRequest;
+using ::TaoTieChat::FileContent;
+using ::TaoTieChat::FileReply;
+using ::TaoTieChat::FileRequest;
+using ::TaoTieChat::ContactRequestRequest;
+using ::TaoTieChat::ContactRequestReply;
+using ::TaoTieChat::ContactReplyRequest;
+using ::TaoTieChat::ContactReplyReply;
+using ::TaoTieChat::GetContactRequestsReply;
+using ::TaoTieChat::ContactReplyCode;
+// using ::TaoTieChat::AddContactRequest;
+// using ::TaoTieChat::AddContactReply;
 using AccountStub = ::TaoTieChat::AccountService::Stub;
 using SearchStub  = ::TaoTieChat::SearchService::Stub;
 using StatusStub  = ::TaoTieChat::StatusService::Stub;
+using MessageStub = ::TaoTieChat::MessageService::Stub;
+using FileStub    = ::TaoTieChat::FileService::Stub;
 
 // logs
 // VERBOSE / NOTICE / EMERGENCY / PANIC / AUDIT / ALERT

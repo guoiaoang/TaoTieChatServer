@@ -25,6 +25,16 @@ using std::filesystem::exists;
 using std::filesystem::filesystem_error;
 using std::format;
 
+string get_current_file_name() {
+    // __FILE__ 是一个预定义的宏，包含当前源文件的路径
+    string full_path = __FILE__;
+    // 使用 std::filesystem::path 来处理路径
+    path p(full_path);
+    // 返回文件名部分
+    return p.stem    ().string();  // stem() 返回不带扩展名的文件名
+    return p.filename().string(); // filename() 返回带扩展名的文件名
+}
+
 std::tuple<grpc::Status, StatusReply> GetStatus(const string& target_user_id,
 const string& request_user_id, const string& request_user_token) {
     // 创建 StatusServiceImpl 实例

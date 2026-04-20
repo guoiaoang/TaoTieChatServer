@@ -18,7 +18,9 @@ set(
         # test_service_account_signout       # 账号登出
         # test_service_account_deactivate    # 账号停用
         test_service_search_users            # 搜索用户
-        test_service_account_addcontact      # 添加好友
+        test_service_account_contactrequest  # 好友申请
+        test_service_account_contactreply    # 好友申请回复
+        # test_service_account_addcontact    # 添加好友
         # test_service_account_removecontact # 删除好友关系
         test_service_message_sendmessage     # 发送消息
         test_account_service

@@ -114,11 +114,11 @@ public:
         return Status::OK;
     }
 
-    // 添加联系人
+    // 添加联系人的请求
     // TODO: 应该由联系人同意后方可完成添加
-    Status AddContact(ServerContext* context, const AddContactRequest* request, AddContactReply* response) override {
-        using Request = AddContactRequest;
-        using Reply   = AddContactReply;
+    Status ContactRequest(ServerContext* context, const ContactRequestRequest* request, ContactRequestReply* response) override {
+        using Request = ContactRequestRequest;
+        using Reply   = ContactRequestReply;
         // =========================== 初始化操作 =========================== //
         if(!context || !request || !response) {
             return Status(StatusCode::INTERNAL, std::format("Invalid request or response pointer"));
@@ -128,14 +128,63 @@ public:
         DBSQLCipher& db_sqlcipher = DBSQLCipher::instance();
         shared_ptr<Request> params = make_shared<Request>(*request);
         // =========================== 执行操作 =========================== //
-        // 执行添加联系人
-        shared_ptr<Reply> result = db_sqlcipher.add_contact(params);
+        // 添加联系人的请求
+        shared_ptr<Reply> result = db_sqlcipher.contact_request(params);
         // 判断结果是否为 nullptr，防止拷贝时崩溃
         if(!result) {
-            return error_status<Reply>(response, ErrorCode::DB_EXECUTE, std::format("AddContact failed."));
+            return error_status<Reply>(response, ErrorCode::DB_EXECUTE, std::format("ContactRequest failed."));
         }
         // set_success(response, SuccessCode::SUCCESS);
         response->CopyFrom(*result);
         return Status::OK;
     }
+
+    // 添加联系人的请求的回复
+    Status ContactReply(ServerContext* context, const ContactReplyRequest* request, ContactReplyReply* response) override {
+        using Request = ContactReplyRequest;
+        using Reply   = ContactReplyReply;
+        // =========================== 初始化操作 =========================== //
+        if(!context || !request || !response) {
+            return Status(StatusCode::INTERNAL, std::format("Invalid request or response pointer"));
+        }
+        log_grpc_context(context);
+        response->mutable_request()->CopyFrom(*request);  // 复制请求
+        DBSQLCipher& db_sqlcipher = DBSQLCipher::instance();
+        shared_ptr<Request> params = make_shared<Request>(*request);
+        // =========================== 执行操作 =========================== //
+        // 添加联系人的请求的回复
+        shared_ptr<Reply> result = db_sqlcipher.contact_reply(params);
+        // 判断结果是否为 nullptr，防止拷贝时崩溃
+        if(!result) {
+            return error_status<Reply>(response, ErrorCode::DB_EXECUTE, std::format("ContactReply failed."));
+        }
+        // set_success(response, SuccessCode::SUCCESS);
+        response->CopyFrom(*result);
+        return Status::OK;
+    }
+
+    // // 添加联系人
+    // // TODO: 应该由联系人同意后方可完成添加
+    // Status AddContact(ServerContext* context, const AddContactRequest* request, AddContactReply* response) override {
+    //     using Request = AddContactRequest;
+    //     using Reply   = AddContactReply;
+    //     // =========================== 初始化操作 =========================== //
+    //     if(!context || !request || !response) {
+    //         return Status(StatusCode::INTERNAL, std::format("Invalid request or response pointer"));
+    //     }
+    //     log_grpc_context(context);
+    //     response->mutable_request()->CopyFrom(*request);  // 复制请求
+    //     DBSQLCipher& db_sqlcipher = DBSQLCipher::instance();
+    //     shared_ptr<Request> params = make_shared<Request>(*request);
+    //     // =========================== 执行操作 =========================== //
+    //     // 执行添加联系人
+    //     shared_ptr<Reply> result = db_sqlcipher.add_contact(params);
+    //     // 判断结果是否为 nullptr，防止拷贝时崩溃
+    //     if(!result) {
+    //         return error_status<Reply>(response, ErrorCode::DB_EXECUTE, std::format("AddContact failed."));
+    //     }
+    //     // set_success(response, SuccessCode::SUCCESS);
+    //     response->CopyFrom(*result);
+    //     return Status::OK;
+    // }
 };

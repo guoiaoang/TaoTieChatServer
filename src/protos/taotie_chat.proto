@@ -63,65 +63,74 @@ enum ErrorCode {
   UNKNOWN                         = 0x00000001;  // 未知错误
   DEFAULT                         = 0x00000002;  // 未知错误
   // grpc 相关的错误码
-  ERROR_INIT                      = 0x00010001;  // 返回初始值
-  ERROR_CONN                      = 0x00010002;  // QT 建立连接失败，无法触发 connect 动作
-  ERROR_RECV                      = 0x00010003;  // 接收到的数据不完整或解析失败
-  ERROR_SEND                      = 0x00010004;  // 发送数据失败
+  ERROR_INIT                      = 0x00001001;  // 返回初始值
+  ERROR_CONN                      = 0x00001002;  // QT 建立连接失败，无法触发 connect 动作
+  ERROR_RECV                      = 0x00001003;  // 接收到的数据不完整或解析失败
+  ERROR_SEND                      = 0x00001004;  // 发送数据失败
   // 数据库相关错误码
-  DB_QUERY                        = 0x00020001;  // 数据库查询失败
-  DB_QUERY_EMPTY                  = 0x00020002;  // 数据库查询为空
-  DB_EXECUTE                      = 0x00020003;  // 数据库命令执行失败
-  DB_EXECUTE_EMPTY                = 0x00020004;  // 数据库命令执行为空
-  DB_CHECK                        = 0x00020005;  // 数据库数据插入检查失败
-  DB_CHECK_EMPTY                  = 0x00020006;  // 数据库数据插入检查为空
-  // 不支持的消息类型
-  UNSUPPORTED_OPERATION           = 0x00030001;  // 不支持的操作
+  DB_QUERY                        = 0x00002001;  // 数据库查询失败
+  DB_QUERY_EMPTY                  = 0x00002002;  // 数据库查询为空
+  DB_EXECUTE                      = 0x00002003;  // 数据库命令执行失败
+  DB_EXECUTE_EMPTY                = 0x00002004;  // 数据库命令执行为空
+  DB_CHECK                        = 0x00002005;  // 数据库数据插入检查失败
+  DB_CHECK_EMPTY                  = 0x00002006;  // 数据库数据插入检查为空
+  DB_RECORD_NOT_FOUND             = 0x00002007;  // 数据库记录未找到
+  // 状态等相关错误码
+  UNSUPPORTED                     = 0x00003001;  // 不支持的操作
+  PENDING                         = 0x00003002;  // 待处理    // 如：好友请求待处理
+  ACCEPTED                        = 0x00003003;  // 已接受    // 如：同意添加为好友
+  IGNORED                         = 0x00003004;  // 忽略      // 如：不提醒该条消息
+  REFUSED                         = 0x00003005;  // 拒绝      // 如：不同意添加为好友
+  BLOCKED                         = 0x00003006;  // 被拉黑    // 如：被对方拉黑
+  UNASSOCIATED                    = 0x00003101;  // 未关联    // 如：还不是好友
+  ASSOCIATED                      = 0x00003102;  // 已关联    // 如：已经是好友
+
   // 单参数
-  USER_ID_ERROR                   = 0x00030101;  //
-  USER_ID_EMPTY                   = 0x00030102;  // 用户 ID 为空
-  USER_ID_NOT_FOUND               = 0x00030103;  // 用户 ID 不存在
-  USER_ID_EXISTS                  = 0x00030104;  // 用户 ID 已存在
-  ACCOUNT_ID_ERROR                = 0x00030201;  //
-  ACCOUNT_ID_EMPTY                = 0x00030202;  //
-  ACCOUNT_ID_NOT_FOUND            = 0x00030203;  //
-  PASSWORD_ERROR                  = 0x00030301;  //
-  PASSWORD_EMPTY                  = 0x00030302;  // 密码为空
-  PASSWORD_NOT_FOUND              = 0x00030303;  //
-  TOKEN_ERROR                     = 0x00030401;  //
-  TOKEN_EMPTY                     = 0x00030402;  // token 为空
-  TOKEN_NOT_FOUND                 = 0x00030403;  //
-  CONFIRM_PASSWORD_ERROR          = 0x00030501;  //
-  CONFIRM_PASSWORD_EMPTY          = 0x00030502;  // 确认密码为空
-  CONFIRM_PASSWORD_NOT_FOUND      = 0x00030503;  //
-  SECURITY_QUESTION_ERROR         = 0x00030601;  //
-  SECURITY_QUESTION_EMPTY         = 0x00030602;  // 安全问题为空
-  SECURITY_QUESTION_NOT_FOUND     = 0x00030603;  //
-  SECURITY_ANSWER_ERROR           = 0x00030701;  //
-  SECURITY_ANSWER_EMPTY           = 0x00030702;  // 安全答案为空
-  SECURITY_ANSWER_NOT_FOUND       = 0x00030703;  //
-  TARGET_USER_ID_ERROR            = 0x00030801;  //
-  TARGET_USER_ID_EMPTY            = 0x00030802;  // 目标用户 ID 为空
-  TARGET_USER_ID_NOT_FOUND        = 0x00030803;  // 目标用户 ID 不存在
-  TARGET_USER_ID_EXISTS           = 0x00030804;  // 目标用户 ID 已存在
-  TARGET_ACCOUNT_ID_ERROR         = 0x00030901;  //
-  TARGET_ACCOUNT_ID_EMPTY         = 0x00030902;  //
-  TARGET_ACCOUNT_ID_NOT_FOUND     = 0x00030903;  //
-  TARGET_GROUP_ID_ERROR           = 0x00031001;  //
-  TARGET_GROUP_ID_EMPTY           = 0x00031002;  //
-  TARGET_GROUP_ID_NOT_FOUND       = 0x00031003;  //
-  MESSAGE_TEXT_ERROR              = 0x00031101;  //
-  MESSAGE_TEXT_EMPTY              = 0x00031102;  //
-  MESSAGE_TEXT_NOT_FOUND          = 0x00031103;  //
-  MESSAGE_FILE_ERROR              = 0x00031201;  //
-  MESSAGE_FILE_EMPTY              = 0x00031202;  //
-  MESSAGE_FILE_NOT_FOUND          = 0x00031203;  //
+  USER_ID_ERROR                   = 0x00010101;  //
+  USER_ID_EMPTY                   = 0x00010102;  // 用户 ID 为空
+  USER_ID_NOT_FOUND               = 0x00010103;  // 用户 ID 不存在
+  USER_ID_EXISTS                  = 0x00010104;  // 用户 ID 已存在
+  ACCOUNT_ID_ERROR                = 0x00010201;  //
+  ACCOUNT_ID_EMPTY                = 0x00010202;  //
+  ACCOUNT_ID_NOT_FOUND            = 0x00010203;  //
+  PASSWORD_ERROR                  = 0x00010301;  //
+  PASSWORD_EMPTY                  = 0x00010302;  // 密码为空
+  PASSWORD_NOT_FOUND              = 0x00010303;  //
+  TOKEN_ERROR                     = 0x00010401;  //
+  TOKEN_EMPTY                     = 0x00010402;  // token 为空
+  TOKEN_NOT_FOUND                 = 0x00010403;  //
+  CONFIRM_PASSWORD_ERROR          = 0x00010501;  //
+  CONFIRM_PASSWORD_EMPTY          = 0x00010502;  // 确认密码为空
+  CONFIRM_PASSWORD_NOT_FOUND      = 0x00010503;  //
+  SECURITY_QUESTION_ERROR         = 0x00010601;  //
+  SECURITY_QUESTION_EMPTY         = 0x00010602;  // 安全问题为空
+  SECURITY_QUESTION_NOT_FOUND     = 0x00010603;  //
+  SECURITY_ANSWER_ERROR           = 0x00010701;  //
+  SECURITY_ANSWER_EMPTY           = 0x00010702;  // 安全答案为空
+  SECURITY_ANSWER_NOT_FOUND       = 0x00010703;  //
+  TARGET_USER_ID_ERROR            = 0x00010801;  //
+  TARGET_USER_ID_EMPTY            = 0x00010802;  // 目标用户 ID 为空
+  TARGET_USER_ID_NOT_FOUND        = 0x00010803;  // 目标用户 ID 不存在
+  TARGET_USER_ID_EXISTS           = 0x00010804;  // 目标用户 ID 已存在
+  TARGET_ACCOUNT_ID_ERROR         = 0x00010901;  //
+  TARGET_ACCOUNT_ID_EMPTY         = 0x00010902;  //
+  TARGET_ACCOUNT_ID_NOT_FOUND     = 0x00010903;  //
+  TARGET_GROUP_ID_ERROR           = 0x00011001;  //
+  TARGET_GROUP_ID_EMPTY           = 0x00011002;  //
+  TARGET_GROUP_ID_NOT_FOUND       = 0x00011003;  //
+  MESSAGE_TEXT_ERROR              = 0x00011101;  //
+  MESSAGE_TEXT_EMPTY              = 0x00011102;  //
+  MESSAGE_TEXT_NOT_FOUND          = 0x00011103;  //
+  MESSAGE_FILE_ERROR              = 0x00011201;  //
+  MESSAGE_FILE_EMPTY              = 0x00011202;  //
+  MESSAGE_FILE_NOT_FOUND          = 0x00011203;  //
   // 多参
-  DIFF_PASSWORD_WITH_CONFIRM      = 0x00040001;  // 确认密码与密码不一致
-  TARGET_ID_REQUESTED             = 0x00040002;  // 需要目标 ID，但未提供
-  CONTEXT_REQUIRED                = 0x00040003;  // 需要上下文信息，但未提供
-  MESSAGE_CONTEXT_ERROR           = 0x00040101;  //
-  MESSAGE_CONTEXT_EMPTY           = 0x00040102;  // 消息内容为空
-  MESSAGE_CONTEXT_NOT_FOUND       = 0x00040103;  //
+  DIFF_PASSWORD_WITH_CONFIRM      = 0x00020001;  // 确认密码与密码不一致
+  TARGET_ID_REQUESTED             = 0x00020002;  // 需要目标 ID，但未提供
+  CONTEXT_REQUIRED                = 0x00020003;  // 需要上下文信息，但未提供
+  MESSAGE_CONTEXT_ERROR           = 0x00020101;  //
+  MESSAGE_CONTEXT_EMPTY           = 0x00020102;  // 消息内容为空
+  MESSAGE_CONTEXT_NOT_FOUND       = 0x00020103;  //
 
   //
   AUTH_INFO_NONE                  = 0x10010001;  // 没有必要的鉴权信息
@@ -129,10 +138,6 @@ enum ErrorCode {
   AUTH_ID_EMPTY                   = 0x10010002;  // ID 为空   // 无 user_id 及 account_id
   AUTH_METHOD_EMPTY               = 0x10010003;  // 方法为空  // 无 token 及 password
   AUTH_FAILED                     = 0x10010004;  // 鉴权失败
-  // 关系状态
-  UNASSOCIATED                    = 0x10010011;  // 未关联    // 如：还不是好友
-  ASSOCIATED                      = 0x10010012;  // 已关联    // 如：已经是好友
-  ASSOCIATION_REFUSED             = 0x10010013;  // 拒绝关联  // 如：被对方拉黑了
 
   // TODO:待移除
   // 用户登录相关错误码          // 0x010301DD 输入错误
@@ -142,6 +147,7 @@ enum ErrorCode {
   // 客户端消息发送
   CLIENT_MESSAGE_ID_REQUIRED      = 0x10010103;  // 需要客户端消息 ID，但未提供
   DUPLICATE_MESSAGE_ID            = 0x10010104;  // 重复的客户端消息 ID
+  FRIEND_REQUEST_NOT_FOUND        = 0x10010105;  // 好友请求未找到
 }
 
 // Result 结果消息
@@ -164,8 +170,14 @@ service AccountService {
   rpc SignIn(SignInRequest) returns (SignInReply) {}
   // 获取更新
   rpc GetUpdate(UpdateRequest) returns (UpdateReply) {}
-  // 添加联系人
-  rpc AddContact(AddContactRequest) returns (AddContactReply) {}
+  // 添加联系人的申请
+  rpc ContactRequest(ContactRequestRequest) returns (ContactRequestReply) {}
+  // 添加联系人的回复
+  rpc ContactReply(ContactReplyRequest) returns (ContactReplyReply) {}
+  // 获取添加联系人申请的列表
+  rpc GetContactRequests(AuthRequest) returns (GetContactRequestsReply) {}
+  // // 添加联系人
+  // rpc AddContact(AddContactRequest) returns (AddContactReply) {}
 }
 
 // 用户注册请求
@@ -244,19 +256,65 @@ message UpdateReply{
   }
 }
 
-// 添加联系人请求
-// AuthRequest 没有添加 optional 字段，
-// 即使调用 has_request_user_auth() ，
-// 然后再使用 has_request_user_auth() 判断，也依然返回 true。
-message AddContactRequest {
-  AuthRequest request_user_auth = 1;  // 鉴权
-  string      target_user_id    = 2;  // 要添加的联系人 ID
+// 添加联系人的申请
+message ContactRequestRequest {
+  optional  AuthRequest request_user_auth = 1;  // 鉴权
+            string      target_user_id    = 2;  // 要添加的联系人 ID
+  optional  string      message           = 3;  // 附带的消息
+}
+// 添加联系人申请的结果
+message ContactRequestReply {
+  optional  ContactRequestRequest request = 1;  // 可选的原始请求信息字段
+            Result                result  = 2;  // 状态信息字段
+  optional  string                message = 3;  // 附带的消息
 }
 
-message AddContactReply {
-  optional  AddContactRequest request = 1;  // 可选的原始请求信息字段
-            Result            result  = 2;  // 状态信息字段
+// 直接使用 `IGNORE`会导致宏定义冲突
+enum ContactReplyCode {
+  CONTACT_REPLY_ACCEPT = 0;  // 同意
+  CONTACT_REPLY_REJECT = 1;  // 拒绝
+  CONTACT_REPLY_IGNORE = 2;  // 忽略
 }
+
+// 被添加联系人的回复
+message ContactReplyRequest {
+  optional  AuthRequest      request_user_auth = 1;  // 鉴权
+            string           target_user_id    = 2;  // 要添加的联系人 ID
+  optional  string           message           = 3;  // 附带的消息
+            ContactReplyCode reply             = 4;  // 回复结果
+}
+// 被添加联系人的回复的结果
+message ContactReplyReply {
+  optional  ContactReplyRequest request = 1;  // 可选的原始请求信息字段
+            Result              result  = 2;  // 状态信息字段
+  optional  string              message = 3;  // 附带的消息
+}
+
+message GetContactRequestsReply {
+  optional  AuthRequest  request_user_auth = 1;  // 鉴权
+            Result       result            = 2;  // 状态信息字段
+  repeated  ContactRequestInfo contact_request_info = 3;  // 联系人申请信息
+}
+
+message ContactRequestInfo {
+  string    user_id   = 1;  // 申请人的用户 ID
+  string    message   = 2;  // 附带的消息
+  Timestamp timestamp = 3;  // 申请时间
+}
+
+// // 添加联系人
+// // AuthRequest 没有添加 optional 字段，
+// // 即使调用 has_request_user_auth() ，
+// // 然后再使用 has_request_user_auth() 判断，也依然返回 true。
+// message AddContactRequest {
+//   AuthRequest request_user_auth = 1;  // 鉴权
+//   string      target_user_id    = 2;  // 要添加的联系人 ID
+// }
+//
+// message AddContactReply {
+//   optional  AddContactRequest request = 1;  // 可选的原始请求信息字段
+//             Result            result  = 2;  // 状态信息字段
+// }
 
 // =============================  SearchService  ============================= //
 
@@ -402,7 +460,7 @@ message MessageReply {
 message MessageRequest {
   optional  AuthRequest request_user_auth = 1;  // 鉴权
             string      target_id         = 2;  // 群聊 ID 或私聊 ID
-            Timestamp   timeStamp         = 3;  // 消息请求时间戳，由客户端设置，服务器可以选择使用或覆盖
+            Timestamp   timestamp         = 3;  // 消息请求时间戳，由客户端设置，服务器可以选择使用或覆盖
 }
 
 // ==============================  FileService  ============================== //
