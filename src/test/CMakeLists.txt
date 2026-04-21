@@ -23,13 +23,15 @@ set(
         # test_service_account_addcontact    # 添加好友
         # test_service_account_removecontact # 删除好友关系
         test_service_message_sendmessage     # 发送消息
+        test_service_account_updateprofile   # 更新个人资料
         test_account_service
         test_db_sqlcipher
 )
 foreach(TEST_ITEM ${TEST_TARGETS})
     add_executable(${TEST_ITEM}
-        ${TEST_ITEM}.cc
+        test_headers.h
         ../utils/utils.cpp
+        ${TEST_ITEM}.cc
     )
     target_link_libraries(${TEST_ITEM}
         PRIVATE

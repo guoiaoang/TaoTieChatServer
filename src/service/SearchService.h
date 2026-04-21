@@ -1,18 +1,10 @@
 #include "headers.h"
 #include "utils.h"
+
+#include "DBSQLCipherCmds.h"
 #include "DBSQLCipher.h"
-#include "types.h"
 
 using std::shared_ptr;
-using ::grpc::ServerContext;
-using ::grpc::StatusCode;
-using ::TaoTieChat::SuccessCode;
-using ::TaoTieChat::ErrorCode;
-using ::TaoTieChat::SearchService;
-using ::TaoTieChat::SearchUsersRequest;
-using ::TaoTieChat::SearchUsersReply;
-using ::TaoTieChat::SearchGroupsRequest;
-using ::TaoTieChat::SearchGroupsReply;
 using Utils::error_status;
 
 // 服务端实现

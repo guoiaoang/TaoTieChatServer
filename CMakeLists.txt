@@ -55,6 +55,8 @@ set(SRC_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/utils/headers.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/utils/utils.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/utils/utils.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/data/DBSQLCipherCmds.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/data/DBSQLCipher.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/service/AccountService.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/service/SearchService.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/service/StatusService.h

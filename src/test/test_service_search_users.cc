@@ -1,43 +1,8 @@
-#include "headers.h"
-#include "utils.h"
-#include "types.h"
-
-#include "DBSQLCipher.h"
-#include "StatusService.h"
-#include "AccountService.h"
-#include "SearchService.h"
-
-#include <gtest/gtest.h>
-#include <gmock/gmock.h>
-
-using std::shared_ptr;
-using std::make_shared;
-using std::unique_ptr;
-using std::lock_guard;
-using std::unique_lock;
-using std::condition_variable;
-using std::mutex;
-using std::string;
-using std::function;
-using std::filesystem::path;
-using std::filesystem::current_path;
-using std::filesystem::exists;
-using std::filesystem::filesystem_error;
-using std::format;
-
-string get_current_file_name() {
-    // __FILE__ 是一个预定义的宏，包含当前源文件的路径
-    string full_path = __FILE__;
-    // 使用 std::filesystem::path 来处理路径
-    path p(full_path);
-    // 返回文件名部分
-    return p.stem    ().string();  // stem() 返回不带扩展名的文件名
-    return p.filename().string(); // filename() 返回带扩展名的文件名
-}
+#include "test_headers.h"
 
 class ServiceSearchUsers : public ::testing::Test {
 protected:
-    const std::filesystem::path db_path = std::filesystem::current_path() / (get_current_file_name() + ".db");
+    const std::filesystem::path db_path = std::filesystem::current_path() / (get_current_file_name(__FILE__) + ".db");
     const std::string encryption_key = "your_secure_encryption_key";
 
     // 每个 TEST_F 运行前都会执行
@@ -114,9 +79,9 @@ std::tuple<grpc::Status, SignUpReply> SignUp(
 
 // 搜索测试 // 为了简化，这里仅使用账户密码进行授权验证
 std::tuple<grpc::Status, SearchUsersReply> SearchUsers(
-    const string& target_user_id,    // 被搜索用户的 ID
-    const string& request_user_id,   // 搜索请求用户的 ID
-    const string& request_password   // 搜索请求用户的密码
+    const string& request_user_id ,  // 搜索请求用户的 ID
+    const string& request_password,  // 搜索请求用户的密码
+    const string& target_user_id     // 被搜索用户的 ID
 ) {
     // 创建 SearchServiceImpl 实例
     SearchServiceImpl service;
@@ -138,7 +103,7 @@ std::tuple<grpc::Status, SearchUsersReply> SearchUsers(
 
 // 目标用户 ID 为空，返回错误码 TARGET_USER_ID_EMPTY
 TEST_F(ServiceSearchUsers, user_id_empty) {
-    auto [status_search, response_search] = SearchUsers("", "userid", "password");
+    auto [status_search, response_search] = SearchUsers("userid", "password", "");
     EXPECT_TRUE(status_search.ok());
     EXPECT_EQ(response_search.result().error_code(), ErrorCode::TARGET_USER_ID_EMPTY);
 }
@@ -154,7 +119,7 @@ TEST_F(ServiceSearchUsers, user_id_not_found) {
     auto account_id_signup = response_signup.account_id();
 
     // 搜索一个不存在的用户 ID，应该返回错误码 TARGET_USER_ID_NOT_FOUND
-    auto [status_search, response_search] = SearchUsers("nonexistent_userid", "userid", "password");
+    auto [status_search, response_search] = SearchUsers("userid", "password", "nonexistent_userid");
     EXPECT_TRUE(status_search.ok());
     EXPECT_EQ(response_search.result().error_code(), ErrorCode::TARGET_USER_ID_NOT_FOUND);
 }
@@ -170,7 +135,7 @@ TEST_F(ServiceSearchUsers, search_users) {
     auto account_id_signup = response_signup.account_id();
 
     // 搜索用户
-    auto [status_search, response_search] = SearchUsers("userid", "userid", "password");
+    auto [status_search, response_search] = SearchUsers("userid", "password", "userid");
     EXPECT_TRUE(status_search.ok());
     EXPECT_EQ(response_search.result().success_code(), SuccessCode::SUCCESS);
 

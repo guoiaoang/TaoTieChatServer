@@ -178,6 +178,8 @@ service AccountService {
   rpc GetContactRequests(AuthRequest) returns (GetContactRequestsReply) {}
   // // 添加联系人
   // rpc AddContact(AddContactRequest) returns (AddContactReply) {}
+  // 更新个人资料
+  rpc UpdateProfile(UpdateProfileRequest) returns (UpdateProfileReply) {}
 }
 
 // 用户注册请求
@@ -315,6 +317,16 @@ message ContactRequestInfo {
 //   optional  AddContactRequest request = 1;  // 可选的原始请求信息字段
 //             Result            result  = 2;  // 状态信息字段
 // }
+
+message UpdateProfileRequest {
+  AuthRequest request_user_auth = 1;  // 认证信息  // 必须
+  Contact     contact           = 2;  // 需要更新的个人资料信息
+}
+
+message UpdateProfileReply {
+  optional  UpdateProfileRequest request = 1;  // 可选的原始请求信息字段
+            Result               result  = 2;  // 状态信息字段
+}
 
 // =============================  SearchService  ============================= //
 
@@ -465,6 +477,9 @@ message MessageRequest {
 
 // ==============================  FileService  ============================== //
 
+// 客户端上传文件时，先由客户端申请一个有有效期的文件上传 ID，ID 不存在则禁止上传。
+// 申请上传 ID 需要在各个组件中进行。
+
 // 文件上传状态响应
 service FileService {
   // 客户端流式上传
@@ -484,20 +499,22 @@ message FileContent {
 
 // 文件元数据
 message FileMetadata {
-  string filename  = 1;
-  int64  file_size = 2;
+  string file_id   = 1;
+  string filename  = 2;
+  int64  file_size = 3;
 }
 
 message FileReply {
-  FileMetadata metadata = 1; // 第一条消息发送元数据（文件名、哈希等）
-  Result       result  = 2;  // 状态信息字段
-  int32        status_code = 3; // 状态码
-  string       message = 4; // 可选的错误消息字段
+  optional  FileMetadata metadata    = 1; // 第一条消息发送元数据（文件名、哈希等）
+            Result       result      = 2;  // 状态信息字段
+            int32        status_code = 3; // 状态码
+            string       file_id     = 4;
+            string       message     = 5; // 可选的错误消息字段
 }
 
 message FileRequest {
   optional  AuthRequest request_user_auth = 1;  // 鉴权
-            FileMetadata metadata = 2; // 第一条消息发送元数据（文件名、哈希等）
+  optional  FileMetadata metadata = 2; // 第一条消息发送元数据（文件名、哈希等）
 }
 
 // =========================================================================== //

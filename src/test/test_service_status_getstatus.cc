@@ -1,48 +1,17 @@
-#include "headers.h"
-#include "utils.h"
-#include "types.h"
+#include "test_headers.h"
 
-#include "DBSQLCipher.h"
-#include "StatusService.h"
-#include "AccountService.h"
-#include "SearchService.h"
-
-#include <gtest/gtest.h>
-#include <gmock/gmock.h>
-
-using std::shared_ptr;
-using std::make_shared;
-using std::unique_ptr;
-using std::lock_guard;
-using std::unique_lock;
-using std::condition_variable;
-using std::mutex;
-using std::string;
-using std::function;
-using std::filesystem::path;
-using std::filesystem::current_path;
-using std::filesystem::exists;
-using std::filesystem::filesystem_error;
-using std::format;
-
-string get_current_file_name() {
-    // __FILE__ 是一个预定义的宏，包含当前源文件的路径
-    string full_path = __FILE__;
-    // 使用 std::filesystem::path 来处理路径
-    path p(full_path);
-    // 返回文件名部分
-    return p.stem    ().string();  // stem() 返回不带扩展名的文件名
-    return p.filename().string(); // filename() 返回带扩展名的文件名
-}
-
-std::tuple<grpc::Status, StatusReply> GetStatus(const string& target_user_id,
-const string& request_user_id, const string& request_user_token) {
+std::tuple<grpc::Status, StatusReply> GetStatus(
+    const string& request_user_id, const string& request_user_token,
+    const string& target_user_id
+) {
     // 创建 StatusServiceImpl 实例
     StatusServiceImpl service;
 
     // 构造测试请求
     StatusRequest request;
+
     request.set_target_user_id(target_user_id);
+
     if(request_user_id.empty() && request_user_token.empty()) {
         request.clear_request_user_auth();
     }
@@ -75,7 +44,7 @@ const string& request_user_id, const string& request_user_token) {
 // 目标用户 ID 为空，返回服务器运行状态
 TEST(ServiceStatusGetStatus, target_id_empty) {
     // DBSQLCipherInit::init();
-    auto [status, response] = GetStatus("", "user1", "token1");
+    auto [status, response] = GetStatus("user1", "token1", "");
     // 验证返回状态
     EXPECT_TRUE(status.ok());
     EXPECT_EQ(response.result().error_code(), ErrorCode::TARGET_USER_ID_EMPTY);
@@ -84,7 +53,7 @@ TEST(ServiceStatusGetStatus, target_id_empty) {
 // 请求认证信息完全为空，返回错误码 AUTH_INFO_NONE
 TEST(ServiceStatusGetStatus, request_auth_none) {
     // DBSQLCipherInit::init();
-    auto [status, response] = GetStatus("user1", "", "");
+    auto [status, response] = GetStatus("", "", "user1");
     // 验证返回状态
     EXPECT_TRUE(status.ok());
     EXPECT_EQ(response.result().error_code(), ErrorCode::AUTH_INFO_NONE);
@@ -93,7 +62,7 @@ TEST(ServiceStatusGetStatus, request_auth_none) {
 // 请求用户 ID 为空，返回错误码 USER_ID_EMPTY
 TEST(ServiceStatusGetStatus, request_user_id_empty) {
     // DBSQLCipherInit::init();
-    auto [status, response] = GetStatus("user1", "", "token1");
+    auto [status, response] = GetStatus("", "token1", "user1");
     // 验证返回状态
     EXPECT_TRUE(status.ok());
     EXPECT_EQ(response.result().error_code(), ErrorCode::USER_ID_EMPTY);
@@ -102,7 +71,7 @@ TEST(ServiceStatusGetStatus, request_user_id_empty) {
 // 请求用户认证信息中 Token 为空，返回错误码 TOKEN_EMPTY
 TEST(ServiceStatusGetStatus, request_user_token_empty) {
     // DBSQLCipherInit::init();
-    auto [status, response] = GetStatus("user1", "user1", "");
+    auto [status, response] = GetStatus("user1", "", "user1");
     // 验证返回状态
     EXPECT_TRUE(status.ok());
     EXPECT_EQ(response.result().error_code(), ErrorCode::TOKEN_EMPTY);
@@ -111,7 +80,7 @@ TEST(ServiceStatusGetStatus, request_user_token_empty) {
 // 请求用户 ID 错误，返回错误码 USER_ID_NOT_FOUND
 TEST(ServiceStatusGetStatus, request_user_id_error) {
     // DBSQLCipherInit::init();
-    auto [status, response] = GetStatus("user1", "user_", "token1");
+    auto [status, response] = GetStatus("user_", "token1", "user1");
     // 验证返回状态
     EXPECT_TRUE(status.ok());
     EXPECT_EQ(response.result().error_code(), ErrorCode::USER_ID_NOT_FOUND);
@@ -120,7 +89,7 @@ TEST(ServiceStatusGetStatus, request_user_id_error) {
 // 请求用户认证信息中 Token 错误，返回错误码 TOKEN_NOT_FOUND
 TEST(ServiceStatusGetStatus, request_user_token_error) {
     // DBSQLCipherInit::init();
-    auto [status, response] = GetStatus("user1", "user1", "token_");
+    auto [status, response] = GetStatus("user1", "token_", "user1");
     // 验证返回状态
     EXPECT_TRUE(status.ok());
     EXPECT_EQ(response.result().error_code(), ErrorCode::TOKEN_NOT_FOUND);
@@ -129,7 +98,7 @@ TEST(ServiceStatusGetStatus, request_user_token_error) {
 // 目标用户 ID 错误，返回错误码 TARGET_USER_ID_NOT_FOUND
 TEST(ServiceStatusGetStatus, target_id_error) {
     // DBSQLCipherInit::init();
-    auto [status, response] = GetStatus("user_", "user1", "token1");
+    auto [status, response] = GetStatus("user1", "token1", "user_");
     // 验证返回状态
     EXPECT_TRUE(status.ok());
     EXPECT_EQ(response.result().error_code(), ErrorCode::TARGET_USER_ID_NOT_FOUND);
@@ -138,7 +107,7 @@ TEST(ServiceStatusGetStatus, target_id_error) {
 // 请求用户认证信息正确，目标用户 ID 正确，返回目标用户状态
 TEST(ServiceStatusGetStatus, self_status) {
     // DBSQLCipherInit::init();
-    auto [status, response] = GetStatus("user1", "user1", "token1");
+    auto [status, response] = GetStatus("user1", "token1", "user1");
     // 验证返回状态
     EXPECT_TRUE(status.ok());
     EXPECT_EQ(response.result().success_code(), SuccessCode::STATUS_SUCCESS);
@@ -148,7 +117,7 @@ TEST(ServiceStatusGetStatus, self_status) {
 // 请求用户认证信息正确，目标用户 ID 正确，返回目标用户状态
 TEST(ServiceStatusGetStatus, other_user_status_user2) {
     // DBSQLCipherInit::init();
-    auto [status, response] = GetStatus("user2", "user1", "token1");
+    auto [status, response] = GetStatus("user1", "token1", "user2");
     // 验证返回状态
     EXPECT_TRUE(status.ok());
     EXPECT_EQ(response.result().success_code(), SuccessCode::STATUS_SUCCESS);
@@ -158,7 +127,7 @@ TEST(ServiceStatusGetStatus, other_user_status_user2) {
 // 请求用户认证信息正确，目标用户 ID 正确，返回目标用户状态
 TEST(ServiceStatusGetStatus, other_user_status_user3) {
     // DBSQLCipherInit::init();
-    auto [status, response] = GetStatus("user3", "user1", "token11");
+    auto [status, response] = GetStatus("user1", "token11", "user3");
     // 验证返回状态
     EXPECT_TRUE(status.ok());
     EXPECT_EQ(response.result().success_code(), SuccessCode::STATUS_SUCCESS);

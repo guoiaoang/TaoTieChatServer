@@ -378,13 +378,13 @@ namespace SQL{
                 SELECT 1
                 FROM   users
                 WHERE
-                        account_id           = :account_id         -- 账号 ID 匹配
-                    AND user_id              = :user_id            -- 用户 ID 匹配
-                    AND password_hash        = :password_hash      -- 密码哈希匹配
-                    AND register_time        = :register_time      -- 注册时间匹配
-                    AND security_question    = :security_question  -- 安全问题匹配
-                    AND security_answer_hash = :security_answer_hash    -- 安全答案匹配
-                    AND status               = 0                   -- 账号状态正常
+                        account_id           = :account_id            -- 账号 ID 匹配
+                    AND user_id              = :user_id               -- 用户 ID 匹配
+                    AND password_hash        = :password_hash         -- 密码哈希匹配
+                    AND register_time        = :register_time         -- 注册时间匹配
+                    AND security_question    = :security_question     -- 安全问题匹配
+                    AND security_answer_hash = :security_answer_hash  -- 安全答案匹配
+                    AND status               = 0                      -- 账号状态正常
                 LIMIT 1;
             )";
 
@@ -517,7 +517,22 @@ namespace SQL{
                 UPDATE friend_requests
                 SET    status = :status
                 WHERE  request_account_id = :request_account_id
-                AND  target_account_id  = :target_account_id
+                  AND  target_account_id  = :target_account_id
+            )";
+
+            // 更新用户信息
+            constexpr std::string_view SQL_UPDATE_USER_PROFILE = R"(
+                UPDATE users
+                SET    user_id    = :user_id   ,
+                       nickname   = :nickname  ,
+                       avatar     = :avatar    ,
+                       sign       = :sign      ,
+                       gender     = :gender    ,
+                       region     = :region    ,
+                       birthday   = :birthday  ,
+                       phones     = :phones    ,
+                       emails     = :emails
+                WHERE  account_id = :account_id;
             )";
         }
     }

@@ -5,18 +5,28 @@ using std::string;
 using std::map;
 using std::set;
 
-using ::grpc::StatusCode;
-
-using ::TaoTieChat::SuccessCode;
-using ::TaoTieChat::ErrorCode;
-using ::TaoTieChat::FileService;
-using ::TaoTieChat::FileContent;
-using ::TaoTieChat::FileReply;
-using ::TaoTieChat::FileRequest;
-
 using Utils::success_status;
 using Utils::error_status;
 using Utils::log_grpc_context;
+
+// class Service : public ::grpc::Service {
+// public:
+//     Service();
+//     virtual ~Service();
+//     // 客户端流式上传
+//     // FileUpload 上传文件。
+//     virtual ::grpc::Status FileUpload(::grpc::ServerContext* context, ::grpc::ServerReader< ::TaoTieChat::FileContent>* reader, ::TaoTieChat::FileReply* response);
+//     // FileDownload 下载文件。
+//     virtual ::grpc::Status FileDownload(::grpc::ServerContext* context, const ::TaoTieChat::FileRequest* request, ::grpc::ServerWriter< ::TaoTieChat::FileContent>* writer);
+// };
+
+using ::grpc::Status;
+using ::grpc::ServerContext;
+using ::grpc::ServerReader;
+using ::TaoTieChat::FileContent;
+using ::TaoTieChat::FileReply;
+using ::TaoTieChat::FileRequest;
+using ::grpc::ServerWriter;
 
 // 服务端实现
 class FileServiceImpl final : public FileService::Service {

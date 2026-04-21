@@ -1,43 +1,8 @@
-#include "headers.h"
-#include "utils.h"
-#include "types.h"
-
-#include "DBSQLCipher.h"
-#include "StatusService.h"
-#include "AccountService.h"
-#include "SearchService.h"
-
-#include <gtest/gtest.h>
-#include <gmock/gmock.h>
-
-using std::shared_ptr;
-using std::make_shared;
-using std::unique_ptr;
-using std::lock_guard;
-using std::unique_lock;
-using std::condition_variable;
-using std::mutex;
-using std::string;
-using std::function;
-using std::filesystem::path;
-using std::filesystem::current_path;
-using std::filesystem::exists;
-using std::filesystem::filesystem_error;
-using std::format;
-
-string get_current_file_name() {
-    // __FILE__ 是一个预定义的宏，包含当前源文件的路径
-    string full_path = __FILE__;
-    // 使用 std::filesystem::path 来处理路径
-    path p(full_path);
-    // 返回文件名部分
-    return p.stem    ().string();  // stem() 返回不带扩展名的文件名
-    return p.filename().string(); // filename() 返回带扩展名的文件名
-}
+#include "test_headers.h"
 
 class ServiceAccountAddContact : public ::testing::Test {
 protected:
-    const std::filesystem::path db_path = std::filesystem::current_path() / (get_current_file_name() + ".db");
+    const std::filesystem::path db_path = std::filesystem::current_path() / (get_current_file_name(__FILE__) + ".db");
     const std::string encryption_key = "your_secure_encryption_key";
 
     // 每个 TEST_F 运行前都会执行
@@ -106,20 +71,16 @@ std::tuple<grpc::Status, SignUpReply> SignUp(
 }
 
 // 添加好友测试
-std::tuple<grpc::Status, AddContactReply> AddContact(const string& target_user_id,
-    const string& request_user_id, const string& request_user_password
+std::tuple<grpc::Status, AddContactReply> AddContact(
+    const string& request_user_id, const string& request_user_password,
+    const string& target_user_id
 ) {
     // 创建 AccountServiceImpl 实例
     AccountServiceImpl service;
 
     // 构造测试请求
     AddContactRequest request;
-    if(!target_user_id.empty()) {
-        request.set_target_user_id(target_user_id);
-    }
-    else {
-        request.clear_target_user_id();  // 无效，因为 target_user_id 是 string 类型，不是 optional string 类型。
-    }
+
     if(request_user_id.empty() && request_user_password.empty()) {
         request.clear_request_user_auth();  // 无效，因为 request_user_auth 是 AuthRequest 类型，不是 optional AuthRequest 类型。
     }
@@ -139,6 +100,13 @@ std::tuple<grpc::Status, AddContactReply> AddContact(const string& target_user_i
         }
     }
 
+    if(!target_user_id.empty()) {
+        request.set_target_user_id(target_user_id);
+    }
+    else {
+        request.clear_target_user_id();  // 无效，因为 target_user_id 是 string 类型，不是 optional string 类型。
+    }
+
     // 构造响应对象
     AddContactReply response;
 
@@ -153,21 +121,21 @@ std::tuple<grpc::Status, AddContactReply> AddContact(const string& target_user_i
 
 // 未提供目标用户 ID，返回错误码 TARGET_USER_ID_EMPTY
 TEST_F(ServiceAccountAddContact, target_user_id_empty) {
-    auto [status, response] = AddContact("", "user_id", "password");
+    auto [status, response] = AddContact("user_id", "password", "");
     EXPECT_TRUE(status.ok());
     EXPECT_EQ(response.result().error_code(), ErrorCode::TARGET_USER_ID_EMPTY);
 }
 
 // 未提供认证信息，返回错误码 AUTH_ID_EMPTY (没有 optional 修饰，不会返回 AUTH_INFO_NONE)
 TEST_F(ServiceAccountAddContact, auth_info_missing) {
-    auto [status, response] = AddContact("target_user_id", "", "");
+    auto [status, response] = AddContact("", "", "target_user_id");
     EXPECT_TRUE(status.ok());
     EXPECT_EQ(response.result().error_code(), ErrorCode::AUTH_ID_EMPTY);
 }
 
 // 错误的用户 ID(认证信息)，返回错误码 USER_ID_NOT_FOUND
 TEST_F(ServiceAccountAddContact, auth_failed) {
-    auto [status, response] = AddContact("target_user_id", "user_id", "wrong_password");
+    auto [status, response] = AddContact("user_id", "wrong_password", "target_user_id");
     EXPECT_TRUE(status.ok());
     EXPECT_EQ(response.result().error_code(), ErrorCode::USER_ID_NOT_FOUND);
 }
@@ -182,7 +150,7 @@ TEST_F(ServiceAccountAddContact, target_user_id_not_found) {
     std::cout << std::format("Registered request account_id: {}", response_signup.account_id()) << std::endl;
     auto request_account_id = response_signup.account_id();
 
-    auto [status, response] = AddContact("nonexistent_user_id", "user_id", "password");
+    auto [status, response] = AddContact("user_id", "password", "nonexistent_user_id");
     EXPECT_TRUE(status.ok());
     EXPECT_EQ(response.result().error_code(), ErrorCode::TARGET_USER_ID_NOT_FOUND);
 }
@@ -198,7 +166,7 @@ TEST_F(ServiceAccountAddContact, target_user_id_exists) {
     auto request_account_id = response_signup.account_id();
 
     // 可用自己添加自己
-    auto [status, response] = AddContact("user_id", "user_id", "password");
+    auto [status, response] = AddContact("user_id", "password", "user_id");
     EXPECT_TRUE(status.ok());
     EXPECT_EQ(response.result().success_code(), SuccessCode::SUCCESS);
 }
@@ -214,12 +182,12 @@ TEST_F(ServiceAccountAddContact, target_user_already_friend) {
     auto request_account_id = response_signup.account_id();
 
     // 可用自己添加自己
-    auto [status, response] = AddContact("user_id", "user_id", "password");
+    auto [status, response] = AddContact("user_id", "password", "user_id");
     EXPECT_TRUE(status.ok());
     EXPECT_EQ(response.result().success_code(), SuccessCode::SUCCESS);
 
     // 再次添加同一个好友，返回错误码 OPERATION_REPEAT(重复的操作)
-    auto [status_repeat, response_repeat] = AddContact("user_id", "user_id", "password");
+    auto [status_repeat, response_repeat] = AddContact("user_id", "password", "user_id");
     EXPECT_TRUE(status_repeat.ok());
     EXPECT_EQ(response_repeat.result().error_code(), ErrorCode::ASSOCIATED); // 已经是好友了
 }

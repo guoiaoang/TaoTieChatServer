@@ -1,7 +1,7 @@
 #include "headers.h"
 #include "utils.h"
-#include "types.h"
 
+#include "DBSQLCipherCmds.h"
 #include "DBSQLCipher.h"
 #include "StatusService.h"
 #include "AccountService.h"

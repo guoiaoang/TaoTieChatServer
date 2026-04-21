@@ -2,7 +2,7 @@
 
 #include "headers.h"
 #include "utils.h"
-#include "types.h"
+#include "DBSQLCipherCmds.h"
 
 using std::string;
 using std::variant;
@@ -1545,6 +1545,72 @@ public:
     //     return error_reply<Reply>(reply, ErrorCode::DEFAULT, std::format("Default error."));
     // }
 
+    // 更新用户信息
+    shared_ptr<UpdateProfileReply> update_profile(const shared_ptr<UpdateProfileRequest>&request) {
+        using Request  = UpdateProfileRequest;
+        using Reply    = UpdateProfileReply;
+        // =========================== 初始化操作  =========================== //
+        // 复制请求
+        shared_ptr<Reply> reply = make_shared<Reply>();
+        set_error(reply->mutable_result(), ErrorCode::ERROR_INIT);
+        if(!request) {
+            return error_reply<Reply>(reply, ErrorCode::ERROR_INIT, std::format("Invalid Param."));
+        }
+        reply->mutable_request()->CopyFrom(*request.get());
+        set_error(reply->mutable_result(), ErrorCode::UNKNOWN);
+        // ============================ 参数校验 ============================ //
+        // ============================ 执行操作 ============================ //
+        // ============== 身份验证
+        // 验证鉴权是否成功
+        shared_ptr<AuthRequest> auth_request = make_shared<AuthRequest>(request->request_user_auth());
+        auto auth_reply  = auth_check(auth_request);
+        auto&auth_result = auth_reply->result();
+        if(!auth_result.has_success_code()) {
+            return error_reply<Reply>(reply, auth_result.error_code(), auth_result.message());
+        }
+        // 获取鉴权结果
+        auto account_id = auth_reply->account_id();
+        if(account_id.empty()) {
+            return error_reply<Reply>(reply, ErrorCode::AUTH_FAILED, std::format("Auth failed to get account_id."));
+        }
+
+        // 提取用户信息
+        auto contact  = request->contact();
+
+        // 身份验证通过后进行用户信息更新的操作
+        // 1. 获取要修改为的用户 ID，
+        //    如果用户 ID 与当前一致那么继续执行；
+        //    如果 ID 不一致则验证新 ID 是否可用；
+
+        // 获取请求的用户 ID  // 已经通过鉴权，不可能无效
+        auto request_user_id = get_active_user_id(auth_request);
+        auto update_user_id  = contact.user_id();
+        if(update_user_id.empty()) {
+            return error_reply<Reply>(reply, ErrorCode::TARGET_USER_ID_EMPTY, std::format("Auth failed to get user_id."));
+        }
+        else if(request_user_id != update_user_id) {
+            // 验证新用户 ID 是否可用
+            auto [success_search_active_user_id, result_search_active_user_id] = search_active_user_id(update_user_id);
+            if(!success_search_active_user_id) {
+                return error_reply<Reply>(reply, ErrorCode::DB_QUERY, std::format("Search active user ID error."));
+            }
+            if(result_search_active_user_id) {
+                return error_reply<Reply>(reply, ErrorCode::USER_ID_EXISTS, std::format("User ID already exists."));
+            }
+        }
+
+        // 2. 更新信息
+        auto [success_update_profile, result_update_profile] = update_profile(account_id, contact);
+        if(!success_update_profile || !result_update_profile) {
+            return error_reply<Reply>(reply, ErrorCode::DB_EXECUTE, std::format("Update profile error."));
+        }
+        else {
+            return success_reply<Reply>(reply, SuccessCode::SUCCESS, std::format("Update profile Successed."));
+        }
+
+        return error_reply<Reply>(reply, ErrorCode::DEFAULT, std::format("Default error."));
+    }
+
 private:
     void set_timestamp(TaoTieChat::Timestamp& timestamp, const std::chrono::system_clock::time_point& time_point) {
         // timestamp.mutable_timestamp()->set_seconds(time_point.time_since_epoch().count() / 1000); // 转换为秒
@@ -1559,6 +1625,29 @@ private:
         // 3. 提取剩余的纳秒数
         auto nanos = std::chrono::duration_cast<std::chrono::nanoseconds>(duration - seconds);
         timestamp.mutable_timestamp()->set_nanos(static_cast<int32_t>(nanos.count()));
+    }
+    // 从传入参数中提取用户 ID
+    // 注意：未执行鉴权操作，且直接传入用户 ID 时未对该用户 ID 进行状态判断
+    string get_active_user_id(shared_ptr<AuthRequest>&auth_request) {
+        // 无信息返回空字符串
+        if(!auth_request) {
+            return string{};
+        }
+        // 直接存了用户 ID 就直接返回
+        if(auth_request->has_user_id()) {
+            return auth_request->user_id();
+        }
+        else if(auth_request->has_account_id()) {
+            // 没有存用户 ID 但存了账号 ID 就查找
+            auto account_id = auth_request->account_id();
+            auto [success_get_user_id, result_user_id] = get_active_user_id(account_id);
+            if(!success_get_user_id) {
+                return string{};
+            }
+            return result_user_id;
+        }
+        // 没有存用户 ID 也没有存账号 ID 就返回空字符串
+        return string{};
     }
 private:
     // ========================= 包含 SQL 语句的函数 ========================= //
@@ -1651,6 +1740,33 @@ private:
         for(auto&row : rows) {
             if(row.contains("account_id")) {
                 return {true, get_string(row.find("account_id" )->second)};
+            }
+        }
+        // 调用该函数就说明执行成功，返回结果为空时是有效值
+        return {true, string{}};
+    }
+    // 通过账号 ID 查询 用户 ID  // 账号停用时返回空，表示失败
+    std::tuple<bool, string> get_active_user_id(const string&account_id) {
+        // =========================== 参数校验 =========================== //
+        if(account_id.empty()) {
+            return {false, string{}};
+        }
+        // =========================== 执行操作 =========================== //
+        // 构造参数
+        auto sql_params = make_shared<SqlParams>();
+        (*sql_params)[":account_id"] = account_id;
+        auto sql_result = execute(SQL_QUERY_GET_ACTIVE_USERID, sql_params);
+        if(sql_result && sql_result->done) {
+            // 查询命令执行成功
+            return get_active_user_id(sql_result->rows);
+        }
+        return {false, string{}};
+    }
+    std::tuple<bool, string> get_active_user_id(const SqlRows&rows) {
+        // 解析获取 user_id 并返回
+        for(auto&row : rows) {
+            if(row.contains("user_id")) {
+                return {true, get_string(row.find("user_id" )->second)};
             }
         }
         // 调用该函数就说明执行成功，返回结果为空时是有效值
@@ -2210,6 +2326,31 @@ private:
         (*sql_params)[":target_account_id" ] = target_account_id ;
         (*sql_params)[":status"            ] = status;
         auto sql_result = execute(SQL_UPDATE_FRIEND_REQUEST_STATUS, sql_params);
+        if(sql_result && sql_result->done) {
+            return {true, true};
+        }
+        return {false, false};
+    }
+    // 更新用户信息
+    std::tuple<bool, bool> update_profile(const string&account_id, const Contact&contact) {
+        // =========================== 参数校验 =========================== //
+        if(account_id.empty() || contact.user_id().empty()) {
+            return {false, false};
+        }
+        // =========================== 执行操作 =========================== //
+        // 构造参数
+        auto sql_params = make_shared<SqlParams>();
+        (*sql_params)[":account_id"] = account_id;         // 必须包含
+        (*sql_params)[":user_id"   ] = contact.user_id();  // 必须包含
+        (*sql_params)[":nickname"  ] = contact.nickname();
+        (*sql_params)[":avatar"    ] = contact.avatar  ();
+        (*sql_params)[":sign"      ] = contact.sign    ();
+        (*sql_params)[":gender"    ] = contact.gender  ();  // 0:未设置，1:男，2:女，3:保密
+        (*sql_params)[":region"    ] = contact.region  ();
+        (*sql_params)[":birthday"  ] = contact.birthday();
+        // (*sql_params)[":phones"    ] = !contact.phones_size () ? string{ } : Utils::join(contact.phones(), ";");
+        // (*sql_params)[":emails"    ] = !contact.emails_size () ? string{ } : Utils::join(contact.emails(), ";");
+        auto sql_result = execute(SQL_UPDATE_USER_PROFILE, sql_params);
         if(sql_result && sql_result->done) {
             return {true, true};
         }
