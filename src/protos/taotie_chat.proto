@@ -180,6 +180,18 @@ service AccountService {
   // rpc AddContact(AddContactRequest) returns (AddContactReply) {}
   // 更新个人资料
   rpc UpdateProfile(UpdateProfileRequest) returns (UpdateProfileReply) {}
+  // 获取安全问题 // 专用接口
+  // 1.1. 通过密码修改密码时不需要获取安全问题
+  // 1.2. 通过安全问题修改密码或通过安全问题修改安全问题时需要获取安全问题
+  // 2.1. 密码找回时仅需提供用户 ID，无法提供身份验证
+  // 实际只使用了 user_id 字段进行密保问题的查询。
+  rpc GetSecurityQuestion(AuthRequest) returns (GetSecurityQuestionReply) {}
+  // 更新用户安全信息
+  // 1. 通过用户 ID 和密码修改密码
+  // 2. 通过用户 ID 和密保问题修改密码，即找回账号
+  // 3. 通过用户 ID 和密保问题修改密保问题
+  // 不允许使用 token 进行安全资料的修改
+  rpc UpdateSecurityInfo(UpdateSecurityInfoRequest) returns (UpdateSecurityInfoReply) {}
 }
 
 // 用户注册请求
@@ -318,14 +330,69 @@ message ContactRequestInfo {
 //             Result            result  = 2;  // 状态信息字段
 // }
 
+// 更新个人资料
 message UpdateProfileRequest {
   AuthRequest request_user_auth = 1;  // 认证信息  // 必须
   Contact     contact           = 2;  // 需要更新的个人资料信息
 }
 
+// 更新个人资料的结果
 message UpdateProfileReply {
   optional  UpdateProfileRequest request = 1;  // 可选的原始请求信息字段
             Result               result  = 2;  // 状态信息字段
+}
+
+// 获取安全问题的结果
+// 实际只使用 user_id 字段进行密保问题的查询，
+// question 字段不为空即可认为该用户 ID 存在。
+message GetSecurityQuestionReply {
+  optional  AuthRequest request  = 1;  // 可选的原始请求信息字段
+            Result      result   = 2;  // 状态信息字段
+            string      question = 3;  // 安全问题
+}
+
+// 更新用户安全信息  // 修改密码、密保问题、找回账号等
+// 不允许使用 token 进行安全资料的修改
+// 1, 修改密码或找回账号必须提供密保信息
+// 2, 修改密保信息必须提供密码
+message UpdateSecurityInfoRequest {
+  string user_id = 1;  // 必须要知道修改的是哪个用户的安全信息
+  oneof  method {
+    UpdatePasswordByPasswordInfo password_by_password = 2;  // 以账号密码校验的方式修改密码
+    UpdatePasswordBySecurityInfo password_by_security = 3;  // 以安全问题校验的方式修改密码
+    UpdateSecurityBySecurityInfo security_by_security = 4;  // 以安全问题校验的方式修改安全问题
+  }
+}
+
+// 修改密码
+// 1. 只允许以账号密码校验的方式修改密码，不允许使用账号 ID 或 token 的方式修改密码。
+// 2. 即使登陆状态也要验证密码。
+message UpdatePasswordByPasswordInfo {
+  string old_password = 2;  // 旧密码
+  string new_password = 3;  // 新密码
+  string confirm      = 4;  // 确认密码  // 用于客户端
+}
+
+// 修改密码  // 以安全问题校验的方式修改密码
+message UpdatePasswordBySecurityInfo {
+  string security_question = 1;  // 安全问题  // 安全问题也要进行校验
+  string security_answer   = 2;  // 安全答案
+  string new_password      = 3;  // 新密码
+  string confirm           = 4;  // 确认密码  // 用于客户端
+}
+
+// 修改安全问题  // 不允许以账号密码校验的方式修改安全问题
+message UpdateSecurityBySecurityInfo {
+  string old_security_question = 1;  // 安全问题  // 安全问题也要进行校验
+  string old_security_answer   = 2;  // 安全答案
+  string new_security_question = 3;  // 新安全问题
+  string new_security_answer   = 4;  // 新安全答案
+}
+
+// 更新用户安全信息的结果
+message UpdateSecurityInfoReply {
+  optional  UpdateSecurityInfoRequest request = 1;  // 可选的原始请求信息字段
+            Result                    result  = 2;  // 状态信息字段
 }
 
 // =============================  SearchService  ============================= //
@@ -480,6 +547,8 @@ message MessageRequest {
 // 客户端上传文件时，先由客户端申请一个有有效期的文件上传 ID，ID 不存在则禁止上传。
 // 申请上传 ID 需要在各个组件中进行。
 
+// 记录是谁因为什么上传的文件，防止文件上传后无法关联到消息或用户等信息，导致垃圾文件的产生。
+
 // 文件上传状态响应
 service FileService {
   // 客户端流式上传
@@ -492,8 +561,8 @@ service FileService {
 // 文件上传请求
 message FileContent {
   oneof data {
-    FileMetadata metadata   = 1; // 第一条消息发送元数据（文件名、哈希等）
-    bytes        chunk_data = 2; // 后续消息发送文件碎片
+    FileMetadata metadata   = 1;  // 第一条消息发送元数据（文件名、哈希等）
+    bytes        chunk_data = 2;  // 后续消息发送文件碎片
   }
 }
 
@@ -505,16 +574,16 @@ message FileMetadata {
 }
 
 message FileReply {
-  optional  FileMetadata metadata    = 1; // 第一条消息发送元数据（文件名、哈希等）
+  optional  FileMetadata metadata    = 1;  // 第一条消息发送元数据（文件名、哈希等）
             Result       result      = 2;  // 状态信息字段
-            int32        status_code = 3; // 状态码
+            int32        status_code = 3;  // 状态码
             string       file_id     = 4;
-            string       message     = 5; // 可选的错误消息字段
+            string       message     = 5;  // 可选的错误消息字段
 }
 
 message FileRequest {
-  optional  AuthRequest request_user_auth = 1;  // 鉴权
-  optional  FileMetadata metadata = 2; // 第一条消息发送元数据（文件名、哈希等）
+  optional  AuthRequest  request_user_auth = 1;  // 鉴权
+  optional  FileMetadata metadata          = 2;  // 第一条消息发送元数据（文件名、哈希等）
 }
 
 // =========================================================================== //

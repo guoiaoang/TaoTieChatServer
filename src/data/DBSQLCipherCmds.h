@@ -375,8 +375,8 @@ namespace SQL{
 
             // 校验用户注册是否成功/一致
             constexpr std::string_view SQL_QUERY_CHECK_REGISTER = R"(
-                SELECT 1
-                FROM   users
+                SELECT  1
+                FROM    users
                 WHERE
                         account_id           = :account_id            -- 账号 ID 匹配
                     AND user_id              = :user_id               -- 用户 ID 匹配
@@ -390,8 +390,8 @@ namespace SQL{
 
             // 密码登录校验
             constexpr std::string_view SQL_QUERY_CHECK_PASSWORD = R"(
-                SELECT 1
-                FROM   users
+                SELECT  1
+                FROM    users
                 WHERE
                         account_id    = :account_id
                     AND password_hash = :password_hash
@@ -429,6 +429,16 @@ namespace SQL{
                 WHERE
                         request_account_id = :request_account_id
                     AND target_account_id  = :target_account_id
+                LIMIT 1;
+            )";
+
+            // 通过用户 ID 查询安全问题  // 账号停用时返回空，表示失败
+            constexpr std::string_view SQL_QUERY_GET_ACTIVE_USER_SECURITY_QUESTION = R"(
+                SELECT  security_question
+                FROM    users
+                WHERE
+                        user_id           = :user_id           -- 用户 ID 匹配
+                    AND status            = 0                  -- 账号状态正常
                 LIMIT 1;
             )";
         }

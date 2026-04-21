@@ -212,4 +212,53 @@ public:
         response->CopyFrom(*result);
         return Status::OK;
     }
+
+    // 获取安全问题
+    Status GetSecurityQuestion(ServerContext* context, const AuthRequest* request, GetSecurityQuestionReply* response) override {
+        using Request = AuthRequest;
+        using Reply   = GetSecurityQuestionReply;
+        // =========================== 初始化操作 =========================== //
+        if(!context || !request || !response) {
+            return Status(StatusCode::INTERNAL, std::format("Invalid request or response pointer"));
+        }
+        log_grpc_context(context);
+        response->mutable_request()->CopyFrom(*request);  // 复制请求
+        DBSQLCipher& db_sqlcipher = DBSQLCipher::instance();
+        shared_ptr<Request> params = make_shared<Request>(*request);
+        // =========================== 执行操作 =========================== //
+        // 获取安全问题
+        shared_ptr<Reply> result = db_sqlcipher.get_security_question(params);
+        // 判断结果是否为 nullptr，防止拷贝时崩溃
+        if(!result) {
+            return error_status<Reply>(response, ErrorCode::DB_EXECUTE, std::format("GetSecurityQuestion failed."));
+        }
+        // set_success(response, SuccessCode::SUCCESS);
+        response->CopyFrom(*result);
+        return Status::OK;
+    }
+
+    // 更新用户安全信息
+    // 修改密码、密保问题、找回账号等
+    Status UpdateSecurityInfo(ServerContext* context, const UpdateSecurityInfoRequest* request, UpdateSecurityInfoReply* response) override {
+        using Request = UpdateSecurityInfoRequest;
+        using Reply   = UpdateSecurityInfoReply;
+        // =========================== 初始化操作 =========================== //
+        if(!context || !request || !response) {
+            return Status(StatusCode::INTERNAL, std::format("Invalid request or response pointer"));
+        }
+        log_grpc_context(context);
+        response->mutable_request()->CopyFrom(*request);  // 复制请求
+        DBSQLCipher& db_sqlcipher = DBSQLCipher::instance();
+        shared_ptr<Request> params = make_shared<Request>(*request);
+        // =========================== 执行操作 =========================== //
+        // 更新用户安全信息
+        shared_ptr<Reply> result = db_sqlcipher.update_security_info(params);
+        // 判断结果是否为 nullptr，防止拷贝时崩溃
+        if(!result) {
+            return error_status<Reply>(response, ErrorCode::DB_EXECUTE, std::format("UpdateSecurityInfo failed."));
+        }
+        // set_success(response, SuccessCode::SUCCESS);
+        response->CopyFrom(*result);
+        return Status::OK;
+    }
 };

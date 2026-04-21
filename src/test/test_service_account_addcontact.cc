@@ -121,21 +121,21 @@ std::tuple<grpc::Status, AddContactReply> AddContact(
 
 // 未提供目标用户 ID，返回错误码 TARGET_USER_ID_EMPTY
 TEST_F(ServiceAccountAddContact, target_user_id_empty) {
-    auto [status, response] = AddContact("user_id", "password", "");
+    auto [status, response] = AddContact("value_user_id", "value_password", "");
     EXPECT_TRUE(status.ok());
     EXPECT_EQ(response.result().error_code(), ErrorCode::TARGET_USER_ID_EMPTY);
 }
 
 // 未提供认证信息，返回错误码 AUTH_ID_EMPTY (没有 optional 修饰，不会返回 AUTH_INFO_NONE)
 TEST_F(ServiceAccountAddContact, auth_info_missing) {
-    auto [status, response] = AddContact("", "", "target_user_id");
+    auto [status, response] = AddContact("", "", "value_target_user_id");
     EXPECT_TRUE(status.ok());
     EXPECT_EQ(response.result().error_code(), ErrorCode::AUTH_ID_EMPTY);
 }
 
 // 错误的用户 ID(认证信息)，返回错误码 USER_ID_NOT_FOUND
 TEST_F(ServiceAccountAddContact, auth_failed) {
-    auto [status, response] = AddContact("user_id", "wrong_password", "target_user_id");
+    auto [status, response] = AddContact("value_user_id", "value_wrong_password", "value_target_user_id");
     EXPECT_TRUE(status.ok());
     EXPECT_EQ(response.result().error_code(), ErrorCode::USER_ID_NOT_FOUND);
 }
@@ -143,14 +143,14 @@ TEST_F(ServiceAccountAddContact, auth_failed) {
 // 目标用户不存在，返回错误码 TARGET_USER_ID_NOT_FOUND
 TEST_F(ServiceAccountAddContact, target_user_id_not_found) {
    // 注册一个用户，确保后续测试有一个有效的目标用户
-    auto [status_signup, response_signup] = SignUp("user_id", "password", "password", "security_question", "security_answer");
+    auto [status_signup, response_signup] = SignUp("value_user_id", "value_password", "value_password", "value_security_question", "value_security_answer");
     EXPECT_TRUE(status_signup.ok());
     EXPECT_EQ(response_signup.result().success_code(), SuccessCode::SUCCESS);
     EXPECT_TRUE(!response_signup.account_id().empty());  // 注册成功应该返回一个非空的 account_id
     std::cout << std::format("Registered request account_id: {}", response_signup.account_id()) << std::endl;
     auto request_account_id = response_signup.account_id();
 
-    auto [status, response] = AddContact("user_id", "password", "nonexistent_user_id");
+    auto [status, response] = AddContact("value_user_id", "value_password", "value_nonexistent_user_id");
     EXPECT_TRUE(status.ok());
     EXPECT_EQ(response.result().error_code(), ErrorCode::TARGET_USER_ID_NOT_FOUND);
 }
@@ -158,7 +158,7 @@ TEST_F(ServiceAccountAddContact, target_user_id_not_found) {
 // 目标用户存在，成功添加好友，返回成功码 SUCCESS
 TEST_F(ServiceAccountAddContact, target_user_id_exists) {
     // 注册一个用户，确保后续测试有一个有效的目标用户
-    auto [status_signup, response_signup] = SignUp("user_id", "password", "password", "security_question", "security_answer");
+    auto [status_signup, response_signup] = SignUp("value_user_id", "value_password", "value_password", "value_security_question", "value_security_answer");
     EXPECT_TRUE(status_signup.ok());
     EXPECT_EQ(response_signup.result().success_code(), SuccessCode::SUCCESS);
     EXPECT_TRUE(!response_signup.account_id().empty());  // 注册成功应该返回一个非空的 account_id
@@ -166,7 +166,7 @@ TEST_F(ServiceAccountAddContact, target_user_id_exists) {
     auto request_account_id = response_signup.account_id();
 
     // 可用自己添加自己
-    auto [status, response] = AddContact("user_id", "password", "user_id");
+    auto [status, response] = AddContact("value_user_id", "value_password", "value_user_id");
     EXPECT_TRUE(status.ok());
     EXPECT_EQ(response.result().success_code(), SuccessCode::SUCCESS);
 }
@@ -174,7 +174,7 @@ TEST_F(ServiceAccountAddContact, target_user_id_exists) {
 // 目标用户已经是好友，返回错误码 OPERATION_REPEAT(重复的操作)
 TEST_F(ServiceAccountAddContact, target_user_already_friend) {
     // 注册一个用户，确保后续测试有一个有效的目标用户
-    auto [status_signup, response_signup] = SignUp("user_id", "password", "password", "security_question", "security_answer");
+    auto [status_signup, response_signup] = SignUp("value_user_id", "value_password", "value_password", "value_security_question", "value_security_answer");
     EXPECT_TRUE(status_signup.ok());
     EXPECT_EQ(response_signup.result().success_code(), SuccessCode::SUCCESS);
     EXPECT_TRUE(!response_signup.account_id().empty());  // 注册成功应该返回一个非空的 account_id
@@ -182,12 +182,12 @@ TEST_F(ServiceAccountAddContact, target_user_already_friend) {
     auto request_account_id = response_signup.account_id();
 
     // 可用自己添加自己
-    auto [status, response] = AddContact("user_id", "password", "user_id");
+    auto [status, response] = AddContact("value_user_id", "value_password", "value_user_id");
     EXPECT_TRUE(status.ok());
     EXPECT_EQ(response.result().success_code(), SuccessCode::SUCCESS);
 
     // 再次添加同一个好友，返回错误码 OPERATION_REPEAT(重复的操作)
-    auto [status_repeat, response_repeat] = AddContact("user_id", "password", "user_id");
+    auto [status_repeat, response_repeat] = AddContact("value_user_id", "value_password", "value_user_id");
     EXPECT_TRUE(status_repeat.ok());
     EXPECT_EQ(response_repeat.result().error_code(), ErrorCode::ASSOCIATED); // 已经是好友了
 }

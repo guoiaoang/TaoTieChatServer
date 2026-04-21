@@ -1611,6 +1611,89 @@ public:
         return error_reply<Reply>(reply, ErrorCode::DEFAULT, std::format("Default error."));
     }
 
+    // 获取安全问题
+    shared_ptr<GetSecurityQuestionReply> get_security_question(const shared_ptr<AuthRequest>&request) {
+        using Request  = AuthRequest;
+        using Reply    = GetSecurityQuestionReply;
+        // =========================== 初始化操作  =========================== //
+        // 复制请求
+        shared_ptr<Reply> reply = make_shared<Reply>();
+        set_error(reply->mutable_result(), ErrorCode::ERROR_INIT);
+        if(!request) {
+            return error_reply<Reply>(reply, ErrorCode::ERROR_INIT, std::format("Invalid Param."));
+        }
+        reply->mutable_request()->CopyFrom(*request.get());
+        set_error(reply->mutable_result(), ErrorCode::UNKNOWN);
+        // ============================ 参数校验 ============================ //
+        // 仅允许用户 ID，不允许账号 ID，不需要密码或身份校验
+        if(request->user_id().empty()) {
+            return error_reply<Reply>(reply, ErrorCode::USER_ID_EMPTY, std::format("User ID is empty."));
+        }
+        // ============================ 执行操作 ============================ //
+        LOG_ERROR("TODO:get_security_question");
+        auto [success, question] = get_active_user_security_question(request->user_id());
+        if(!success) {
+            return error_reply<Reply>(reply, ErrorCode::DB_QUERY, std::format("Get security question error."));
+        }
+        if(question.empty()) {
+            return error_reply<Reply>(reply, ErrorCode::SECURITY_QUESTION_NOT_FOUND, std::format("Security question not found."));
+        }
+        else {
+            reply->set_question(question);
+            return success_reply<Reply>(reply, SuccessCode::SUCCESS, std::format("Get security question Successed."));
+        }
+
+        return error_reply<Reply>(reply, ErrorCode::DEFAULT, std::format("Default error."));
+    }
+
+    // 更新用户安全信息
+    shared_ptr<UpdateSecurityInfoReply> update_security_info(const shared_ptr<UpdateSecurityInfoRequest>&request) {
+        using Request  = UpdateSecurityInfoRequest;
+        using Reply    = UpdateSecurityInfoReply;
+        // =========================== 初始化操作  =========================== //
+        // 复制请求
+        shared_ptr<Reply> reply = make_shared<Reply>();
+        set_error(reply->mutable_result(), ErrorCode::ERROR_INIT);
+        if(!request) {
+            return error_reply<Reply>(reply, ErrorCode::ERROR_INIT, std::format("Invalid Param."));
+        }
+        reply->mutable_request()->CopyFrom(*request.get());
+        set_error(reply->mutable_result(), ErrorCode::UNKNOWN);
+        // ============================ 参数校验 ============================ //
+        // ============================ 执行操作 ============================ //
+        LOG_ERROR("TODO:update_security_info");
+
+        request->user_id();
+        if(request->has_password_by_password()) {
+            LOG_ERROR("TODO:update_password_by_password_info");
+            auto pbp = request->password_by_password();
+            pbp.old_password();
+            pbp.new_password();
+            pbp.confirm();
+        }
+        else if(request->has_password_by_security()) {
+            LOG_ERROR("TODO:update_password_by_security_info");
+            auto pbs = request->password_by_security();
+            pbs.security_question();
+            pbs.security_answer();
+            pbs.new_password();
+            pbs.confirm();
+        }
+        else if(request->has_security_by_security()) {
+            LOG_ERROR("TODO:update_security_by_security_info");
+            auto sbs = request->security_by_security();
+            sbs.old_security_question();
+            sbs.old_security_answer();
+            sbs.new_security_question();
+            sbs.new_security_answer();
+        }
+        else {
+            return error_reply<Reply>(reply, ErrorCode::UNSUPPORTED, std::format("Unsupported update security info type."));
+        }
+
+        return error_reply<Reply>(reply, ErrorCode::DEFAULT, std::format("Default error."));
+    }
+
 private:
     void set_timestamp(TaoTieChat::Timestamp& timestamp, const std::chrono::system_clock::time_point& time_point) {
         // timestamp.mutable_timestamp()->set_seconds(time_point.time_since_epoch().count() / 1000); // 转换为秒
@@ -1652,18 +1735,10 @@ private:
 private:
     // ========================= 包含 SQL 语句的函数 ========================= //
     // 执行失败、执行成功但无匹配均返回{false, {}}，执行成功且匹配才返回 {true,xx}
-    // 获取数据版本
-    std::tuple<bool, string> get_meta_version() {
-        // =========================== 参数校验 =========================== //
-        // =========================== 执行操作 =========================== //
-        auto sql_result = execute(SQL_QUERY_META_VERSION);
-        if(sql_result && sql_result->done) {
-            // 查询命令执行成功
-            return get_meta_version(sql_result->rows);
-        }
-        return {false, string{}};
-    }
-    std::tuple<bool, string> get_meta_version(const SqlRows&rows) {
+
+    // ============================ 解析查询结果 ============================ //
+
+    std::tuple<bool, string> get_version_value(const SqlRows&rows) {
         // | name    | value |
         // | ------- | ----- |
         // | version | 1.0   |
@@ -1682,24 +1757,7 @@ private:
         }
         return {false, string{}};
     }
-    // 用户注册时搜索 user_id 是否可用  // 仅查找在用的用户 ID 即可
-    std::tuple<bool, bool> search_active_user_id(const string&user_id) {
-        // =========================== 参数校验 =========================== //
-        if(user_id.empty()) {
-            return {false, false};
-        }
-        // =========================== 执行操作 =========================== //
-        // 构造参数
-        auto sql_params = make_shared<SqlParams>();
-        (*sql_params)[":user_id"] = user_id;
-        auto sql_result = execute(SQL_QUERY_EXIST_ACTIVE_USER_ID, sql_params);
-        if(sql_result && sql_result->done) {
-            // 查询命令执行成功
-            return search_active_user_id(sql_result->rows);
-        }
-        return {false, false};
-    }
-    std::tuple<bool, bool> search_active_user_id(const SqlRows&rows) {
+    std::tuple<bool, bool  > check_not_empty  (const SqlRows&rows) {
         // 解析是否为 1
         if(rows.size()) {
             return {true, true};  // 有数据即可认为存在
@@ -1718,77 +1776,27 @@ private:
         }
         return {false, false};
     }
-    // 通过用户 ID 查询账号 ID  // 账号停用时返回空，表示失败
-    std::tuple<bool, string> get_active_account_id(const string&user_id) {
-        // =========================== 参数校验 =========================== //
-        if(user_id.empty()) {
-            return {false, string{}};
-        }
-        // =========================== 执行操作 =========================== //
-        // 构造参数
-        auto sql_params = make_shared<SqlParams>();
-        (*sql_params)[":user_id"] = user_id;
-        auto sql_result = execute(SQL_QUERY_GET_ACTIVE_ACCOUNT_ID, sql_params);
-        if(sql_result && sql_result->done) {
-            // 查询命令执行成功
-            return get_active_account_id(sql_result->rows);
-        }
-        return {false, string{}};
-    }
-    std::tuple<bool, string> get_active_account_id(const SqlRows&rows) {
-        // 解析获取 account_id 并返回
+    std::tuple<bool, string> get_first_string (const SqlRows&rows, const string&key) {
+        // 解析获取指定 key 的值并返回
         for(auto&row : rows) {
-            if(row.contains("account_id")) {
-                return {true, get_string(row.find("account_id" )->second)};
+            if(row.contains(key)) {
+                return {true, get_string(row.find(key)->second)};
             }
         }
         // 调用该函数就说明执行成功，返回结果为空时是有效值
         return {true, string{}};
     }
-    // 通过账号 ID 查询 用户 ID  // 账号停用时返回空，表示失败
-    std::tuple<bool, string> get_active_user_id(const string&account_id) {
-        // =========================== 参数校验 =========================== //
-        if(account_id.empty()) {
-            return {false, string{}};
-        }
-        // =========================== 执行操作 =========================== //
-        // 构造参数
-        auto sql_params = make_shared<SqlParams>();
-        (*sql_params)[":account_id"] = account_id;
-        auto sql_result = execute(SQL_QUERY_GET_ACTIVE_USERID, sql_params);
-        if(sql_result && sql_result->done) {
-            // 查询命令执行成功
-            return get_active_user_id(sql_result->rows);
-        }
-        return {false, string{}};
-    }
-    std::tuple<bool, string> get_active_user_id(const SqlRows&rows) {
-        // 解析获取 user_id 并返回
+    std::tuple<bool, int   > get_first_int    (const SqlRows&rows, const string&key) {
+        // 解析获取指定 key 的值并返回
         for(auto&row : rows) {
-            if(row.contains("user_id")) {
-                return {true, get_string(row.find("user_id" )->second)};
+            if(row.contains(key)) {
+                return {true, get_int(row.find(key)->second)};
             }
         }
         // 调用该函数就说明执行成功，返回结果为空时是有效值
-        return {true, string{}};
+        return {true, -1};
     }
-    std::tuple<bool, Contacts> get_active_account_info(const string&account_id) {
-        // =========================== 参数校验 =========================== //
-        if(account_id.empty()) {
-            return {false, Contacts()};
-        }
-        // =========================== 执行操作 =========================== //
-        // 构造参数
-        auto sql_params = make_shared<SqlParams>();
-        (*sql_params)[":account_id"] = account_id;
-        auto sql_result = execute(SQL_QUERY_GET_ACCOUNT_INFO, sql_params);
-        if(sql_result && sql_result->done) {
-            // 查询命令执行成功
-            return get_active_account_info(sql_result->rows);
-        }
-        return {false, Contacts()};
-    }
-    std::tuple<bool, Contacts> get_active_account_info(const SqlRows&rows) {
+    std::tuple<bool, Contacts> get_contacts(const SqlRows&rows) {
         // 调用该函数就说明执行成功，返回结果为空时依然是有效值
         Contacts contacts;
         // 解析获取 account_id 并返回
@@ -1816,6 +1824,131 @@ private:
         }
         return {true, contacts};
     }
+
+    ErrorCode contact_status_to_error_code        (int result) {
+        static map<int, ErrorCode> status_error_code_map = {
+            {-1, ErrorCode::DB_RECORD_NOT_FOUND },  // 好友请求未找到
+            {0, ErrorCode::PENDING   },  // 存在好友申请
+            {1, ErrorCode::ASSOCIATED},  // 已经是好友了
+            {2, ErrorCode::REFUSED   },  // 好友请求被拒绝
+            {3, ErrorCode::BLOCKED   },  // 被对方拉黑了
+        };
+        if(status_error_code_map.find(result) != status_error_code_map.end()) {
+            return status_error_code_map[result];
+        }
+        return ErrorCode::DEFAULT;
+    }
+    ErrorCode contact_request_status_to_error_code(int result) {
+        static map<int, ErrorCode> status_error_code_map = {
+            {-1, ErrorCode::DB_RECORD_NOT_FOUND },  // 好友请求未找到
+            {0, ErrorCode::PENDING },  // 好友请求待处理
+            {1, ErrorCode::ACCEPTED},  // 同意好友申请
+            {2, ErrorCode::REFUSED },  // 拒绝好友申请
+            {3, ErrorCode::IGNORED },  // 忽略好友申请（不回复，既不接受也不拒绝）
+        };
+        if(status_error_code_map.find(result) != status_error_code_map.end()) {
+            return status_error_code_map[result];
+        }
+        return ErrorCode::DEFAULT;
+    }
+
+    // ============================== 读数据库 ============================== //
+
+    // 获取数据版本
+    std::tuple<bool, string> get_meta_version() {
+        // =========================== 参数校验 =========================== //
+        // =========================== 执行操作 =========================== //
+        auto sql_result = execute(SQL_QUERY_META_VERSION);
+        if(sql_result && sql_result->done) {
+            // 查询命令执行成功
+            return get_version_value(sql_result->rows);
+        }
+        return {false, string{}};
+    }
+    // 用户注册时搜索 user_id 是否可用  // 仅查找在用的用户 ID 即可
+    std::tuple<bool, bool  > search_active_user_id(const string&user_id) {
+        // =========================== 参数校验 =========================== //
+        if(user_id.empty()) {
+            return {false, false};
+        }
+        // =========================== 执行操作 =========================== //
+        // 构造参数
+        auto sql_params = make_shared<SqlParams>();
+        (*sql_params)[":user_id"] = user_id;
+        auto sql_result = execute(SQL_QUERY_EXIST_ACTIVE_USER_ID, sql_params);
+        if(sql_result && sql_result->done) {
+            // 查询命令执行成功
+            return check_not_empty(sql_result->rows);
+        }
+        return {false, false};
+    }
+    // 通过用户 ID 查询账号 ID  // 账号停用时返回空，表示失败
+    std::tuple<bool, string> get_active_account_id(const string&user_id) {
+        // =========================== 参数校验 =========================== //
+        if(user_id.empty()) {
+            return {false, string{}};
+        }
+        // =========================== 执行操作 =========================== //
+        // 构造参数
+        auto sql_params = make_shared<SqlParams>();
+        (*sql_params)[":user_id"] = user_id;
+        auto sql_result = execute(SQL_QUERY_GET_ACTIVE_ACCOUNT_ID, sql_params);
+        if(sql_result && sql_result->done) {
+            // 查询命令执行成功
+            return get_first_string(sql_result->rows, "account_id");
+        }
+        return {false, string{}};
+    }
+    // 通过账号 ID 查询用户 ID  // 账号停用时返回空，表示失败
+    std::tuple<bool, string> get_active_user_id   (const string&account_id) {
+        // =========================== 参数校验 =========================== //
+        if(account_id.empty()) {
+            return {false, string{}};
+        }
+        // =========================== 执行操作 =========================== //
+        // 构造参数
+        auto sql_params = make_shared<SqlParams>();
+        (*sql_params)[":account_id"] = account_id;
+        auto sql_result = execute(SQL_QUERY_GET_ACTIVE_USERID, sql_params);
+        if(sql_result && sql_result->done) {
+            // 查询命令执行成功
+            return get_first_string(sql_result->rows, "user_id");
+        }
+        return {false, string{}};
+    }
+    // 通过用户 ID 查询安全问题  // 安全问题不允许为空，为空则代表查询失败  // 账号停用时也返回空
+    std::tuple<bool, string> get_active_user_security_question(const string&user_id) {
+        // =========================== 参数校验 =========================== //
+        if(user_id.empty()) {
+            return {false, string{}};
+        }
+        // =========================== 执行操作 =========================== //
+        // 构造参数
+        auto sql_params = make_shared<SqlParams>();
+        (*sql_params)[":user_id"] = user_id;
+        auto sql_result = execute(SQL_QUERY_GET_ACTIVE_USER_SECURITY_QUESTION, sql_params);
+        if(sql_result && sql_result->done) {
+            // 查询命令执行成功
+            return get_first_string(sql_result->rows, "security_question");
+        }
+        return {false, string{}};
+    }
+    std::tuple<bool, Contacts> get_active_account_info(const string&account_id) {
+        // =========================== 参数校验 =========================== //
+        if(account_id.empty()) {
+            return {false, Contacts()};
+        }
+        // =========================== 执行操作 =========================== //
+        // 构造参数
+        auto sql_params = make_shared<SqlParams>();
+        (*sql_params)[":account_id"] = account_id;
+        auto sql_result = execute(SQL_QUERY_GET_ACCOUNT_INFO, sql_params);
+        if(sql_result && sql_result->done) {
+            // 查询命令执行成功
+            return get_contacts(sql_result->rows);
+        }
+        return {false, Contacts()};
+    }
     std::tuple<bool, bool> check_exist_account_id(const string&account_id) {
         // =========================== 参数校验 =========================== //
         if(account_id.empty()) {
@@ -1828,17 +1961,7 @@ private:
         auto sql_result = execute(SQL_QUERY_EXIST_ACTIVE_ACCOUNTID, sql_params);
         if(sql_result && sql_result->done) {
             // 查询命令执行成功
-            return check_exist_account_id(sql_result->rows);
-        }
-        return {false, false};
-    }
-    std::tuple<bool, bool> check_exist_account_id(const SqlRows&rows) {
-        // 解析是否为 1
-        if(rows.size()) {
-            return {true, true}; // 有数据即可认为存在
-        }
-        else {
-            return {true, false}; // 无数据时认为不存在
+            return check_not_empty(sql_result->rows);
         }
         return {false, false};
     }
@@ -1854,17 +1977,7 @@ private:
         auto sql_result = execute(SQL_QUERY_EXIST_ACCOUNTID, sql_params);
         if(sql_result && sql_result->done) {
             // 查询命令执行成功
-            return check_active_account_id(sql_result->rows);
-        }
-        return {false, false};
-    }
-    std::tuple<bool, bool> check_active_account_id(const SqlRows&rows) {
-        // 解析是否为 1
-        if(rows.size()) {
-            return {true, true}; // 有数据即可认为存在
-        }
-        else {
-            return {true, false}; // 无数据时认为不存在
+            return check_not_empty(sql_result->rows);
         }
         return {false, false};
     }
@@ -1882,17 +1995,7 @@ private:
         auto sql_result = execute(SQL_QUERY_CHECK_PASSWORD, sql_params);
         if(sql_result && sql_result->done) {
             // 查询命令执行成功
-            return check_password(sql_result->rows);
-        }
-        return {false, false};
-    }
-    std::tuple<bool, bool> check_password(const SqlRows&rows) {
-        // 解析是否为 1
-        if(rows.size()) {
-            return {true, true}; // 有数据即可认为存在
-        }
-        else {
-            return {true, false}; // 无数据时认为不存在
+            return check_not_empty(sql_result->rows);
         }
         return {false, false};
     }
@@ -1910,17 +2013,7 @@ private:
         auto sql_result = execute(SQL_QUERY_CHECK_TOKEN, sql_params);
         if(sql_result && sql_result->done) {
             // 查询命令执行成功
-            return check_token(sql_result->rows);
-        }
-        return {false, false};
-    }
-    std::tuple<bool, bool> check_token(const SqlRows&rows) {
-        // 解析是否为 1
-        if(rows.size()) {
-            return {true, true}; // 有数据即可认为存在
-        }
-        else {
-            return {true, false}; // 无数据时认为不存在
+            return check_not_empty(sql_result->rows);
         }
         return {false, false};
     }
@@ -1937,17 +2030,7 @@ private:
         auto sql_result = execute(SQL_QUERY_EXIST_SERVER_MESSAGE_ID, sql_params);
         if(sql_result && sql_result->done) {
             // 查询命令执行成功
-            return check_exist_server_message_id(sql_result->rows);
-        }
-        return {false, false};
-    }
-    std::tuple<bool, bool> check_exist_server_message_id(const SqlRows&rows) {
-        // 解析是否为 1
-        if(rows.size()) {
-            return {true, true}; // 有数据即可认为存在
-        }
-        else {
-            return {true, false}; // 无数据时认为不存在
+            return check_not_empty(sql_result->rows);
         }
         return {false, false};
     }
@@ -1966,17 +2049,7 @@ private:
         auto sql_result = execute(SQL_QUERY_EXIST_CLIENT_MESSAGE_ID, sql_params);
         if(sql_result && sql_result->done) {
             // 查询命令执行成功
-            return check_exist_client_message_id(sql_result->rows);
-        }
-        return {false, false};
-    }
-    std::tuple<bool, bool> check_exist_client_message_id(const SqlRows&rows) {
-        // 解析是否为 1
-        if(rows.size()) {
-            return {true, true}; // 有数据即可认为存在
-        }
-        else {
-            return {true, false}; // 无数据时认为不存在
+            return check_not_empty(sql_result->rows);
         }
         return {false, false};
     }
@@ -1994,33 +2067,9 @@ private:
         auto sql_result = execute(SQL_QUERY_GET_FRIEND_STATUS, sql_params);
         if(sql_result && sql_result->done) {
             // 查询命令执行成功
-            return get_contact_status(sql_result->rows);
+            return check_not_empty(sql_result->rows);
         }
         return {false, -1};
-    }
-    std::tuple<bool, int> get_contact_status(const SqlRows&rows) {
-        if(rows.empty()) {
-            return {true, -1};  // -1 代表未找到相关的记录
-        }
-        for(auto&row : rows) {
-            if(row.contains("status")) {
-                return {true, get_int(row.find("status")->second)};
-            }
-        }
-        return {true, -1};
-    }
-    ErrorCode contact_status_to_error_code(int result) {
-        static map<int, ErrorCode> status_error_code_map = {
-            {-1, ErrorCode::DB_RECORD_NOT_FOUND },  // 好友请求未找到
-            {0, ErrorCode::PENDING   },  // 存在好友申请
-            {1, ErrorCode::ASSOCIATED},  // 已经是好友了
-            {2, ErrorCode::REFUSED   },  // 好友请求被拒绝
-            {3, ErrorCode::BLOCKED   },  // 被对方拉黑了
-        };
-        if(status_error_code_map.find(result) != status_error_code_map.end()) {
-            return status_error_code_map[result];
-        }
-        return ErrorCode::DEFAULT;
     }
     std::tuple<bool, int> get_friend_request_status(const string&request_account_id, const string&target_account_id) {
         // =========================== 参数校验 =========================== //
@@ -2035,34 +2084,12 @@ private:
         auto sql_result = execute(SQL_QUERY_GET_FRIEND_REQUEST_STATUS, sql_params);
         if(sql_result && sql_result->done) {
             // 查询命令执行成功
-            return get_friend_request_status(sql_result->rows);
+            return get_first_int(sql_result->rows, "status");
         }
         return {false, -1};
     }
-    std::tuple<bool, int> get_friend_request_status(const SqlRows&rows) {
-        if(rows.empty()) {
-            return {true, -1};  // -1 代表未找到相关的记录
-        }
-        for(auto&row : rows) {
-            if(row.contains("status")) {
-                return {true, get_int(row.find("status")->second)};
-            }
-        }
-        return {true, -1};
-    }
-    ErrorCode contact_request_status_to_error_code(int result) {
-        static map<int, ErrorCode> status_error_code_map = {
-            {-1, ErrorCode::DB_RECORD_NOT_FOUND },  // 好友请求未找到
-            {0, ErrorCode::PENDING },  // 好友请求待处理
-            {1, ErrorCode::ACCEPTED},  // 同意好友申请
-            {2, ErrorCode::REFUSED },  // 拒绝好友申请
-            {3, ErrorCode::IGNORED },  // 忽略好友申请（不回复，既不接受也不拒绝）
-        };
-        if(status_error_code_map.find(result) != status_error_code_map.end()) {
-            return status_error_code_map[result];
-        }
-        return ErrorCode::DEFAULT;
-    }
+
+    // ============================== 写数据库 ============================== //
 
     std::tuple<bool, bool> write_meta_table() {
         auto sql_result = execute(SQL_CREATE_TABLE_META.data());

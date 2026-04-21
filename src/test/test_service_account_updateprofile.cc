@@ -155,7 +155,7 @@ TEST_F(ServiceAccountUpdateProfile, auth_info_missing) {
 
 // 错误的用户 ID，返回错误码 USER_ID_NOT_FOUND
 TEST_F(ServiceAccountUpdateProfile, auth_failed) {
-    auto [status, response] = UpdateProfile("user_id", "password", "", "", ContactInfo{});
+    auto [status, response] = UpdateProfile("value_user_id", "value_password", "", "", ContactInfo{});
     EXPECT_TRUE(status.ok());
     EXPECT_EQ(response.result().error_code(), ErrorCode::USER_ID_NOT_FOUND);
 }
@@ -163,7 +163,7 @@ TEST_F(ServiceAccountUpdateProfile, auth_failed) {
 // 没有目标用户 ID，返回错误码 TARGET_USER_ID_EMPTY
 TEST_F(ServiceAccountUpdateProfile, target_user_id_empty) {
    // 注册一个用户，确保后续测试有一个有效的目标用户
-    auto [status_signup, response_signup] = SignUp("user_id", "password", "password", "security_question", "security_answer");
+    auto [status_signup, response_signup] = SignUp("value_user_id", "value_password", "value_password", "value_security_question", "value_security_answer");
     EXPECT_TRUE(status_signup.ok());
     EXPECT_EQ(response_signup.result().success_code(), SuccessCode::SUCCESS);
     EXPECT_TRUE(!response_signup.account_id().empty());  // 注册成功应该返回一个非空的 account_id
@@ -172,16 +172,16 @@ TEST_F(ServiceAccountUpdateProfile, target_user_id_empty) {
 
     ContactInfo contact_info = ContactInfo{
         .user_id  = "" ,
-        .nickname = "nickname",
-        .avatar   = "avatar"  ,
-        .sign     = "sign"    ,
+        .nickname = "value_nickname",
+        .avatar   = "value_avatar"  ,
+        .sign     = "value_sign"    ,
         .gender   = 0,
-        .region   = "region"  ,
-        .birthday = "birthday",
+        .region   = "value_region"  ,
+        .birthday = "value_birthday",
         .phones = { "010-12345", "+86 18812341234" },
         .emails = { "example@example.com" },
     };
-    auto [status, response] = UpdateProfile("user_id", "password", "", "", contact_info);
+    auto [status, response] = UpdateProfile("value_user_id", "value_password", "", "", contact_info);
     EXPECT_TRUE(status.ok());
     EXPECT_EQ(response.result().error_code(), ErrorCode::TARGET_USER_ID_EMPTY);
 }
@@ -189,7 +189,7 @@ TEST_F(ServiceAccountUpdateProfile, target_user_id_empty) {
 // 不修改用户 ID，成功修改用户资料，返回成功码 SUCCESS
 TEST_F(ServiceAccountUpdateProfile, target_user_id_not_changed) {
    // 注册一个用户，确保后续测试有一个有效的目标用户
-    auto [status_signup, response_signup] = SignUp("user_id", "password", "password", "security_question", "security_answer");
+    auto [status_signup, response_signup] = SignUp("value_user_id", "value_password", "value_password", "value_security_question", "value_security_answer");
     EXPECT_TRUE(status_signup.ok());
     EXPECT_EQ(response_signup.result().success_code(), SuccessCode::SUCCESS);
     EXPECT_TRUE(!response_signup.account_id().empty());  // 注册成功应该返回一个非空的 account_id
@@ -197,17 +197,17 @@ TEST_F(ServiceAccountUpdateProfile, target_user_id_not_changed) {
     auto request_account_id = response_signup.account_id();
 
     ContactInfo contact_info = ContactInfo{
-        .user_id  = "user_id" ,
-        .nickname = "nickname",
-        .avatar   = "avatar"  ,
-        .sign     = "sign"    ,
+        .user_id  = "value_user_id" ,
+        .nickname = "value_nickname",
+        .avatar   = "value_avatar"  ,
+        .sign     = "value_sign"    ,
         .gender   = 0,
-        .region   = "region"  ,
-        .birthday = "birthday",
+        .region   = "value_region"  ,
+        .birthday = "value_birthday",
         .phones = { "010-12345", "+86 18812341234" },
         .emails = { "example@example.com" },
     };
-    auto [status, response] = UpdateProfile("user_id", "password", "", "", contact_info);
+    auto [status, response] = UpdateProfile("value_user_id", "value_password", "", "", contact_info);
     EXPECT_TRUE(status.ok());
     EXPECT_EQ(response.result().success_code(), SuccessCode::SUCCESS);
 }
@@ -215,7 +215,7 @@ TEST_F(ServiceAccountUpdateProfile, target_user_id_not_changed) {
 // 修改用户 ID，成功修改用户资料，返回成功码 SUCCESS
 TEST_F(ServiceAccountUpdateProfile, target_user_id_changed) {
    // 注册一个用户，确保后续测试有一个有效的目标用户
-    auto [status_signup, response_signup] = SignUp("user_id", "password", "password", "security_question", "security_answer");
+    auto [status_signup, response_signup] = SignUp("value_user_id", "value_password", "value_password", "value_security_question", "value_security_answer");
     EXPECT_TRUE(status_signup.ok());
     EXPECT_EQ(response_signup.result().success_code(), SuccessCode::SUCCESS);
     EXPECT_TRUE(!response_signup.account_id().empty());  // 注册成功应该返回一个非空的 account_id
@@ -223,17 +223,17 @@ TEST_F(ServiceAccountUpdateProfile, target_user_id_changed) {
     auto request_account_id = response_signup.account_id();
 
     ContactInfo contact_info = ContactInfo{
-        .user_id  = "user_id_changed" ,
-        .nickname = "nickname",
-        .avatar   = "avatar"  ,
-        .sign     = "sign"    ,
+        .user_id  = "value_user_id_changed" ,
+        .nickname = "value_nickname",
+        .avatar   = "value_avatar"  ,
+        .sign     = "value_sign"    ,
         .gender   = 0,
-        .region   = "region"  ,
-        .birthday = "birthday",
+        .region   = "value_region"  ,
+        .birthday = "value_birthday",
         .phones = { "010-12345", "+86 18812341234" },
         .emails = { "example@example.com" },
     };
-    auto [status, response] = UpdateProfile("user_id", "password", "", "", contact_info);
+    auto [status, response] = UpdateProfile("value_user_id", "value_password", "", "", contact_info);
     EXPECT_TRUE(status.ok());
     EXPECT_EQ(response.result().success_code(), SuccessCode::SUCCESS);
 }
@@ -241,7 +241,7 @@ TEST_F(ServiceAccountUpdateProfile, target_user_id_changed) {
 // 修改用户 ID 后重复执行，返回错误码 USER_ID_NOT_FOUND
 TEST_F(ServiceAccountUpdateProfile, target_user_id_changed_again) {
    // 注册一个用户，确保后续测试有一个有效的目标用户
-    auto [status_signup, response_signup] = SignUp("user_id", "password", "password", "security_question", "security_answer");
+    auto [status_signup, response_signup] = SignUp("value_user_id", "value_password", "value_password", "value_security_question", "value_security_answer");
     EXPECT_TRUE(status_signup.ok());
     EXPECT_EQ(response_signup.result().success_code(), SuccessCode::SUCCESS);
     EXPECT_TRUE(!response_signup.account_id().empty());  // 注册成功应该返回一个非空的 account_id
@@ -249,22 +249,22 @@ TEST_F(ServiceAccountUpdateProfile, target_user_id_changed_again) {
     auto request_account_id = response_signup.account_id();
 
     ContactInfo contact_info = ContactInfo{
-        .user_id  = "user_id_changed" ,
-        .nickname = "nickname",
-        .avatar   = "avatar"  ,
-        .sign     = "sign"    ,
+        .user_id  = "value_user_id_changed" ,
+        .nickname = "value_nickname",
+        .avatar   = "value_avatar"  ,
+        .sign     = "value_sign"    ,
         .gender   = 0,
-        .region   = "region"  ,
-        .birthday = "birthday",
+        .region   = "value_region"  ,
+        .birthday = "value_birthday",
         .phones = { "010-12345", "+86 18812341234" },
         .emails = { "example@example.com" },
     };
-    auto [status, response] = UpdateProfile("user_id", "password", "", "", contact_info);
+    auto [status, response] = UpdateProfile("value_user_id", "value_password", "", "", contact_info);
     EXPECT_TRUE(status.ok());
     EXPECT_EQ(response.result().success_code(), SuccessCode::SUCCESS);
 
     // 再次以相同的认证信息修改用户资料，应该找不到用户了，因为用户 ID 已经被修改了
-    auto [status_update_profile_again, response_update_profile_again] = UpdateProfile("user_id", "password", "", "", contact_info);
+    auto [status_update_profile_again, response_update_profile_again] = UpdateProfile("value_user_id", "value_password", "", "", contact_info);
     EXPECT_TRUE(status_update_profile_again.ok());
     EXPECT_EQ(response_update_profile_again.result().error_code(), ErrorCode::USER_ID_NOT_FOUND);
 }
@@ -272,14 +272,14 @@ TEST_F(ServiceAccountUpdateProfile, target_user_id_changed_again) {
 // 目标用户 ID 已经存在，返回错误码 USER_ID_EXISTS
 TEST_F(ServiceAccountUpdateProfile, target_user_id_exists) {
    // 注册一个用户，确保后续测试有一个有效的目标用户
-    auto [status_signup, response_signup] = SignUp("user_id", "password", "password", "security_question", "security_answer");
+    auto [status_signup, response_signup] = SignUp("value_user_id", "value_password", "value_password", "value_security_question", "value_security_answer");
     EXPECT_TRUE(status_signup.ok());
     EXPECT_EQ(response_signup.result().success_code(), SuccessCode::SUCCESS);
     EXPECT_TRUE(!response_signup.account_id().empty());  // 注册成功应该返回一个非空的 account_id
     std::cout << std::format("Registered request account_id: {}", response_signup.account_id()) << std::endl;
     auto request_account_id = response_signup.account_id();
 
-    auto [status_signup_target, response_signup_target] = SignUp("target_user_id", "password", "password", "security_question", "security_answer");
+    auto [status_signup_target, response_signup_target] = SignUp("value_target_user_id", "value_password", "value_password", "value_security_question", "value_security_answer");
     EXPECT_TRUE(status_signup_target.ok());
     EXPECT_EQ(response_signup_target.result().success_code(), SuccessCode::SUCCESS);
     EXPECT_TRUE(!response_signup_target.account_id().empty());  // 注册成功应该返回一个非空的 account_id
@@ -287,17 +287,17 @@ TEST_F(ServiceAccountUpdateProfile, target_user_id_exists) {
     auto target_account_id = response_signup_target.account_id();
 
     ContactInfo contact_info = ContactInfo{
-        .user_id  = "target_user_id",
-        .nickname = "nickname",
-        .avatar   = "avatar"  ,
-        .sign     = "sign"    ,
+        .user_id  = "value_target_user_id",
+        .nickname = "value_nickname",
+        .avatar   = "value_avatar"  ,
+        .sign     = "value_sign"    ,
         .gender   = 0,
-        .region   = "region"  ,
-        .birthday = "birthday",
+        .region   = "value_region"  ,
+        .birthday = "value_birthday",
         .phones = { "010-12345", "+86 18812341234" },
         .emails = { "example@example.com" },
     };
-    auto [status, response] = UpdateProfile("user_id", "password", "", "", contact_info);
+    auto [status, response] = UpdateProfile("value_user_id", "value_password", "", "", contact_info);
     EXPECT_TRUE(status.ok());
     EXPECT_EQ(response.result().error_code(), ErrorCode::USER_ID_EXISTS);
 }

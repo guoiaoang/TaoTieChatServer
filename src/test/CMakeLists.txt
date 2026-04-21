@@ -24,6 +24,7 @@ set(
         # test_service_account_removecontact # 删除好友关系
         test_service_message_sendmessage     # 发送消息
         test_service_account_updateprofile   # 更新个人资料
+        test_service_account_getsecurityquestion # 获取安全问题
         test_account_service
         test_db_sqlcipher
 )

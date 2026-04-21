@@ -263,7 +263,7 @@ std::tuple<grpc::Status, MessageReply> SendMessage(
 // 未提供目标用户 ID，返回错误码 TARGET_ID_REQUESTED
 TEST_F(ServiceMessageSendMessage, target_user_id_empty) {
     string client_message_id = Utils::generate_message_id();
-    auto [status, response] = SendMessage("user_id", "password", "", "Hello", client_message_id);
+    auto [status, response] = SendMessage("value_user_id", "value_password", "", "Hello", client_message_id);
     EXPECT_TRUE(status.ok());
     EXPECT_EQ(response.result().error_code(), ErrorCode::TARGET_ID_REQUESTED);
 }
@@ -271,14 +271,14 @@ TEST_F(ServiceMessageSendMessage, target_user_id_empty) {
 // 未提供消息内容，返回错误码 CONTEXT_REQUIRED
 TEST_F(ServiceMessageSendMessage, message_context_empty) {
     string client_message_id = Utils::generate_message_id();
-    auto [status, response] = SendMessage("user_id", "password", "target_user_id", "", client_message_id);
+    auto [status, response] = SendMessage("value_user_id", "value_password", "value_target_user_id", "", client_message_id);
     EXPECT_TRUE(status.ok());
     EXPECT_EQ(response.result().error_code(), ErrorCode::CONTEXT_REQUIRED);
 }
 
 // 未提供客户端消息 ID，返回错误码 CLIENT_MESSAGE_ID_REQUIRED
 TEST_F(ServiceMessageSendMessage, client_message_id_missing) {
-    auto [status, response] = SendMessage("user_id", "password", "target_user_id", "Hello", "");
+    auto [status, response] = SendMessage("value_user_id", "value_password", "value_target_user_id", "Hello", "");
     EXPECT_TRUE(status.ok());
     EXPECT_EQ(response.result().error_code(), ErrorCode::CLIENT_MESSAGE_ID_REQUIRED);
 }
@@ -286,7 +286,7 @@ TEST_F(ServiceMessageSendMessage, client_message_id_missing) {
 // 未提供认证信息，返回错误码 AUTH_INFO_NONE
 TEST_F(ServiceMessageSendMessage, auth_info_missing) {
     string client_message_id = Utils::generate_message_id();
-    auto [status, response] = SendMessage("", "", "target_user_id", "Hello", client_message_id);
+    auto [status, response] = SendMessage("", "", "value_target_user_id", "Hello", client_message_id);
     EXPECT_TRUE(status.ok());
     EXPECT_EQ(response.result().error_code(), ErrorCode::AUTH_ID_EMPTY);
 }
@@ -294,7 +294,7 @@ TEST_F(ServiceMessageSendMessage, auth_info_missing) {
 // 错误的用户 ID(认证信息)，返回错误码 USER_ID_NOT_FOUND
 TEST_F(ServiceMessageSendMessage, auth_failed) {
     string client_message_id = Utils::generate_message_id();
-    auto [status, response] = SendMessage("user_id", "wrong_password", "target_user_id", "Hello", client_message_id);
+    auto [status, response] = SendMessage("value_user_id", "value_wrong_password", "value_target_user_id", "Hello", client_message_id);
     EXPECT_TRUE(status.ok());
     EXPECT_EQ(response.result().error_code(), ErrorCode::USER_ID_NOT_FOUND);
 }
@@ -302,7 +302,7 @@ TEST_F(ServiceMessageSendMessage, auth_failed) {
 // 目标用户不存在，返回错误码 TARGET_USER_ID_NOT_FOUND
 TEST_F(ServiceMessageSendMessage, target_user_id_not_found) {
    // 注册一个用户，确保后续测试有一个有效的目标用户
-    auto [status_signup, response_signup] = SignUp("user_id", "password", "password", "security_question", "security_answer");
+    auto [status_signup, response_signup] = SignUp("value_user_id", "value_password", "value_password", "value_security_question", "value_security_answer");
     EXPECT_TRUE(status_signup.ok());
     EXPECT_EQ(response_signup.result().success_code(), SuccessCode::SUCCESS);
     EXPECT_TRUE(!response_signup.account_id().empty());  // 注册成功应该返回一个非空的 account_id
@@ -311,7 +311,7 @@ TEST_F(ServiceMessageSendMessage, target_user_id_not_found) {
 
     // 发送消息
     string client_message_id = Utils::generate_message_id();
-    auto [status, response] = SendMessage("user_id", "password", "nonexistent_user_id", "Hello", client_message_id);
+    auto [status, response] = SendMessage("value_user_id", "value_password", "value_nonexistent_user_id", "Hello", client_message_id);
     EXPECT_TRUE(status.ok());
     EXPECT_EQ(response.result().error_code(), ErrorCode::TARGET_USER_ID_NOT_FOUND);
 }
@@ -319,7 +319,7 @@ TEST_F(ServiceMessageSendMessage, target_user_id_not_found) {
 // 目标用户存在但不是好友关系，返回非好友状态的错误码 (非 ErrorCode::ASSOCIATED)
 TEST_F(ServiceMessageSendMessage, target_user_id_not_contact) {
    // 注册一个用户，确保后续测试有一个有效的目标用户
-    auto [status_signup, response_signup] = SignUp("user_id", "password", "password", "security_question", "security_answer");
+    auto [status_signup, response_signup] = SignUp("value_user_id", "value_password", "value_password", "value_security_question", "value_security_answer");
     EXPECT_TRUE(status_signup.ok());
     EXPECT_EQ(response_signup.result().success_code(), SuccessCode::SUCCESS);
     EXPECT_TRUE(!response_signup.account_id().empty());  // 注册成功应该返回一个非空的 account_id
@@ -327,7 +327,7 @@ TEST_F(ServiceMessageSendMessage, target_user_id_not_contact) {
     auto request_account_id = response_signup.account_id();
 
     // 好友注册
-    auto [status_reciver, response_reciver] = SignUp("receiver_user_id", "password", "password", "security_question", "security_answer");
+    auto [status_reciver, response_reciver] = SignUp("value_receiver_user_id", "value_password", "value_password", "value_security_question", "value_security_answer");
     EXPECT_TRUE(status_reciver.ok());
     EXPECT_EQ(response_reciver.result().success_code(), SuccessCode::SUCCESS);
     EXPECT_TRUE(!response_reciver.account_id().empty());  // 注册成功应该返回一个非空的 account_id
@@ -336,7 +336,7 @@ TEST_F(ServiceMessageSendMessage, target_user_id_not_contact) {
 
     // 发送消息
     string client_message_id = Utils::generate_message_id();
-    auto [status, response] = SendMessage("user_id", "password", "receiver_user_id", "Hello", client_message_id);
+    auto [status, response] = SendMessage("value_user_id", "value_password", "value_receiver_user_id", "Hello", client_message_id);
     EXPECT_TRUE(status.ok());
     EXPECT_NE(response.result().error_code(), ErrorCode::ASSOCIATED); // 不是好友关系
 }
@@ -344,7 +344,7 @@ TEST_F(ServiceMessageSendMessage, target_user_id_not_contact) {
 // 目标用户存在，成功发送消息，返回成功码 SUCCESS
 TEST_F(ServiceMessageSendMessage, send_message_success) {
     // 注册一个用户，确保后续测试有一个有效的目标用户
-    auto [status_signup, response_signup] = SignUp("user_id", "password", "password", "security_question", "security_answer");
+    auto [status_signup, response_signup] = SignUp("value_user_id", "value_password", "value_password", "value_security_question", "value_security_answer");
     EXPECT_TRUE(status_signup.ok());
     EXPECT_EQ(response_signup.result().success_code(), SuccessCode::SUCCESS);
     EXPECT_TRUE(!response_signup.account_id().empty());  // 注册成功应该返回一个非空的 account_id
@@ -352,7 +352,7 @@ TEST_F(ServiceMessageSendMessage, send_message_success) {
     auto request_account_id = response_signup.account_id();
 
     // 好友注册
-    auto [status_reciver, response_reciver] = SignUp("receiver_user_id", "password", "password", "security_question", "security_answer");
+    auto [status_reciver, response_reciver] = SignUp("value_receiver_user_id", "value_password", "value_password", "value_security_question", "value_security_answer");
     EXPECT_TRUE(status_reciver.ok());
     EXPECT_EQ(response_reciver.result().success_code(), SuccessCode::SUCCESS);
     EXPECT_TRUE(!response_reciver.account_id().empty());  // 注册成功应该返回一个非空的 account_id
@@ -360,18 +360,18 @@ TEST_F(ServiceMessageSendMessage, send_message_success) {
     auto receiver_account_id = response_reciver.account_id();
 
     // 申请添加好友
-    auto [status_request, response_request] = ContactRequest("user_id", "password", "receiver_user_id");
+    auto [status_request, response_request] = ContactRequest("value_user_id", "value_password", "value_receiver_user_id");
     EXPECT_TRUE(status_request.ok());
     EXPECT_EQ(response_request.result().success_code(), SuccessCode::SUCCESS);
 
     // 同意添加好友的申请
-    auto [status_reply, response_reply] = ContactReply("receiver_user_id", "password", "user_id", ContactReplyCode::CONTACT_REPLY_ACCEPT);
+    auto [status_reply, response_reply] = ContactReply("value_receiver_user_id", "value_password", "value_user_id", ContactReplyCode::CONTACT_REPLY_ACCEPT);
     EXPECT_TRUE(status_reply.ok());
     EXPECT_EQ(response_reply.result().success_code(), SuccessCode::SUCCESS);
 
     // 发送消息
     string client_message_id = Utils::generate_message_id();
-    auto [status, response] = SendMessage("user_id", "password", "receiver_user_id", "Hello", client_message_id);
+    auto [status, response] = SendMessage("value_user_id", "value_password", "value_receiver_user_id", "Hello", client_message_id);
     EXPECT_TRUE(status.ok());
     EXPECT_EQ(response.result().success_code(), SuccessCode::SUCCESS);  // 成功发送消息
 }
@@ -379,7 +379,7 @@ TEST_F(ServiceMessageSendMessage, send_message_success) {
 // 目标用户已经是好友，重复发送同一条消息，返回错误码 OPERATION_REPEAT(重复的操作)
 TEST_F(ServiceMessageSendMessage, send_message_repeat) {
     // 注册一个用户，确保后续测试有一个有效的目标用户
-    auto [status_signup, response_signup] = SignUp("user_id", "password", "password", "security_question", "security_answer");
+    auto [status_signup, response_signup] = SignUp("value_user_id", "value_password", "value_password", "value_security_question", "value_security_answer");
     EXPECT_TRUE(status_signup.ok());
     EXPECT_EQ(response_signup.result().success_code(), SuccessCode::SUCCESS);
     EXPECT_TRUE(!response_signup.account_id().empty());  // 注册成功应该返回一个非空的 account_id
@@ -387,7 +387,7 @@ TEST_F(ServiceMessageSendMessage, send_message_repeat) {
     auto request_account_id = response_signup.account_id();
 
     // 好友注册
-    auto [status_reciver, response_reciver] = SignUp("receiver_user_id", "password", "password", "security_question", "security_answer");
+    auto [status_reciver, response_reciver] = SignUp("value_receiver_user_id", "value_password", "value_password", "value_security_question", "value_security_answer");
     EXPECT_TRUE(status_reciver.ok());
     EXPECT_EQ(response_reciver.result().success_code(), SuccessCode::SUCCESS);
     EXPECT_TRUE(!response_reciver.account_id().empty());  // 注册成功应该返回一个非空的 account_id
@@ -395,23 +395,23 @@ TEST_F(ServiceMessageSendMessage, send_message_repeat) {
     auto receiver_account_id = response_reciver.account_id();
 
     // 申请添加好友
-    auto [status_request, response_request] = ContactRequest("user_id", "password", "receiver_user_id");
+    auto [status_request, response_request] = ContactRequest("value_user_id", "value_password", "value_receiver_user_id");
     EXPECT_TRUE(status_request.ok());
     EXPECT_EQ(response_request.result().success_code(), SuccessCode::SUCCESS);
 
     // 同意添加好友的申请
-    auto [status_reply, response_reply] = ContactReply("receiver_user_id", "password", "user_id", ContactReplyCode::CONTACT_REPLY_ACCEPT);
+    auto [status_reply, response_reply] = ContactReply("value_receiver_user_id", "value_password", "value_user_id", ContactReplyCode::CONTACT_REPLY_ACCEPT);
     EXPECT_TRUE(status_reply.ok());
     EXPECT_EQ(response_reply.result().success_code(), SuccessCode::SUCCESS);
 
     // 发送消息
     string client_message_id = Utils::generate_message_id();
-    auto [status, response] = SendMessage("user_id", "password", "receiver_user_id", "Hello", client_message_id);
+    auto [status, response] = SendMessage("value_user_id", "value_password", "value_receiver_user_id", "Hello", client_message_id);
     EXPECT_TRUE(status.ok());
     EXPECT_EQ(response.result().success_code(), SuccessCode::SUCCESS);  // 成功发送消息
 
     // 再次发送消息
-    auto [status_repeat, response_repeat] = SendMessage("user_id", "password", "receiver_user_id", "Hello", client_message_id);
+    auto [status_repeat, response_repeat] = SendMessage("value_user_id", "value_password", "value_receiver_user_id", "Hello", client_message_id);
     EXPECT_TRUE(status_repeat.ok());
     EXPECT_EQ(response_repeat.result().error_code(), ErrorCode::DUPLICATE_MESSAGE_ID); // 消息重复发送
 }
