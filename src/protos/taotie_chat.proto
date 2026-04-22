@@ -59,15 +59,16 @@ enum SuccessCode {
 enum ErrorCode {
   // option allow_alias = true;  // 允许不同名但同值的枚举值  // 没有重名会报错
 
+  // 通用错误码  // 0x00000000 - 0x00000FFF
   UNSET                           = 0x00000000;  // 未设置错误码
   UNKNOWN                         = 0x00000001;  // 未知错误
   DEFAULT                         = 0x00000002;  // 未知错误
-  // grpc 相关的错误码
+  // grpc 相关的错误码  // 0x00001001 - 0x00001FFF
   ERROR_INIT                      = 0x00001001;  // 返回初始值
   ERROR_CONN                      = 0x00001002;  // QT 建立连接失败，无法触发 connect 动作
   ERROR_RECV                      = 0x00001003;  // 接收到的数据不完整或解析失败
   ERROR_SEND                      = 0x00001004;  // 发送数据失败
-  // 数据库相关错误码
+  // 数据库相关错误码  // 0x00002001 - 0x00002FFF
   DB_QUERY                        = 0x00002001;  // 数据库查询失败
   DB_QUERY_EMPTY                  = 0x00002002;  // 数据库查询为空
   DB_EXECUTE                      = 0x00002003;  // 数据库命令执行失败
@@ -75,7 +76,7 @@ enum ErrorCode {
   DB_CHECK                        = 0x00002005;  // 数据库数据插入检查失败
   DB_CHECK_EMPTY                  = 0x00002006;  // 数据库数据插入检查为空
   DB_RECORD_NOT_FOUND             = 0x00002007;  // 数据库记录未找到
-  // 状态等相关错误码
+  // 状态等相关错误码  // 0x00003001 - 0x00003FFF
   UNSUPPORTED                     = 0x00003001;  // 不支持的操作
   PENDING                         = 0x00003002;  // 待处理    // 如：好友请求待处理
   ACCEPTED                        = 0x00003003;  // 已接受    // 如：同意添加为好友
@@ -84,70 +85,77 @@ enum ErrorCode {
   BLOCKED                         = 0x00003006;  // 被拉黑    // 如：被对方拉黑
   UNASSOCIATED                    = 0x00003101;  // 未关联    // 如：还不是好友
   ASSOCIATED                      = 0x00003102;  // 已关联    // 如：已经是好友
+  // 单参数  // 0x00011011 - 0x00011FFF
+  USER_ID_ERROR                   = 0x00011011;  //
+  USER_ID_EMPTY                   = 0x00011012;  // 用户 ID 为空
+  USER_ID_NOT_FOUND               = 0x00011013;  // 用户 ID 不存在
+  USER_ID_EXISTS                  = 0x00011014;  // 用户 ID 已存在
+  ACCOUNT_ID_ERROR                = 0x00011021;  //
+  ACCOUNT_ID_EMPTY                = 0x00011022;  //
+  ACCOUNT_ID_NOT_FOUND            = 0x00011023;  //
+  PASSWORD_ERROR                  = 0x00011031;  //
+  PASSWORD_EMPTY                  = 0x00011032;  // 密码为空
+  PASSWORD_NOT_FOUND              = 0x00011033;  //
+  TOKEN_ERROR                     = 0x00011041;  //
+  TOKEN_EMPTY                     = 0x00011042;  // token 为空
+  TOKEN_NOT_FOUND                 = 0x00011043;  //
+  CONFIRM_PASSWORD_ERROR          = 0x00011051;  //
+  CONFIRM_PASSWORD_EMPTY          = 0x00011052;  // 确认密码为空
+  CONFIRM_PASSWORD_NOT_FOUND      = 0x00011053;  //
+  SECURITY_QUESTION_ERROR         = 0x00011061;  //
+  SECURITY_QUESTION_EMPTY         = 0x00011062;  // 安全问题为空
+  SECURITY_QUESTION_NOT_FOUND     = 0x00011063;  //
+  SECURITY_ANSWER_ERROR           = 0x00011071;  //
+  SECURITY_ANSWER_EMPTY           = 0x00011072;  // 安全答案为空
+  SECURITY_ANSWER_NOT_FOUND       = 0x00011073;  //
+  // 目标错误  // 0x00012011 - 0x00012FFF
+  TARGET_USER_ID_ERROR               = 0x00012011;  //
+  TARGET_USER_ID_EMPTY               = 0x00012012;  // 目标用户 ID 为空
+  TARGET_USER_ID_NOT_FOUND           = 0x00012013;  // 目标用户 ID 不存在
+  TARGET_USER_ID_EXISTS              = 0x00012014;  // 目标用户 ID 已存在
+  TARGET_ACCOUNT_ID_ERROR            = 0x00012021;  //
+  TARGET_ACCOUNT_ID_EMPTY            = 0x00012022;  //
+  TARGET_ACCOUNT_ID_NOT_FOUND        = 0x00012023;  //
+  TARGET_PASSWORD_ERROR              = 0x00012031;  //
+  TARGET_PASSWORD_EMPTY              = 0x00012032;  // 密码为空
+  TARGET_PASSWORD_NOT_FOUND          = 0x00012033;  //
+  TARGET_CONFIRM_PASSWORD_ERROR      = 0x00012051;  //
+  TARGET_CONFIRM_PASSWORD_EMPTY      = 0x00012052;  // 确认密码为空
+  TARGET_CONFIRM_PASSWORD_NOT_FOUND  = 0x00012053;  //
+  TARGET_SECURITY_QUESTION_ERROR     = 0x00012061;  //
+  TARGET_SECURITY_QUESTION_EMPTY     = 0x00012062;  // 安全问题为空
+  TARGET_SECURITY_QUESTION_NOT_FOUND = 0x00012063;  //
+  TARGET_SECURITY_ANSWER_ERROR       = 0x00012071;  //
+  TARGET_SECURITY_ANSWER_EMPTY       = 0x00012072;  // 安全答案为空
+  TARGET_SECURITY_ANSWER_NOT_FOUND   = 0x00012073;  //
+  TARGET_GROUP_ID_ERROR              = 0x00012081;  //
+  TARGET_GROUP_ID_EMPTY              = 0x00012082;  //
+  TARGET_GROUP_ID_NOT_FOUND          = 0x00012083;  //
+  // 聊天消息  // 0x00013011 - 0x00013FFF
+  MESSAGE_TEXT_ERROR                 = 0x00013011;  //
+  MESSAGE_TEXT_EMPTY                 = 0x00013012;  //
+  MESSAGE_TEXT_NOT_FOUND             = 0x00013013;  //
+  MESSAGE_FILE_ERROR                 = 0x00013021;  //
+  MESSAGE_FILE_EMPTY                 = 0x00013022;  //
+  MESSAGE_FILE_NOT_FOUND             = 0x00013023;  //
+  MESSAGE_CONTEXT_ERROR              = 0x00013031;  //
+  MESSAGE_CONTEXT_EMPTY              = 0x00013032;  // 消息内容为空
+  MESSAGE_CONTEXT_NOT_FOUND          = 0x00013033;  //
 
-  // 单参数
-  USER_ID_ERROR                   = 0x00010101;  //
-  USER_ID_EMPTY                   = 0x00010102;  // 用户 ID 为空
-  USER_ID_NOT_FOUND               = 0x00010103;  // 用户 ID 不存在
-  USER_ID_EXISTS                  = 0x00010104;  // 用户 ID 已存在
-  ACCOUNT_ID_ERROR                = 0x00010201;  //
-  ACCOUNT_ID_EMPTY                = 0x00010202;  //
-  ACCOUNT_ID_NOT_FOUND            = 0x00010203;  //
-  PASSWORD_ERROR                  = 0x00010301;  //
-  PASSWORD_EMPTY                  = 0x00010302;  // 密码为空
-  PASSWORD_NOT_FOUND              = 0x00010303;  //
-  TOKEN_ERROR                     = 0x00010401;  //
-  TOKEN_EMPTY                     = 0x00010402;  // token 为空
-  TOKEN_NOT_FOUND                 = 0x00010403;  //
-  CONFIRM_PASSWORD_ERROR          = 0x00010501;  //
-  CONFIRM_PASSWORD_EMPTY          = 0x00010502;  // 确认密码为空
-  CONFIRM_PASSWORD_NOT_FOUND      = 0x00010503;  //
-  SECURITY_QUESTION_ERROR         = 0x00010601;  //
-  SECURITY_QUESTION_EMPTY         = 0x00010602;  // 安全问题为空
-  SECURITY_QUESTION_NOT_FOUND     = 0x00010603;  //
-  SECURITY_ANSWER_ERROR           = 0x00010701;  //
-  SECURITY_ANSWER_EMPTY           = 0x00010702;  // 安全答案为空
-  SECURITY_ANSWER_NOT_FOUND       = 0x00010703;  //
-  TARGET_USER_ID_ERROR            = 0x00010801;  //
-  TARGET_USER_ID_EMPTY            = 0x00010802;  // 目标用户 ID 为空
-  TARGET_USER_ID_NOT_FOUND        = 0x00010803;  // 目标用户 ID 不存在
-  TARGET_USER_ID_EXISTS           = 0x00010804;  // 目标用户 ID 已存在
-  TARGET_ACCOUNT_ID_ERROR         = 0x00010901;  //
-  TARGET_ACCOUNT_ID_EMPTY         = 0x00010902;  //
-  TARGET_ACCOUNT_ID_NOT_FOUND     = 0x00010903;  //
-  TARGET_GROUP_ID_ERROR           = 0x00011001;  //
-  TARGET_GROUP_ID_EMPTY           = 0x00011002;  //
-  TARGET_GROUP_ID_NOT_FOUND       = 0x00011003;  //
-  MESSAGE_TEXT_ERROR              = 0x00011101;  //
-  MESSAGE_TEXT_EMPTY              = 0x00011102;  //
-  MESSAGE_TEXT_NOT_FOUND          = 0x00011103;  //
-  MESSAGE_FILE_ERROR              = 0x00011201;  //
-  MESSAGE_FILE_EMPTY              = 0x00011202;  //
-  MESSAGE_FILE_NOT_FOUND          = 0x00011203;  //
-  // 多参
-  DIFF_PASSWORD_WITH_CONFIRM      = 0x00020001;  // 确认密码与密码不一致
-  TARGET_ID_REQUESTED             = 0x00020002;  // 需要目标 ID，但未提供
-  CONTEXT_REQUIRED                = 0x00020003;  // 需要上下文信息，但未提供
-  MESSAGE_CONTEXT_ERROR           = 0x00020101;  //
-  MESSAGE_CONTEXT_EMPTY           = 0x00020102;  // 消息内容为空
-  MESSAGE_CONTEXT_NOT_FOUND       = 0x00020103;  //
-
-  //
-  AUTH_INFO_NONE                  = 0x10010001;  // 没有必要的鉴权信息
+  // 多参 // 0x00021011 - 0x00021FFF
   // 鉴权
-  AUTH_ID_EMPTY                   = 0x10010002;  // ID 为空   // 无 user_id 及 account_id
-  AUTH_METHOD_EMPTY               = 0x10010003;  // 方法为空  // 无 token 及 password
-  AUTH_FAILED                     = 0x10010004;  // 鉴权失败
+  AUTH_INFO_NONE                  = 0x00021011;  // 没有必要的鉴权信息
+  AUTH_ID_EMPTY                   = 0x00021012;  // ID 为空   // 无 user_id 及 account_id
+  AUTH_METHOD_EMPTY               = 0x00021013;  // 方法为空  // 无 token 及 password
+  AUTH_FAILED                     = 0x00021014;  // 鉴权失败
+  DIFF_PASSWORD_WITH_CONFIRM      = 0x00021021;  // 确认密码与密码不一致
+  TARGET_ID_REQUESTED             = 0x00021022;  // 多参 // 发送聊天消息时，需要提供目标 ID，但未提供
+  CONTEXT_REQUIRED                = 0x00021023;  // 多参 // 发送聊天消息时，需要上下文信息，但未提供
 
-  // TODO:待移除
-  // 用户登录相关错误码          // 0x010301DD 输入错误
-  SIGNIN_INVALID_LOGIN_METHOD     = 0x10010101;  // 无效的登录方法
-  // 用户登录相关错误码          // 0x010302DD 结果失败
-  SIGNIN_AUTH_FAILED              = 0x10010102;  // 用户 ID 或密码或 token 等错误导致登录失败  // 请检查登录信息
-  // 客户端消息发送
-  CLIENT_MESSAGE_ID_REQUIRED      = 0x10010103;  // 需要客户端消息 ID，但未提供
-  DUPLICATE_MESSAGE_ID            = 0x10010104;  // 重复的客户端消息 ID
-  FRIEND_REQUEST_NOT_FOUND        = 0x10010105;  // 好友请求未找到
+  // 业务  // 0x00031011 - 0x00031FFF
+  CLIENT_MESSAGE_ID_REQUIRED      = 0x10011011;  // 需要客户端消息 ID，但未提供
+  DUPLICATE_MESSAGE_ID            = 0x10011012;  // 重复的客户端消息 ID
+  FRIEND_REQUEST_NOT_FOUND        = 0x10011013;  // 好友请求未找到
 }
 
 // Result 结果消息
@@ -357,36 +365,37 @@ message GetSecurityQuestionReply {
 // 2, 修改密保信息必须提供密码
 message UpdateSecurityInfoRequest {
   string user_id = 1;  // 必须要知道修改的是哪个用户的安全信息
-  oneof  method {
-    UpdatePasswordByPasswordInfo password_by_password = 2;  // 以账号密码校验的方式修改密码
-    UpdatePasswordBySecurityInfo password_by_security = 3;  // 以安全问题校验的方式修改密码
-    UpdateSecurityBySecurityInfo security_by_security = 4;  // 以安全问题校验的方式修改安全问题
+  oneof old_auth {
+    UpdateSecurityInfoOldSecurityInfo security_info_verify = 2;
+    UpdateSecurityInfoOldPasswordInfo password_verify      = 3;
+  }
+  oneof new_auth {
+    UpdateSecurityInfoNewPasswordInfo password_update      = 4;
+    UpdateSecurityInfoNewSecurityInfo security_info_update = 5;
   }
 }
 
-// 修改密码
-// 1. 只允许以账号密码校验的方式修改密码，不允许使用账号 ID 或 token 的方式修改密码。
-// 2. 即使登陆状态也要验证密码。
-message UpdatePasswordByPasswordInfo {
-  string old_password = 2;  // 旧密码
-  string new_password = 3;  // 新密码
-  string confirm      = 4;  // 确认密码  // 用于客户端
+// 子消息 // 旧认证信息  // 以安全问题校验的方式修改密码或修改安全问题时使用
+message UpdateSecurityInfoOldSecurityInfo {
+    string old_security_question = 1;  // 旧安全问题
+    string old_security_answer   = 2;  // 旧安全答案
 }
 
-// 修改密码  // 以安全问题校验的方式修改密码
-message UpdatePasswordBySecurityInfo {
-  string security_question = 1;  // 安全问题  // 安全问题也要进行校验
-  string security_answer   = 2;  // 安全答案
-  string new_password      = 3;  // 新密码
-  string confirm           = 4;  // 确认密码  // 用于客户端
+// 子消息 // 旧认证信息  // 以账号密码校验的方式修改密码时使用
+message UpdateSecurityInfoOldPasswordInfo {
+    string old_password = 1;  // 旧密码
 }
 
-// 修改安全问题  // 不允许以账号密码校验的方式修改安全问题
-message UpdateSecurityBySecurityInfo {
-  string old_security_question = 1;  // 安全问题  // 安全问题也要进行校验
-  string old_security_answer   = 2;  // 安全答案
-  string new_security_question = 3;  // 新安全问题
-  string new_security_answer   = 4;  // 新安全答案
+// 子消息 // 新认证信息  // 修改密码时使用
+message UpdateSecurityInfoNewPasswordInfo {
+    string new_password = 1;  // 新密码
+    string new_confirm  = 2;  // 新密码确认
+}
+
+// 子消息 // 新认证信息  // 修改安全问题时使用
+message UpdateSecurityInfoNewSecurityInfo {
+    string new_security_question = 1;  // 新安全问题
+    string new_security_answer   = 2;  // 新安全答案
 }
 
 // 更新用户安全信息的结果

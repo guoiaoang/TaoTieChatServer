@@ -99,11 +99,11 @@ TEST_F(ServiceAccountGetSecurityQuestion, user_id_empty) {
     EXPECT_EQ(response.result().error_code(), ErrorCode::USER_ID_EMPTY);
 }
 
-// 错误的用户 ID，返回错误码 SECURITY_QUESTION_NOT_FOUND
+// 错误的用户 ID，返回错误码 USER_ID_NOT_FOUND
 TEST_F(ServiceAccountGetSecurityQuestion, user_id_not_found) {
     auto [status, response] = GetSecurityQuestion("value_user_id");
     EXPECT_TRUE(status.ok());
-    EXPECT_EQ(response.result().error_code(), ErrorCode::SECURITY_QUESTION_NOT_FOUND);
+    EXPECT_EQ(response.result().error_code(), ErrorCode::USER_ID_NOT_FOUND);
 }
 
 // 成功获取安全问题

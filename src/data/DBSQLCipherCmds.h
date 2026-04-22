@@ -432,13 +432,25 @@ namespace SQL{
                 LIMIT 1;
             )";
 
-            // 通过用户 ID 查询安全问题  // 账号停用时返回空，表示失败
-            constexpr std::string_view SQL_QUERY_GET_ACTIVE_USER_SECURITY_QUESTION = R"(
+            // 通过账号 ID 查询安全问题  // 账号停用时返回空，表示失败
+            constexpr std::string_view SQL_QUERY_GET_ACTIVE_ACCOUNT_SECURITY_QUESTION = R"(
                 SELECT  security_question
                 FROM    users
                 WHERE
-                        user_id           = :user_id           -- 用户 ID 匹配
-                    AND status            = 0                  -- 账号状态正常
+                        account_id = :account_id  -- 账号 ID 匹配
+                    AND status     = 0            -- 账号状态正常
+                LIMIT 1;
+            )";
+
+            // 通过账号 ID 校验安全问题和答案  // 账号停用时返回空，表示失败
+            constexpr std::string_view SQL_QUERY_EXIST_ACTIVE_ACCOUNT_SECURITY = R"(
+                SELECT  1
+                FROM    users
+                WHERE
+                        account_id           = :account_id           -- 账号 ID 匹配
+                    AND security_question    = :security_question    -- 安全问题匹配
+                    AND security_answer_hash = :security_answer_hash -- 安全答案匹配
+                    AND status               = 0                     -- 账号状态正常
                 LIMIT 1;
             )";
         }
@@ -544,6 +556,36 @@ namespace SQL{
                        emails     = :emails
                 WHERE  account_id = :account_id;
             )";
+
+            // 使用子语句校验账户 ID 的密码并更新密码哈希
+            constexpr std::string_view SQL_UPDATE_USER_PASSWORD_BY_PASSWORD = R"(
+                UPDATE users
+                SET    password_hash = :new_password_hash
+                WHERE  account_id    = :account_id
+                  AND  password_hash = :old_password_hash
+                  AND  status        = 0; -- 确保账号状态正常，排除冻结或注销的账户
+            )";
+
+            // 使用子语句校验账户 ID 的安全问题并更新密码哈希
+            constexpr std::string_view SQL_UPDATE_USER_PASSWORD_BY_SECURITY = R"(
+                UPDATE users
+                SET    password_hash = :new_password_hash
+                WHERE  account_id    = :account_id
+                  AND  security_question    = :security_question
+                  AND  security_answer_hash = :security_answer_hash
+                  AND  status               = 0; -- 确保账号状态正常，排除冻结或注销的账户
+            )";
+
+             // 使用子语句校验账户 ID 的安全问题并更新用户安全问题和答案
+             constexpr std::string_view SQL_UPDATE_USER_SECURITY_BY_SECURITY = R"(
+                UPDATE users
+                SET    security_question    = :new_security_question,
+                       security_answer_hash = :new_security_answer_hash
+                WHERE  account_id           = :account_id
+                  AND  security_question    = :old_security_question
+                  AND  security_answer_hash = :old_security_answer_hash
+                  AND  status               = 0; -- 确保账号状态正常，排除冻结或注销的账户
+             )";
         }
     }
 }

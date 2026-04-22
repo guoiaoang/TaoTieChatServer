@@ -25,6 +25,7 @@ set(
         test_service_message_sendmessage     # 发送消息
         test_service_account_updateprofile   # 更新个人资料
         test_service_account_getsecurityquestion # 获取安全问题
+        test_service_account_updatesecurityinfo  # 更新安全信息（密码/密保问题和答案）
         test_account_service
         test_db_sqlcipher
 )

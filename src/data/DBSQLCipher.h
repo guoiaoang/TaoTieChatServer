@@ -1630,9 +1630,24 @@ public:
             return error_reply<Reply>(reply, ErrorCode::USER_ID_EMPTY, std::format("User ID is empty."));
         }
         // ============================ 执行操作 ============================ //
-        LOG_ERROR("TODO:get_security_question");
-        auto [success, question] = get_active_user_security_question(request->user_id());
-        if(!success) {
+        // 先转换为账号 ID 再操作
+
+        // 1. 获取用户 ID 是否存在
+        auto user_id = request->user_id();
+        if(user_id.empty()) {
+            return error_reply<Reply>(reply, ErrorCode::USER_ID_EMPTY, std::format("User ID is empty."));
+        }
+        auto [success_account, account_id] = get_active_account_id(user_id);
+        if(!success_account) {
+            return error_reply<Reply>(reply, ErrorCode::DB_QUERY, std::format("Get active account ID error."));
+        }
+        if(account_id.empty()) {
+            return error_reply<Reply>(reply, ErrorCode::USER_ID_NOT_FOUND, std::format("User ID not found."));
+        }
+
+        // 2. 获取安全问题
+        auto [success_question, question] = get_active_account_security_question(account_id);
+        if(!success_question) {
             return error_reply<Reply>(reply, ErrorCode::DB_QUERY, std::format("Get security question error."));
         }
         if(question.empty()) {
@@ -1661,36 +1676,173 @@ public:
         set_error(reply->mutable_result(), ErrorCode::UNKNOWN);
         // ============================ 参数校验 ============================ //
         // ============================ 执行操作 ============================ //
-        LOG_ERROR("TODO:update_security_info");
 
-        request->user_id();
-        if(request->has_password_by_password()) {
-            LOG_ERROR("TODO:update_password_by_password_info");
-            auto pbp = request->password_by_password();
-            pbp.old_password();
-            pbp.new_password();
-            pbp.confirm();
-        }
-        else if(request->has_password_by_security()) {
-            LOG_ERROR("TODO:update_password_by_security_info");
-            auto pbs = request->password_by_security();
-            pbs.security_question();
-            pbs.security_answer();
-            pbs.new_password();
-            pbs.confirm();
-        }
-        else if(request->has_security_by_security()) {
-            LOG_ERROR("TODO:update_security_by_security_info");
-            auto sbs = request->security_by_security();
-            sbs.old_security_question();
-            sbs.old_security_answer();
-            sbs.new_security_question();
-            sbs.new_security_answer();
-        }
-        else {
-            return error_reply<Reply>(reply, ErrorCode::UNSUPPORTED, std::format("Unsupported update security info type."));
+        // 之所以不直接使用子语句，是为了能够返回具体的错误码
+
+        // 1. 验证是否是允许的操作类型
+        auto old_auth_case = request->old_auth_case();
+        auto new_auth_case = request->new_auth_case();
+        auto auth_method_support = [&]() -> bool {
+            // 三种允许的操作
+            // 使用密码进行密码更新
+            ;    if(old_auth_case == Request::kPasswordVerify     && new_auth_case == Request::kPasswordUpdate    ) { return true ; }
+            // 使用安全问题进行密码更新
+            else if(old_auth_case == Request::kSecurityInfoVerify && new_auth_case == Request::kPasswordUpdate    ) { return true ; }
+            // 不允许使用密码进行安全问题更新
+            else if(old_auth_case == Request::kPasswordVerify     && new_auth_case == Request::kSecurityInfoUpdate) { return false; }
+            // 使用安全问题进行安全问题更新
+            else if(old_auth_case == Request::kSecurityInfoVerify && new_auth_case == Request::kSecurityInfoUpdate) { return true ; }
+            else { return false; }
+            return false;
+        };
+        if(!auth_method_support()) {
+            return error_reply<Reply>(reply, ErrorCode::UNSUPPORTED, std::format("Unsupported update type."));
         }
 
+        // 2. 参数的基础校验
+
+        // 2.1. 获取并校验用户 ID 是否为空
+        auto user_id = request->user_id();
+        if(user_id.empty()) {
+            return error_reply<Reply>(reply, ErrorCode::USER_ID_EMPTY, std::format("User ID is empty."));
+        }
+
+        // 2.2. 参数校验
+
+        // 下一步可能用到的变量
+        string old_password;
+        string old_security_question;
+        string old_security_answer;
+        string new_password;
+        string new_confirm ;
+        string new_security_question;
+        string new_security_answer;
+
+        // 2.2.1. 简单校验
+
+        // 2.2.1.1. 身份信息的校验
+        if(old_auth_case == Request::kPasswordVerify) {
+            // 获取验证参数
+            old_password = request->password_verify().old_password();
+            if(old_password.empty()) {
+                return error_reply<Reply>(reply, ErrorCode::PASSWORD_EMPTY, std::format("Old password is empty."));
+            }
+        }
+        else if(old_auth_case == Request::kSecurityInfoVerify) {
+            // 获取验证参数
+            old_security_question = request->security_info_verify().old_security_question();
+            old_security_answer   = request->security_info_verify().old_security_answer();
+            if(old_security_question.empty()) {
+                return error_reply<Reply>(reply, ErrorCode::SECURITY_QUESTION_EMPTY, std::format("Old security question is empty."));
+            }
+            if(old_security_answer.empty()) {
+                return error_reply<Reply>(reply, ErrorCode::SECURITY_ANSWER_EMPTY, std::format("Old security answer is empty."));
+            }
+        }
+
+        // 2.2.1.2. 更新信息的校验
+        if(new_auth_case == Request::kPasswordUpdate) {
+            new_password = request->password_update().new_password();
+            if(new_password.empty()) {
+                return error_reply<Reply>(reply, ErrorCode::TARGET_PASSWORD_EMPTY, std::format("New password is empty."));
+            }
+            new_confirm = request->password_update().new_confirm();
+            if(new_confirm.empty()) {
+                return error_reply<Reply>(reply, ErrorCode::TARGET_CONFIRM_PASSWORD_EMPTY, std::format("New password confirm is empty."));
+            }
+            if(new_password != new_confirm) {
+                return error_reply<Reply>(reply, ErrorCode::DIFF_PASSWORD_WITH_CONFIRM, std::format("New password confirm does not match new password."));
+            }
+        }
+        else if(new_auth_case == Request::kSecurityInfoUpdate) {
+            new_security_question = request->security_info_update().new_security_question();
+            new_security_answer   = request->security_info_update().new_security_answer();
+            if(new_security_question.empty()) {
+                return error_reply<Reply>(reply, ErrorCode::TARGET_SECURITY_QUESTION_EMPTY, std::format("New security question is empty."));
+            }
+            if(new_security_answer.empty()) {
+                return error_reply<Reply>(reply, ErrorCode::TARGET_SECURITY_ANSWER_EMPTY, std::format("New security answer is empty."));
+            }
+        }
+
+        // 2.2.2. 身份信息的校验
+
+        // 先获取账号 ID，后续的操作都基于账号 ID 进行
+        auto [success_account, account_id] = get_active_account_id(user_id);
+        if(!success_account) {
+            return error_reply<Reply>(reply, ErrorCode::DB_QUERY, std::format("Get active account ID error."));
+        }
+        if(account_id.empty()) {
+            return error_reply<Reply>(reply, ErrorCode::USER_ID_NOT_FOUND, std::format("Account ID not found."));
+        }
+
+        if(old_auth_case == Request::kPasswordVerify) {
+            // 使用原先的流程进行密码校验，理论上只能返回 `SuccessCode::SUCCESS` 或 `ErrorCode::PASSWORD_ERROR`
+            shared_ptr<AuthRequest> auth_request = make_shared<AuthRequest>();
+            auth_request->set_user_id(user_id);
+            auth_request->set_password(old_password);
+            auto auth_reply  = auth_check(auth_request);
+            auto&auth_result = auth_reply->result();
+            if(!auth_result.has_success_code()) {
+                return error_reply<Reply>(reply, auth_result.error_code(), auth_result.message());
+            }
+        }
+        else if(old_auth_case == Request::kSecurityInfoVerify) {
+            // 验证安全问题是否一致
+            // 使用已有的接口进行安全问题的获取
+            shared_ptr<AuthRequest> auth_request = make_shared<AuthRequest>();
+            auth_request->set_user_id(user_id);
+            auto security_reply = get_security_question(auth_request);
+            auto db_question = security_reply->question();
+            if(db_question.empty() || old_security_question != db_question) {
+                // 密保问题不一致
+                return error_reply<Reply>(reply, ErrorCode::SECURITY_QUESTION_ERROR, std::format("Security question is incorrect."));
+            }
+
+            // 验证安全答案是否正确
+            auto [success_check_security_answer, result_check_security_answer] = check_active_account_security(account_id, old_security_question, old_security_answer);
+            if(!success_check_security_answer) {
+                return error_reply<Reply>(reply, ErrorCode::DB_QUERY, std::format("Check security answer error."));
+            }
+            if(!result_check_security_answer) {
+                return error_reply<Reply>(reply, ErrorCode::SECURITY_ANSWER_ERROR, std::format("Security answer is incorrect."));
+            }
+        }
+
+        // 2.3. 数据更新
+        // 使用密码进行密码更新
+        ;    if(old_auth_case == Request::kPasswordVerify     && new_auth_case == Request::kPasswordUpdate    ) {
+            // 验证成功后再进行密码更新
+            auto [success_update_password, result_update_password] = update_account_password_by_password(account_id, old_password, new_password);
+            if(!success_update_password || !result_update_password) {
+                return error_reply<Reply>(reply, ErrorCode::DB_EXECUTE, std::format("Update password by password error."));
+            }
+            else {
+                return success_reply<Reply>(reply, SuccessCode::SUCCESS, std::format("Update password by password Successed."));
+            }
+        }
+        // 使用安全问题进行密码更新
+        else if(old_auth_case == Request::kSecurityInfoVerify && new_auth_case == Request::kPasswordUpdate    ) {
+            // 验证成功后再进行密码更新
+            auto [success_update_password, result_update_password] = update_account_password_by_security(account_id, old_security_question, old_security_answer, new_password);
+            if(!success_update_password || !result_update_password) {
+                return error_reply<Reply>(reply, ErrorCode::DB_EXECUTE, std::format("Update password by security info error."));
+            }
+            else {
+                return success_reply<Reply>(reply, SuccessCode::SUCCESS, std::format("Update password by security info Successed."));
+            }
+        }
+        // 使用安全问题进行安全问题更新
+        else if(old_auth_case == Request::kSecurityInfoVerify && new_auth_case == Request::kSecurityInfoUpdate) {
+            // 验证成功后再进行安全问题和答案的更新
+            auto [success_update_security_info, result_update_security_info] = update_account_security_by_security(account_id, old_security_question, old_security_answer, new_security_question, new_security_answer);
+            if(!success_update_security_info || !result_update_security_info) {
+                return error_reply<Reply>(reply, ErrorCode::DB_EXECUTE, std::format("Update security info by security info error."));
+            }
+            else {
+                return success_reply<Reply>(reply, SuccessCode::SUCCESS, std::format("Update security info by security info Successed."));
+            }
+        }
         return error_reply<Reply>(reply, ErrorCode::DEFAULT, std::format("Default error."));
     }
 
@@ -1916,17 +2068,17 @@ private:
         }
         return {false, string{}};
     }
-    // 通过用户 ID 查询安全问题  // 安全问题不允许为空，为空则代表查询失败  // 账号停用时也返回空
-    std::tuple<bool, string> get_active_user_security_question(const string&user_id) {
+    // 通过账号 ID 查询安全问题  // 安全问题不允许为空，为空则代表查询失败  // 账号停用时也返回空
+    std::tuple<bool, string> get_active_account_security_question(const string&account_id) {
         // =========================== 参数校验 =========================== //
-        if(user_id.empty()) {
+        if(account_id.empty()) {
             return {false, string{}};
         }
         // =========================== 执行操作 =========================== //
         // 构造参数
         auto sql_params = make_shared<SqlParams>();
-        (*sql_params)[":user_id"] = user_id;
-        auto sql_result = execute(SQL_QUERY_GET_ACTIVE_USER_SECURITY_QUESTION, sql_params);
+        (*sql_params)[":account_id"] = account_id;
+        auto sql_result = execute(SQL_QUERY_GET_ACTIVE_ACCOUNT_SECURITY_QUESTION, sql_params);
         if(sql_result && sql_result->done) {
             // 查询命令执行成功
             return get_first_string(sql_result->rows, "security_question");
@@ -2054,7 +2206,7 @@ private:
         return {false, false};
     }
     // 获取好友状态。0：非好友，1：好友，2：被对方拉黑了（可能没有这个状态，先预留）
-    std::tuple<bool, int> get_contact_status(const string&request_account_id, const string&target_account_id) {
+    std::tuple<bool, int > get_contact_status(const string&request_account_id, const string&target_account_id) {
         // =========================== 参数校验 =========================== //
         if(request_account_id.empty() || target_account_id.empty()) {
             return {false, -1};
@@ -2071,7 +2223,7 @@ private:
         }
         return {false, -1};
     }
-    std::tuple<bool, int> get_friend_request_status(const string&request_account_id, const string&target_account_id) {
+    std::tuple<bool, int > get_friend_request_status(const string&request_account_id, const string&target_account_id) {
         // =========================== 参数校验 =========================== //
         if(request_account_id.empty() || target_account_id.empty()) {
             return {false, -1};
@@ -2088,6 +2240,23 @@ private:
         }
         return {false, -1};
     }
+    std::tuple<bool, bool> check_active_account_security(const string&account_id, const string&question, const string&answer) {
+        if(account_id.empty() || question.empty() || answer.empty()) {
+            return {false, false};
+        }
+        // =========================== 执行操作 =========================== //
+        // 构造参数
+        auto answer_hash = hash_security_answer(answer);
+        auto sql_params  = make_shared<SqlParams>();
+        (*sql_params)[":account_id"          ] = account_id ;
+        (*sql_params)[":security_question"   ] = question   ;
+        (*sql_params)[":security_answer_hash"] = answer_hash;
+        auto sql_result = execute(SQL_QUERY_EXIST_ACTIVE_ACCOUNT_SECURITY, sql_params);
+        if(sql_result && sql_result->done) {
+            return check_not_empty(sql_result->rows);
+        }
+        return {false, false};
+    };
 
     // ============================== 写数据库 ============================== //
 
@@ -2378,6 +2547,76 @@ private:
         // (*sql_params)[":phones"    ] = !contact.phones_size () ? string{ } : Utils::join(contact.phones(), ";");
         // (*sql_params)[":emails"    ] = !contact.emails_size () ? string{ } : Utils::join(contact.emails(), ";");
         auto sql_result = execute(SQL_UPDATE_USER_PROFILE, sql_params);
+        if(sql_result && sql_result->done) {
+            return {true, true};
+        }
+        return {false, false};
+    }
+
+    // 通过验证账号的旧密码来更新新的密码
+    std::tuple<bool, bool> update_account_password_by_password(const string&account_id, const string&old_password, const string&new_password) {
+        // =========================== 参数校验 =========================== //
+        if(account_id.empty() || old_password.empty() || new_password.empty()) {
+            return {false, false};
+        }
+        // =========================== 执行操作 =========================== //
+        // 构造参数
+        auto old_password_hash = hash_password(old_password);
+        auto new_password_hash = hash_password(new_password);
+        auto sql_params = make_shared<SqlParams>();
+        (*sql_params)[":account_id"       ] = account_id       ;
+        (*sql_params)[":old_password_hash"] = old_password_hash;
+        (*sql_params)[":new_password_hash"] = new_password_hash;
+        auto sql_result = execute(SQL_UPDATE_USER_PASSWORD_BY_PASSWORD, sql_params);
+        if(sql_result && sql_result->done) {
+            return {true, true};
+        }
+        return {false, false};
+    }
+    // 通过验证账号的安全问题来更新新的密码
+    std::tuple<bool, bool> update_account_password_by_security(const string&account_id, const string&question, const string&answer, const string&password) {
+        // =========================== 参数校验 =========================== //
+        if(account_id.empty() || question.empty() || answer.empty() || password.empty()) {
+            return {false, false};
+        }
+        // =========================== 执行操作 =========================== //
+        // 构造参数
+        auto answer_hash   = hash_security_answer(answer);
+        auto password_hash = hash_password(password);
+        auto sql_params    = make_shared<SqlParams>();
+        (*sql_params)[":account_id"          ] = account_id   ;
+        (*sql_params)[":security_question"   ] = question     ;
+        (*sql_params)[":security_answer_hash"] = answer_hash  ;
+        (*sql_params)[":new_password_hash"   ] = password_hash;
+        auto sql_result = execute(SQL_UPDATE_USER_PASSWORD_BY_SECURITY, sql_params);
+        if(sql_result && sql_result->done) {
+            return {true, true};
+        }
+        return {false, false};
+    }
+    // 通过验证账号的安全问题来更新新的安全问题和答案
+    std::tuple<bool, bool> update_account_security_by_security(
+        const string&account_id,
+        const string&old_question, const string&old_answer,
+        const string&new_question, const string&new_answer
+    ) {
+        // =========================== 参数校验 =========================== //
+        if(    account_id  .empty()
+            || old_question.empty() || old_answer.empty()
+            || new_question.empty() || new_answer.empty()) {
+            return {false, false};
+        }
+        // =========================== 执行操作 =========================== //
+        // 构造参数
+        auto old_answer_hash = hash_security_answer(old_answer);
+        auto new_answer_hash = hash_security_answer(new_answer);
+        auto sql_params  = make_shared<SqlParams>();
+        (*sql_params)[":account_id"              ] = account_id     ;
+        (*sql_params)[":old_security_question"   ] = old_question   ;
+        (*sql_params)[":old_security_answer_hash"] = old_answer_hash;
+        (*sql_params)[":new_security_question"   ] = new_question   ;
+        (*sql_params)[":new_security_answer_hash"] = new_answer_hash;
+        auto sql_result = execute(SQL_UPDATE_USER_SECURITY_BY_SECURITY, sql_params);
         if(sql_result && sql_result->done) {
             return {true, true};
         }
