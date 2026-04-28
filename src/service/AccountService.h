@@ -38,7 +38,6 @@ public:
         if(!result) {
             return error_status<Reply>(response, ErrorCode::DB_EXECUTE, std::format("SignUp failed."));
         }
-        // set_success(response, SuccessCode::SUCCESS);
         response->CopyFrom(*result);
         return Status::OK;
     }
@@ -62,7 +61,6 @@ public:
         if(!result) {
             return error_status<Reply>(response, ErrorCode::DB_EXECUTE, std::format("SignIn failed."));
         }
-        // set_success(response, SuccessCode::SUCCESS);
         response->CopyFrom(*result);
         return Status::OK;
     }
@@ -135,7 +133,6 @@ public:
         if(!result) {
             return error_status<Reply>(response, ErrorCode::DB_EXECUTE, std::format("ContactRequest failed."));
         }
-        // set_success(response, SuccessCode::SUCCESS);
         response->CopyFrom(*result);
         return Status::OK;
     }
@@ -159,35 +156,9 @@ public:
         if(!result) {
             return error_status<Reply>(response, ErrorCode::DB_EXECUTE, std::format("ContactReply failed."));
         }
-        // set_success(response, SuccessCode::SUCCESS);
         response->CopyFrom(*result);
         return Status::OK;
     }
-
-    // // 添加联系人
-    // // TODO: 应该由联系人同意后方可完成添加
-    // Status AddContact(ServerContext* context, const AddContactRequest* request, AddContactReply* response) override {
-    //     using Request = AddContactRequest;
-    //     using Reply   = AddContactReply;
-    //     // =========================== 初始化操作 =========================== //
-    //     if(!context || !request || !response) {
-    //         return Status(StatusCode::INTERNAL, std::format("Invalid request or response pointer"));
-    //     }
-    //     log_grpc_context(context);
-    //     response->mutable_request()->CopyFrom(*request);  // 复制请求
-    //     DBSQLCipher& db_sqlcipher = DBSQLCipher::instance();
-    //     shared_ptr<Request> params = make_shared<Request>(*request);
-    //     // =========================== 执行操作 =========================== //
-    //     // 执行添加联系人
-    //     shared_ptr<Reply> result = db_sqlcipher.add_contact(params);
-    //     // 判断结果是否为 nullptr，防止拷贝时崩溃
-    //     if(!result) {
-    //         return error_status<Reply>(response, ErrorCode::DB_EXECUTE, std::format("AddContact failed."));
-    //     }
-    //     // set_success(response, SuccessCode::SUCCESS);
-    //     response->CopyFrom(*result);
-    //     return Status::OK;
-    // }
 
     // 更新用户信息
     Status UpdateProfile(ServerContext* context, const UpdateProfileRequest* request, UpdateProfileReply* response) override {
@@ -208,7 +179,6 @@ public:
         if(!result) {
             return error_status<Reply>(response, ErrorCode::DB_EXECUTE, std::format("UpdateProfile failed."));
         }
-        // set_success(response, SuccessCode::SUCCESS);
         response->CopyFrom(*result);
         return Status::OK;
     }
@@ -232,7 +202,6 @@ public:
         if(!result) {
             return error_status<Reply>(response, ErrorCode::DB_EXECUTE, std::format("GetSecurityQuestion failed."));
         }
-        // set_success(response, SuccessCode::SUCCESS);
         response->CopyFrom(*result);
         return Status::OK;
     }
@@ -257,7 +226,6 @@ public:
         if(!result) {
             return error_status<Reply>(response, ErrorCode::DB_EXECUTE, std::format("UpdateSecurityInfo failed."));
         }
-        // set_success(response, SuccessCode::SUCCESS);
         response->CopyFrom(*result);
         return Status::OK;
     }

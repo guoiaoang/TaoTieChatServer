@@ -29,6 +29,7 @@ tuple<bool, const vector<string>&> store_args(int argc, char** argv);
 
 // ============================== 路径相关 ============================== //
 path app_path();
+path file_path();
 path data_path();
 path logs_path();
 tuple<bool, const path&> mkdir(const path& path);
@@ -40,6 +41,8 @@ string generate_account_id();
 string generate_token();
 // 可包含时间戳，可使用雪花算法等生成，保证全局唯一且有序，便于数据库索引优化和消息排序等
 string generate_message_id();
+// 获取文件 ID // 用于保存文件的 metadata
+string generate_file_id();
 // 计算字符串的 SHA-1 哈希值，返回 40 字符的十六进制字符串
 string sha1(const string& input);
 // 计算字符串的 MD5 哈希值，返回 32 字符的十六进制字符串

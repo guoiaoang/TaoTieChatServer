@@ -74,13 +74,19 @@ path app_path() {
     return app_dir;
 }
 
+path file_path() {
+    // 防止路径冲突，改为放在父目录下的 data 文件夹中
+    // Linux 下生成的可执行文件没有后缀名
+    return app_path().parent_path() / "TaoTie" / "Chat" / "Server";
+}
+
 path data_path() {
-    path data_dir = app_path() / "data";
+    path data_dir = file_path() / "data";
     return data_dir;
 }
 
 path logs_path() {
-    path log_dir = app_path() / "logs";
+    path log_dir = file_path() / "logs";
     return log_dir;
 }
 
@@ -138,6 +144,11 @@ string generate_message_id() {
     // assert(id.version() == uuids::uuid_version::random_number_based);
     // assert(id.variant() == uuids::uuid_variant::rfc);
     return uuids::to_string(stduuid_id);
+}
+
+// 获取文件 ID // 用于保存文件的 metadata
+string generate_file_id() {
+    return to_string(generate_uuid());
 }
 
 // 计算字符串的 SHA-1 哈希值，返回 40 字符的十六进制字符串

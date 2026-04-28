@@ -41,6 +41,7 @@ using Utils::generate_uuid;
 using Utils::generate_account_id;
 using Utils::generate_token;
 using Utils::generate_message_id;
+using Utils::generate_file_id;
 using Utils::current_time_point;
 using Utils::to_utc_string;
 using Utils::split;
@@ -50,7 +51,7 @@ using Utils::error_reply;
 // =========================================================================== //
 
 // 定义一个简单的多类型值容器（C++17）
-using SqlValue  = variant<int, double, string, nullptr_t>;  // 0,1,2,3 分别表示 int、double、string、null
+using SqlValue  = variant<int, int64_t, double, string, nullptr_t>;  // 0,1,2,3 分别表示 int、double、string、null
 using SqlParams = map<string, SqlValue>;  // 参数其实不必保留顺序
 using SqlRow    = map<string, SqlValue>;  // 保留顺序
 using SqlRows   = vector<SqlRow>;  // 保留顺序
@@ -61,6 +62,10 @@ static std::string to_string(const SqlValue& v) {
     return std::visit([](auto&& arg) -> std::string {
         using T = std::decay_t<decltype(arg)>;
         if constexpr (std::is_same_v<T, int>)
+            return std::to_string(arg);
+        if constexpr (std::is_same_v<T, int>)
+            return std::to_string(arg);
+        else if constexpr (std::is_same_v<T, int64_t>)
             return std::to_string(arg);
         else if constexpr (std::is_same_v<T, double>)
             return std::to_string(arg);
@@ -91,6 +96,20 @@ static int get_int(const SqlValue& v, const int default_value = -1) {
     return default_value;
 }
 
+static int64_t get_int64(const SqlValue& v, const int64_t default_value = -1) {
+    if (auto pVal = std::get_if<int64_t>(&v)) {
+        return *pVal; // 提取成功
+    }
+    return default_value;
+}
+
+static double get_double(const SqlValue& v, const double default_value = -1.0) {
+    if (auto pVal = std::get_if<double>(&v)) {
+        return *pVal; // 提取成功
+    }
+    return default_value;
+}
+
 struct SQLResult{
     bool    done = false;  // 仅表示是否执行完成，不代表是否成功
     string  msg ;  // 错误消息
@@ -110,12 +129,7 @@ public:
         return instance;
     }
     ~DBSQLCipher() {
-        // 关闭数据库连接
-        if (m_db_sqlcipher) {
-            sqlite3_close(m_db_sqlcipher);
-            m_db_sqlcipher = nullptr;
-            LOG_INFO("Closed database connection");
-        }
+        database_close(); // 关闭数据库连接
     }
 
 public:
@@ -222,7 +236,7 @@ public:
 
     bool database_initialize() {
         vector<string_view> table_creation_commands = {
-            // SQL_CREATE_TABLE_META         ,
+            // SQL_CREATE_TABLE_META      ,
             SQL_CREATE_TABLE_USERS        ,
             SQL_CREATE_INDEX_ACCOUNT_ID   ,
             SQL_CREATE_INDEX_USER_ID      ,
@@ -231,11 +245,12 @@ public:
             SQL_CREATE_INDEX_TOKEN        ,
             SQL_CREATE_INDEX_USER_SESSIONS,
             //
-            SQL_CREATE_TABLE_FRIENDS ,
-            SQL_CREATE_TABLE_GROUPS  ,
-            SQL_CREATE_TABLE_MESSAGES,
-            SQL_CREATE_TABLE_FRIEND_REQUESTS
+            SQL_CREATE_TABLE_FRIENDS          ,
+            // SQL_CREATE_TABLE_GROUPS        ,
+            SQL_CREATE_TABLE_MESSAGES         ,
             // SQL_CREATE_TABLE_GROUP_MESSAGES,
+            SQL_CREATE_TABLE_FRIEND_REQUESTS  ,
+            SQL_CREATE_TABLE_FILES
         };
         do{
             for(const auto& cmd : table_creation_commands) {
@@ -248,7 +263,7 @@ public:
             }
             LOG_INFO("All tables created successfully");
             return true;
-        }while(false);
+        } while(false);
         return false;
     }
 
@@ -724,6 +739,7 @@ public:
         return error_reply<Reply>(reply, ErrorCode::DEFAULT, std::format("Default error."));
     }
 
+    // 内部使用
     // 密码或 token 验证  // 验证身份并返回 account_id  // 传入 user_id 时进行转换
     shared_ptr<AuthReply> auth_check(shared_ptr<AuthRequest> request) {
         using Request = AuthRequest;
@@ -1167,78 +1183,6 @@ public:
         }
         return error_reply<Reply>(reply, ErrorCode::DEFAULT, std::format("Default error."));
     }
-
-    // // 添加联系人
-    // // TODO: 应该由联系人同意后方可完成添加
-    // shared_ptr<AddContactReply> add_contact(shared_ptr<AddContactRequest> request) {
-    //     using Request  = AddContactRequest;
-    //     using Reply    = AddContactReply;
-    //     // =========================== 初始化操作 =========================== //
-    //     // 复制请求
-    //     shared_ptr<Reply> reply = make_shared<Reply>();
-    //     set_error(reply->mutable_result(), ErrorCode::ERROR_INIT);
-    //     if(!request) {
-    //         return error_reply<Reply>(reply, ErrorCode::ERROR_INIT, std::format("Invalid Param."));
-    //     }
-    //     reply->mutable_request()->CopyFrom(*request.get());
-    //     set_error(reply->mutable_result(), ErrorCode::UNKNOWN);
-    //     // =========================== 参数校验 =========================== //
-    //     // 参数校验
-    //     if(request->target_user_id().empty()) {
-    //         return error_reply<Reply>(reply, ErrorCode::TARGET_USER_ID_EMPTY, std::format("Contact user ID is empty."));
-    //     }
-    //     // =========================== 执行操作 =========================== //
-    //     // 验证鉴权是否成功
-    //     shared_ptr<AuthRequest> auth_request = make_shared<AuthRequest>(request->request_user_auth());
-    //     auto auth_reply  = auth_check(auth_request);
-    //     auto&auth_result = auth_reply->result();
-    //     if(!auth_result.has_success_code()) {
-    //         return error_reply<Reply>(reply, auth_result.error_code(), auth_result.message());
-    //     }
-    //     // 获取当前用户的账号 ID
-    //     auto request_account_id = auth_reply->account_id();
-    //     if(request_account_id.empty()) {
-    //         return error_reply<Reply>(reply, ErrorCode::AUTH_FAILED, std::format("Auth failed to get account_id."));
-    //     }
-    //     // 获取要添加的联系人的账号 ID
-    //     auto target_user_id = request->target_user_id();
-    //     auto [success_get_active_account_id, target_account_id] = get_active_account_id(target_user_id);
-    //     if(!success_get_active_account_id) {
-    //         return error_reply<Reply>(reply, ErrorCode::DB_QUERY, std::format("db get active account id error."));
-    //     }
-    //     if(target_account_id.empty()) {
-    //         return error_reply<Reply>(reply, ErrorCode::TARGET_USER_ID_NOT_FOUND, std::format("Search target user not found."));
-    //     }
-    //     // 先检查是否已经是好友
-    //     auto [success_check_contact, result_check_contact] = get_contact_status(request_account_id, target_account_id);
-    //     if(!success_check_contact) {
-    //         return error_reply<Reply>(reply, ErrorCode::DB_QUERY, std::format("Check contact error."));
-    //     }
-    //     // 判断是否为异常状态  // 已经添加与被拉黑均在这里返回
-    //     auto associated_status = contact_status_to_error_code(result_check_contact);
-    //     if(associated_status != ErrorCode::UNASSOCIATED) {
-    //         return error_reply<Reply>(reply, associated_status, std::format("Contact status error."));
-    //     }
-    //     // 执行添加好友的操作
-    //     auto[success_add_contact, result_add_contact] = add_contact(request_account_id, target_account_id);
-    //     if(!success_add_contact || !result_add_contact) {
-    //         return error_reply<Reply>(reply, ErrorCode::DB_EXECUTE, std::format("Add contact error."));
-    //     }
-    //     // 再次读取好友列表确认添加结果
-    //     auto [success_check_contact_ensure, result_check_contact_ensure] = get_contact_status(request_account_id, target_account_id);
-    //     if(!success_check_contact_ensure) {
-    //         return error_reply<Reply>(reply, ErrorCode::DB_QUERY, std::format("Check contact ensure error."));
-    //     }
-    //     // 返回添加结果
-    //     auto associated_status_ensure = contact_status_to_error_code(result_check_contact_ensure);
-    //     if(associated_status_ensure == ErrorCode::ASSOCIATED) {
-    //         return success_reply<Reply>(reply, SuccessCode::SUCCESS, std::format("Add contact Successed."));
-    //     }
-    //     else {
-    //         return error_reply<Reply>(reply, associated_status_ensure, std::format("Contact status error."));
-    //     }
-    //     return error_reply<Reply>(reply, ErrorCode::DEFAULT, std::format("Default error."));
-    // }
 
     // // 删除联系人
     // shared_ptr<DeleteContactReply> delete_contact(shared_ptr<DeleteContactRequest> request) {
@@ -1846,6 +1790,118 @@ public:
         return error_reply<Reply>(reply, ErrorCode::DEFAULT, std::format("Default error."));
     }
 
+    // GetFileID 获取文件 ID
+    // 亦可验证是否已经上传完成某文件
+    shared_ptr<GetFileIDReply> get_file_id(const shared_ptr<GetFileIDRequest>&request) {
+        using Request = GetFileIDRequest;
+        using Reply   = GetFileIDReply;
+        // =========================== 初始化操作 =========================== //
+        // 用户登录验证，返回是否登录成功
+        // 1. 根据用户 ID 查询用户记录，如果没有找到则返回失败
+        // 2. 如果找到了用户记录则比较密码和安全问题答案，如果匹配则返回成功，否则返回失败
+        shared_ptr<Reply> reply = make_shared<Reply>();
+        set_error(reply->mutable_result(), ErrorCode::ERROR_INIT);
+        if(!request) {
+            return error_reply<Reply>(reply, ErrorCode::ERROR_INIT, std::format("Invalid Param."));
+        }
+        reply->mutable_request()->CopyFrom(*request.get());
+        set_error(reply->mutable_result(), ErrorCode::UNKNOWN);
+        // =========================== 参数校验 =========================== //
+        // =========================== 执行操作 =========================== //
+        // 验证鉴权是否成功
+        shared_ptr<AuthRequest> auth_request = make_shared<AuthRequest>(request->request_user_auth());
+        auto auth_reply  = auth_check(auth_request);
+        auto&auth_result = auth_reply->result();
+        if(!auth_result.has_success_code()) {
+            return error_reply<Reply>(reply, auth_result.error_code(), auth_result.message());
+        }
+        // 获取结果
+        auto account_id = auth_reply->account_id();
+        if(account_id.empty()) {
+            return error_reply<Reply>(reply, ErrorCode::AUTH_FAILED, std::format("Auth failed to get account_id."));
+        }
+
+        // 获取参数
+        auto file_metadata = request->file_metadata();
+        auto file_md5  = file_metadata.file_md5 ();
+        auto file_name = file_metadata.file_name();
+        auto file_size = file_metadata.file_size();
+
+        // 读取记录
+        auto [success_get_file_id, file_id] = get_file_id(account_id, file_name, file_size, file_md5);
+        if(!success_get_file_id) {
+            return error_reply<Reply>(reply, ErrorCode::DB_EXECUTE, std::format("GetFileID failed."));
+        }
+        else {
+            reply->set_file_id(file_id);
+            return success_reply<Reply>(reply, SuccessCode::SUCCESS, std::format("GetFileID Successed."));
+        }
+
+        return error_reply<Reply>(reply, ErrorCode::DEFAULT, std::format("Default error."));
+    }
+
+    // 内部使用
+    // 记录文件的 metadata
+    shared_ptr<GetFileIDReply> write_file_id(const shared_ptr<GetFileIDRequest>&request) {
+        using Request = GetFileIDRequest;
+        using Reply   = GetFileIDReply;
+        // =========================== 初始化操作 =========================== //
+        // 用户登录验证，返回是否登录成功
+        // 1. 根据用户 ID 查询用户记录，如果没有找到则返回失败
+        // 2. 如果找到了用户记录则比较密码和安全问题答案，如果匹配则返回成功，否则返回失败
+        shared_ptr<Reply> reply = make_shared<Reply>();
+        set_error(reply->mutable_result(), ErrorCode::ERROR_INIT);
+        if(!request) {
+            return error_reply<Reply>(reply, ErrorCode::ERROR_INIT, std::format("Invalid Param."));
+        }
+        reply->mutable_request()->CopyFrom(*request.get());
+        set_error(reply->mutable_result(), ErrorCode::UNKNOWN);
+        // =========================== 参数校验 =========================== //
+        // =========================== 执行操作 =========================== //
+        // 验证鉴权是否成功
+        shared_ptr<AuthRequest> auth_request = make_shared<AuthRequest>(request->request_user_auth());
+        auto auth_reply  = auth_check(auth_request);
+        auto&auth_result = auth_reply->result();
+        if(!auth_result.has_success_code()) {
+            return error_reply<Reply>(reply, auth_result.error_code(), auth_result.message());
+        }
+        // 获取结果
+        auto account_id = auth_reply->account_id();
+        if(account_id.empty()) {
+            return error_reply<Reply>(reply, ErrorCode::AUTH_FAILED, std::format("Auth failed to get account_id."));
+        }
+
+        // 获取参数
+        auto file_metadata = request->file_metadata();
+        auto file_md5  = file_metadata.file_md5 ();
+        auto file_name = file_metadata.file_name();
+        auto file_size = file_metadata.file_size();
+
+        // get_new_file_id();
+        auto file_id = Utils::generate_file_id();
+
+        // 读取记录
+        auto [success_write_file_id, result_write_file_id] = write_file_id(account_id, file_id, file_name, file_size, file_md5);
+        if(!success_write_file_id) {
+            return error_reply<Reply>(reply, ErrorCode::DB_EXECUTE, std::format("GetFileID failed."));
+        }
+        else {
+            return success_reply<Reply>(reply, SuccessCode::SUCCESS, std::format("GetFileID Successed."));
+        }
+
+        return error_reply<Reply>(reply, ErrorCode::DEFAULT, std::format("Default error."));
+    }
+
+    // FileUpload 文件上传
+    shared_ptr<FileUploadReply> file_upload(const shared_ptr<FileUploadRequest>&request) {
+        return shared_ptr<FileUploadReply>();
+    }
+
+    // FileDownload 下载文件
+    shared_ptr<FileDownloadReply> file_download(const shared_ptr<FileDownloadRequest>&request) {
+        return shared_ptr<FileDownloadReply>();
+    }
+
 private:
     void set_timestamp(TaoTieChat::Timestamp& timestamp, const std::chrono::system_clock::time_point& time_point) {
         // timestamp.mutable_timestamp()->set_seconds(time_point.time_since_epoch().count() / 1000); // 转换为秒
@@ -2205,6 +2261,24 @@ private:
         }
         return {false, false};
     }
+    // 检查文件 ID 是否已经存在
+    std::tuple<bool, bool> check_exist_file_id(const string&file_id) {
+        // =========================== 参数校验 =========================== //
+        if(file_id.empty()) {
+            return {false, false};
+        }
+        // =========================== 执行操作 =========================== //
+        // 构造参数
+        auto sql_params = make_shared<SqlParams>();
+        (*sql_params)[":file_id"] = file_id;
+        auto sql_result = execute(SQL_QUERY_EXIST_FILE_ID, sql_params);
+        if(sql_result && sql_result->done) {
+            // 查询命令执行成功
+            return check_not_empty(sql_result->rows);
+        }
+        return {false, false};
+    }
+
     // 获取好友状态。0：非好友，1：好友，2：被对方拉黑了（可能没有这个状态，先预留）
     std::tuple<bool, int > get_contact_status(const string&request_account_id, const string&target_account_id) {
         // =========================== 参数校验 =========================== //
@@ -2257,6 +2331,26 @@ private:
         }
         return {false, false};
     };
+    // 获取已经上传文件的文件 ID
+    std::tuple<bool, string> get_file_id(const string& account_id, const string& file_name, int64_t file_size, const string& file_md5) {
+        // =========================== 参数校验 =========================== //
+        if(account_id.empty() || file_name.empty() || file_size <= 0 || file_md5.empty()) {
+            return {false, string{}};
+        }
+        // =========================== 执行操作 =========================== //
+        // 构造参数
+        auto sql_params = make_shared<SqlParams>();
+        (*sql_params)[":account_id"] = account_id;
+        (*sql_params)[":file_name" ] = file_name ;
+        (*sql_params)[":file_size" ] = file_size ;
+        (*sql_params)[":file_md5"  ] = file_md5  ;
+        auto sql_result = execute(SQL_QUERY_GET_ACTIVE_ACCOUNT_FILE_ID, sql_params);
+        if(sql_result && sql_result->done) {
+            // 查询命令执行成功
+            return get_first_string(sql_result->rows, "file_id");
+        }
+        return {false, string{}};
+    }
 
     // ============================== 写数据库 ============================== //
 
@@ -2363,6 +2457,26 @@ private:
             // 账号 ID 存在就继续循环获取新的 ID
         }
         LOG_ERROR("database message_id maybe full.");
+        return {false, string{}};
+    }
+    std::tuple<bool, string> get_new_file_id() {
+        // 循环 1000 次还重复，说明数据库可能存在异常
+        for(int i = 0; i < 1000; ++i) {
+            // 生成 file_id
+            string file_id = generate_file_id();
+            // 文件 ID 不存在时则说明可用
+            auto[success, exist] = check_exist_file_id(file_id);
+            // 查询失败则返回错误
+            if(!success) {
+                return {false, string{}};
+            }
+            // 查询成功且没有该 ID
+            if(!exist) {
+                return {true, file_id};
+            }
+            // 文件 ID 存在就继续循环获取新的 ID
+        }
+        LOG_ERROR("database file_id maybe full.");
         return {false, string{}};
     }
     std::tuple<bool, string> user_register(const string&user_id, const string&password, const string&security_question, const string&security_answer) {
@@ -2476,7 +2590,7 @@ private:
         const string&server_message_id, const string&client_message_id,
         const string&sender_account_id, const string&receiver_account_id,
         const string&short_text, const string&timestamp
-) {
+    ) {
         // =========================== 参数校验 =========================== //
         if( server_message_id.empty() || client_message_id  .empty() ||
             sender_account_id.empty() || receiver_account_id.empty() ||
@@ -2622,6 +2736,27 @@ private:
         }
         return {false, false};
     }
+    std::tuple<bool, bool> write_file_id(const string&account_id, const string&file_id, const string&file_name, const int64_t file_size, const string&file_md5) {
+        // =========================== 参数校验 =========================== //
+        if( account_id.empty() || file_id.empty() || file_name.empty() || file_size < 0 || file_md5.empty()) {
+            return {false, false};
+        }
+        // =========================== 执行操作 =========================== //
+        // 构造参数
+        auto sql_params = make_shared<SqlParams>();
+        (*sql_params)[":account_id" ] = account_id ;
+        (*sql_params)[":file_id"    ] = file_id    ;
+        (*sql_params)[":file_name"  ] = file_name  ;
+        (*sql_params)[":file_size"  ] = file_size  ;
+        (*sql_params)[":file_md5"   ] = file_md5   ;
+        auto sql_result = execute(SQL_INSERT_FILE_METADATA, sql_params);
+        if(sql_result && sql_result->done) {
+            // 查询命令执行成功
+            return {true, true};
+        }
+        return {false, false};
+    }
+
 private:
     path          m_db_path;
     sqlite3*      m_db_sqlcipher = nullptr;

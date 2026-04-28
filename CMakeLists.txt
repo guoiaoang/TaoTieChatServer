@@ -98,12 +98,23 @@ find_package(glog          CONFIG   REQUIRED)
 find_package(GTest         CONFIG   REQUIRED)
 find_package(benchmark     CONFIG   REQUIRED)
 find_package(fmt           CONFIG   REQUIRED)
-find_package(sqlcipher     CONFIG   REQUIRED)
 find_package(nlohmann_json CONFIG   REQUIRED)
 find_package(yaml-cpp      CONFIG   REQUIRED)
 find_package(spdlog        CONFIG   REQUIRED)
 find_package(Boost         CONFIG   REQUIRED   COMPONENTS   uuid)
 find_package(stduuid       CONFIG   REQUIRED)
+
+# ubuntu 上的 sqlcipher 没有 cmake 组件，需要使用 pkg-config 查找
+# WSL:`sudo updatedb --prunepaths="/mnt" && locate sqlcipher | grep -v ^/home/user/workspace`
+if(WIN32)
+    find_package(sqlcipher CONFIG REQUIRED)
+    set(SQLCIPHER_TARGET sqlcipher::sqlcipher)
+else()
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(SQLCIPHER REQUIRED IMPORTED_TARGET sqlcipher)
+    set(SQLCIPHER_TARGET PkgConfig::SQLCIPHER)
+endif()
+
 # find_package(magic_enum  CONFIG   REQUIRED)
 # find_path(CONJURE_ENUM_INCLUDE_DIRS   "fix8/conjure_enum.hpp")
 # ============================= add_executable ============================= #
@@ -124,7 +135,7 @@ target_link_libraries(${PROJECT_NAME}   PRIVATE   glog::glog)
 # target_link_libraries(${PROJECT_NAME} PRIVATE   GTest::gtest GTest::gtest_main)
 # target_link_libraries(${PROJECT_NAME} PRIVATE   benchmark::benchmark benchmark::benchmark_main)
 target_link_libraries(${PROJECT_NAME}   PRIVATE   fmt::fmt)
-target_link_libraries(${PROJECT_NAME}   PRIVATE   sqlcipher::sqlcipher)
+target_link_libraries(${PROJECT_NAME}   PRIVATE   ${SQLCIPHER_TARGET})
 target_link_libraries(${PROJECT_NAME}   PRIVATE   nlohmann_json::nlohmann_json)
 target_link_libraries(${PROJECT_NAME}   PRIVATE   yaml-cpp::yaml-cpp)
 target_link_libraries(${PROJECT_NAME}   PRIVATE   spdlog::spdlog)
@@ -152,7 +163,6 @@ target_link_libraries(${PROJECT_NAME} PRIVATE lib_proto_taotie_chat)
 
 # 添加测试子目录
 add_subdirectory(src/test)
-# add_subdirectory(src/test/server)
 
 # =============================== 安装打包 =============================== #
 

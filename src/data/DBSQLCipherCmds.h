@@ -335,6 +335,33 @@ namespace SQL{
                     common             TEXT
                 );
             )";
+
+            // 文件 metadata 表，包含唯一的文件 ID、账号 ID、文件名、文件大小、文件内容的 MD5
+            constexpr std::string_view SQL_CREATE_TABLE_FILES = R"(
+                CREATE TABLE IF NOT EXISTS files (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    -- file_id 文件 ID，唯一，注册时由系统生成，不可被用户修改，销号时不回收
+                    file_id    TEXT NOT NULL UNIQUE,
+
+                    -- account_id 账号 ID，文件所属的账号 ID
+                    account_id TEXT NOT NULL,
+
+                    -- file_name 文件名，包含扩展名
+                    file_name   TEXT NOT NULL,
+
+                    -- file_size 文件大小，单位字节
+                    file_size   INTEGER NOT NULL,
+
+                    -- file_md5 文件内容的 MD5 哈希值，用于校验文件完整性和去重
+                    file_md5   TEXT NOT NULL,
+
+                    -- upload_time 文件上传时间戳
+                    upload_time DATETIME DEFAULT (datetime('now')),
+
+                    -- common 通用字段
+                    common      TEXT
+                );
+            )";
         }
 
         // 在有索引的情况下，SQL 多条件查找会先过滤前面的条件，
@@ -372,6 +399,9 @@ namespace SQL{
             constexpr std::string_view SQL_QUERY_EXIST_SERVER_MESSAGE_ID = R"(SELECT 1 FROM   messages WHERE  server_message_id = :message_id LIMIT 1; )";
             // 检查客户端生成的消息 ID(client_message_id) 是否存在
             constexpr std::string_view SQL_QUERY_EXIST_CLIENT_MESSAGE_ID = R"(SELECT 1 FROM   messages WHERE  client_message_id = :message_id AND sender_account_id = :sender_account_id LIMIT 1; )";
+
+            // 检查文件 ID 是否已经存在
+            constexpr std::string_view SQL_QUERY_EXIST_FILE_ID           = R"(SELECT 1 FROM   files    WHERE  file_id = :file_id LIMIT 1; )";
 
             // 校验用户注册是否成功/一致
             constexpr std::string_view SQL_QUERY_CHECK_REGISTER = R"(
@@ -453,6 +483,18 @@ namespace SQL{
                     AND status               = 0                     -- 账号状态正常
                 LIMIT 1;
             )";
+
+            // 查询账号 ID 下是否存在文件 metadata 和 MD5 匹配的记录
+            constexpr std::string_view SQL_QUERY_GET_ACTIVE_ACCOUNT_FILE_ID = R"(
+                SELECT file_id
+                FROM   files
+                WHERE
+                        account_id = :account_id  -- 账号 ID 匹配
+                    AND file_name  = :file_name   -- 文件名匹配
+                    AND file_size  = :file_size   -- 文件大小匹配
+                    AND file_md5   = :file_md5    -- 文件 MD5 匹配
+                LIMIT 1;
+            )";
         }
 
         // 插入
@@ -502,11 +544,17 @@ namespace SQL{
                 );
             )";
 
-             // 写入短消息记录
-             constexpr std::string_view SQL_INSERT_SHORT_MESSAGE = R"(
-                INSERT INTO messages ( server_message_id,  client_message_id,  sender_account_id,  receiver_account_id,  short_text,  timestamp)
-                VALUES               (:server_message_id, :client_message_id, :sender_account_id, :receiver_account_id, :short_text, :timestamp);
-             )";
+            // 写入短消息记录
+            constexpr std::string_view SQL_INSERT_SHORT_MESSAGE = R"(
+            INSERT INTO messages ( server_message_id,  client_message_id,  sender_account_id,  receiver_account_id,  short_text,  timestamp)
+            VALUES               (:server_message_id, :client_message_id, :sender_account_id, :receiver_account_id, :short_text, :timestamp);
+            )";
+
+            // 写入文件 metadata 记录
+            constexpr std::string_view SQL_INSERT_FILE_METADATA = R"(
+                INSERT INTO files ( file_id,  account_id,  file_name,  file_size,  file_md5,  upload_time    )
+                VALUES            (:file_id, :account_id, :file_name, :file_size, :file_md5,  datetime('now'));
+            )";
         }
 
         // 更新

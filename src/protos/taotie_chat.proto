@@ -553,46 +553,100 @@ message MessageRequest {
 
 // ==============================  FileService  ============================== //
 
-// 客户端上传文件时，先由客户端申请一个有有效期的文件上传 ID，ID 不存在则禁止上传。
-// 申请上传 ID 需要在各个组件中进行。
-
-// 记录是谁因为什么上传的文件，防止文件上传后无法关联到消息或用户等信息，导致垃圾文件的产生。
-
-// 文件上传状态响应
+// 文件上传接口
+// metadata 与文件内容分开存储，防止相同文件不同 metadata 导致显示相同的异常问题。
+// 上传时校验 metadata 及 md5 是否已存在，md5 存在但 metadata 不同时则只需上传新的 metadata，并生成新的文件 ID。
+// 存储时与用户关联，防止非法访问其他用户的文件。
+// 相同 metadata 可能是不同的文件内容，相同的 md5 可能是不同的 metadata。
+// md5 暂且认为不会冲突。
 service FileService {
+  // GetFileID 获取文件 ID
+  // 只校验，不更新
+  rpc GetFileID(GetFileIDRequest) returns (GetFileIDReply) {}
+  // FileUpload 上传文件
   // 客户端流式上传
-  // FileUpload 上传文件。
-  rpc FileUpload(stream FileContent) returns (FileReply);
-  // FileDownload 下载文件。
-  rpc FileDownload(FileRequest) returns (stream FileContent);
+  // 上传完成后获取文件的 ID，文件 ID 中主要关联了文件的 metadata
+  rpc FileUpload(stream FileUploadRequest) returns (FileUploadReply);
+  // FileDownload 下载文件
+  // 通过文件 ID 获取不同的 metadata 和文件内容
+  rpc FileDownload(FileDownloadRequest) returns (stream FileDownloadReply);
 }
 
-// 文件上传请求
-message FileContent {
-  oneof data {
-    FileMetadata metadata   = 1;  // 第一条消息发送元数据（文件名、哈希等）
-    bytes        chunk_data = 2;  // 后续消息发送文件碎片
-  }
+// 获取文件上传状态 (是否已上传完成)，仅读取 md5
+message GetFileIDRequest {
+  optional  AuthRequest  request_user_auth = 1;  // 鉴权
+            FileMetadata file_metadata     = 2;  // 文件元数据
 }
 
 // 文件元数据
 message FileMetadata {
-  string file_id   = 1;
-  string filename  = 2;
+  string file_md5  = 1;
+  string file_name = 2;
   int64  file_size = 3;
 }
 
-message FileReply {
-  optional  FileMetadata metadata    = 1;  // 第一条消息发送元数据（文件名、哈希等）
-            Result       result      = 2;  // 状态信息字段
-            int32        status_code = 3;  // 状态码
-            string       file_id     = 4;
-            string       message     = 5;  // 可选的错误消息字段
+// 获取文件上传结果
+message GetFileIDReply {
+  optional  GetFileIDRequest request         = 1;
+            Result           result          = 2;  // 状态信息字段
+            string           file_id         = 3;  // 文件 ID
+            string           message         = 4;  // 可选的错误消息字段
 }
 
-message FileRequest {
+// 是谁因为什么原因要上传什么文件，以便后续关联消息等信息，防止垃圾文件的产生。
+message FileUploadRequest {
+  oneof data {
+    FileUploadHeader header = 1;  // 第一条消息发送文件上传头信息（包含鉴权和文件元数据）
+    FileChunkData    chunk  = 2;  // 后续消息发送文件碎片数据
+  }
+}
+
+// 文件上传头信息
+// 1. 鉴权信息：可用于防止非法访问
+// 2. 文件元数据：用于关联文件 ID
+// 3. 上传原因：用于记录文件上传的目的，便于垃圾清理。
+message FileUploadHeader {
   optional  AuthRequest  request_user_auth = 1;  // 鉴权
-  optional  FileMetadata metadata          = 2;  // 第一条消息发送元数据（文件名、哈希等）
+            FileMetadata file_metadata     = 2;  // 文件元数据
+            string       reason            = 3;  // 上传原因
+}
+
+// 文件上传的数据部分
+message FileChunkData {
+  bytes chunk_data = 1;  // 文件碎片数据
+  // message chunk_info {
+  //   int64 file_size    = 2;  // 文件总大小，用于校验上传完成
+  //   int64 offset       = 3;  // 文件碎片在整个文件中的偏移位置
+  //   int64 chunk_size   = 4;  // 当前碎片的大小
+  //   int32 chunk_index  = 5;  // 当前碎片的索引，从 0 开始
+  //   int32 total_chunks = 6;  // 碎片总数
+  //   string file_md5    = 7;  // 文件 MD5，用于校验上传完成
+  //   string chunk_md5   = 8;  // 当前碎片的 MD5，用于校验碎片数据的完整性
+  // }
+}
+
+message FileUploadReply {
+  optional  FileUploadRequest request = 1;  // 可选的原始请求信息字段
+            Result            result  = 2;  // 状态信息字段
+            string            file_id = 3;  // 上传完成后返回的文件 ID
+            string            message = 4;  // 可选的错误消息字段
+}
+
+message FileDownloadRequest {
+  optional  AuthRequest  request_user_auth = 1;  // 鉴权
+            string       file_id           = 2;  // 文件 ID
+}
+
+message FileDownloadReply {
+  oneof data {
+    FileDownloadHeader header = 1;  // 第一条消息发送文件元数据（文件名、哈希等）
+    FileChunkData      chunk  = 2;  // 后续消息发送文件碎片数据
+  }
+}
+
+message FileDownloadHeader {
+  optional  FileDownloadRequest  request       = 1;  // 鉴权
+            FileMetadata         file_metadata = 2;  // 文件元数据
 }
 
 // =========================================================================== //

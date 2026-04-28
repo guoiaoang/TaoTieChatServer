@@ -30,10 +30,12 @@ int main(int argc, char** argv) {
         LOG_TRACE("  argv[{}]: {}", i, argv[i]);
     }
 
-    // 设置数据路径为程序所在路径的父目录下的 data 文件夹
-    std::filesystem::path app_dir = Utils::app_path();
-    std::filesystem::path data_dir = app_dir / "data";
-    Utils::mkdir(data_dir);
+    std::filesystem::path data_dir = Utils::file_path() / "data";
+    auto [success, path_data] = Utils::mkdir(data_dir);
+    if(!success) {
+        LOG_ERROR("Failed to create data directory: {}", path_data.string());
+        return 0;
+    }
 
     // 初始化数据库连接
     const std::filesystem::path db_path = data_dir / "taotie_chat_server.db";
@@ -92,6 +94,14 @@ int main(int argc, char** argv) {
 }
 
 bool initialize_spdlog() {
+    // 设置日志目录
+    std::filesystem::path log_dir = Utils::logs_path();
+    auto [success, path_log] = Utils::mkdir(log_dir);
+    if(!success) {
+        LOG_ERROR("Failed to create log directory: {}", path_log.string());
+        return false;
+    }
+
     // spdlog 初始化
 
     // [%n:multi_sink][%l%:info][%P:22392-%t:18300]
@@ -111,10 +121,6 @@ bool initialize_spdlog() {
                 stdout_sink->log(msg);
             }
         });
-
-    // 设置日志目录
-    std::filesystem::path log_dir = Utils::logs_path();
-    Utils::mkdir(log_dir);
 
     // 创建按日期轮转的文件 sink
     // auto file_sink = std::make_shared<spdlog::sinks::rotating_file_sink_mt>("logs/log.txt", 1024*1024*500, 3);  // 500MB, 3 个文件

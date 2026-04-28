@@ -3,23 +3,70 @@
     "configurePresets": [
         {
             "name": "base-msvs2022-vcpkg",
+            "condition":
+            {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Windows"
+            },
             "hidden": true,
             "generator": "Visual Studio 17 2022",
             "binaryDir": "${sourceDir}/out/build/${presetName}",
             "installDir": "${sourceDir}/out/install/${presetName}",
-            "toolchainFile": "C:/a/t/vcpkg/scripts/buildsystems/vcpkg.cmake",
+            "toolchainFile": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
             "architecture": "x64",
             "environment": {
-                "VCPKG_ROOT": "C:/a/t/vcpkg"
+                "VCPKG_ROOT": "C:/app/dev/vcpkg"
             },
             "cacheVariables": {
                 "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/${presetName}",
-                "CMAKE_TOOLCHAIN_FILE": "C:/a/t/vcpkg/scripts/buildsystems/vcpkg.cmake",
+                "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
                 "BUILD_TESTING": "ON"
             }
         },
         {
+            "name": "base-linux-ninja-vcpkg",
+            "condition":
+            {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Linux"
+            },
+            "hidden": true,
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/out/build/${presetName}",
+            "installDir": "${sourceDir}/out/install/${presetName}",
+            "toolchainFile": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
+            "environment": {
+                "VCPKG_ROOT": "$penv{HOME}/workspace/tools/vcpkg",
+                "PATH": "/home/linuxbrew/.linuxbrew/opt/binutils/bin:/home/linuxbrew/.linuxbrew/bin:$penv{PATH}",
+                "CC": "/home/linuxbrew/.linuxbrew/bin/gcc-15",
+                "CXX": "/home/linuxbrew/.linuxbrew/bin/g++-15",
+                "PKG_CONFIG_PATH": "/home/linuxbrew/.linuxbrew/opt/sqlcipher/lib/pkgconfig:$penv{PKG_CONFIG_PATH}",
+                "COMPILER_PATH": "/home/linuxbrew/.linuxbrew/opt/binutils/bin:$penv{COMPILER_PATH}",
+                "LD_LIBRARY_PATH": "/home/linuxbrew/.linuxbrew/lib/gcc/current:/home/linuxbrew/.linuxbrew/lib:$penv{LD_LIBRARY_PATH}"
+            },
+            "cacheVariables": {
+                "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/${presetName}",
+                "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
+                "CMAKE_C_COMPILER": "/home/linuxbrew/.linuxbrew/bin/gcc-15",
+                "CMAKE_CXX_COMPILER": "/home/linuxbrew/.linuxbrew/bin/g++-15",
+                "PKG_CONFIG_EXECUTABLE": "/home/linuxbrew/.linuxbrew/bin/pkg-config",
+                "BUILD_TESTING": "ON",
+                "VCPKG_INSTALL_OPTIONS": "--allow-unsupported",
+                "CMAKE_MAKE_PROGRAM": "/home/linuxbrew/.linuxbrew/bin/ninja"
+                ,
+                    "VCPKG_OVERLAY_PORTS": "${sourceDir}/vcpkg-overlays"
+            }
+        },
+        {
             "name": "msvs2022x64_vcpkg_debug",
+            "condition":
+            {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Windows"
+            },
             "inherits": "base-msvs2022-vcpkg",
             "displayName": "Microsoft Visual Studio 2022 x64 + vcpkg for debug config",
             "description": "Microsoft Visual Studio 2022 x64 + vcpkg for debug",
@@ -30,9 +77,47 @@
         },
         {
             "name": "msvs2022x64_vcpkg_release",
+            "condition":
+            {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Windows"
+            },
             "inherits": "base-msvs2022-vcpkg",
             "displayName": "Microsoft Visual Studio 2022 x64 + vcpkg for release config",
             "description": "Microsoft Visual Studio 2022 x64 + vcpkg for release",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release",
+                "CPACK_PACKAGE_FILE_NAME": "TaoTieChatServer"
+            }
+        },
+        {
+            "name": "linux_ninja_vcpkg_debug",
+            "condition":
+            {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Linux"
+            },
+            "inherits": "base-linux-ninja-vcpkg",
+            "displayName": "linux ninja + vcpkg for debug config",
+            "description": "linux ninja + vcpkg for debug",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "CPACK_PACKAGE_FILE_NAME": "TaoTieChatServer"
+            }
+        },
+        {
+            "name": "linux_ninja_vcpkg_release",
+            "condition":
+            {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Linux"
+            },
+            "inherits": "base-linux-ninja-vcpkg",
+            "displayName": "linux ninja + vcpkg for release config",
+            "description": "linux ninja + vcpkg for release",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Release",
                 "CPACK_PACKAGE_FILE_NAME": "TaoTieChatServer"
@@ -42,6 +127,12 @@
     "buildPresets": [
         {
             "name": "msvs2022x64_vcpkg_debug",
+            "condition":
+            {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Windows"
+            },
             "description": "Microsoft Visual Studio 2022 x64 + vcpkg for debug build",
             "displayName": "Microsoft Visual Studio 2022 x64 + vcpkg for debug",
             "configurePreset": "msvs2022x64_vcpkg_debug",
@@ -49,6 +140,12 @@
         },
         {
             "name": "msvs2022x64_vcpkg_release",
+            "condition":
+            {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Windows"
+            },
             "description": "Microsoft Visual Studio 2022 x64 + vcpkg for release build",
             "displayName": "Microsoft Visual Studio 2022 x64 + vcpkg for release",
             "configurePreset": "msvs2022x64_vcpkg_release",
@@ -56,6 +153,12 @@
         },
         {
             "name": "msvs2022x64_vcpkg_debug_install",
+            "condition":
+            {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Windows"
+            },
             "description": "Install build artifacts for debug",
             "displayName": "Install target for debug",
             "configurePreset": "msvs2022x64_vcpkg_debug",
@@ -66,9 +169,73 @@
         },
         {
             "name": "msvs2022x64_vcpkg_release_install",
+            "condition":
+            {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Windows"
+            },
             "description": "Install build artifacts for release",
             "displayName": "Install target for release",
             "configurePreset": "msvs2022x64_vcpkg_release",
+            "configuration": "Release",
+            "targets": [
+                "install"
+            ]
+        },
+        {
+            "name": "linux_ninja_vcpkg_debug",
+            "condition":
+            {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Linux"
+            },
+            "description": "linux ninja + vcpkg for debug build",
+            "displayName": "linux ninja + vcpkg for debug",
+            "configurePreset": "linux_ninja_vcpkg_debug",
+            "configuration": "Debug"
+        },
+        {
+            "name": "linux_ninja_vcpkg_release",
+            "condition":
+            {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Linux"
+            },
+            "description": "linux ninja + vcpkg for release build",
+            "displayName": "linux ninja + vcpkg for release",
+            "configurePreset": "linux_ninja_vcpkg_release",
+            "configuration": "Release"
+        },
+        {
+            "name": "linux_ninja_vcpkg_debug_install",
+            "condition":
+            {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Linux"
+            },
+            "description": "Install build artifacts for debug",
+            "displayName": "Install target for debug",
+            "configurePreset": "linux_ninja_vcpkg_debug",
+            "configuration": "Debug",
+            "targets": [
+                "install"
+            ]
+        },
+        {
+            "name": "linux_ninja_vcpkg_release_install",
+            "condition":
+            {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Linux"
+            },
+            "description": "Install build artifacts for release",
+            "displayName": "Install target for release",
+            "configurePreset": "linux_ninja_vcpkg_release",
             "configuration": "Release",
             "targets": [
                 "install"
@@ -78,6 +245,12 @@
     "testPresets": [
         {
             "name": "msvs2022x64_vcpkg_debug",
+            "condition":
+            {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Windows"
+            },
             "displayName": "CTest Debug",
             "description": "Run tests in debug build tree",
             "configurePreset": "msvs2022x64_vcpkg_debug",
@@ -89,9 +262,49 @@
         },
         {
             "name": "msvs2022x64_vcpkg_release",
+            "condition":
+            {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Windows"
+            },
             "displayName": "CTest Release",
             "description": "Run tests in release build tree",
             "configurePreset": "msvs2022x64_vcpkg_release",
+            "configuration": "Release",
+            "execution": {
+                "stopOnFailure": false,
+                "noTestsAction": "ignore"
+            }
+        },
+        {
+            "name": "linux_ninja_vcpkg_debug",
+            "condition":
+            {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Linux"
+            },
+            "displayName": "CTest Debug",
+            "description": "Run tests in debug build tree",
+            "configurePreset": "linux_ninja_vcpkg_debug",
+            "configuration": "Debug",
+            "execution": {
+                "stopOnFailure": false,
+                "noTestsAction": "ignore"
+            }
+        },
+        {
+            "name": "linux_ninja_vcpkg_release",
+            "condition":
+            {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Linux"
+            },
+            "displayName": "CTest Release",
+            "description": "Run tests in release build tree",
+            "configurePreset": "linux_ninja_vcpkg_release",
             "configuration": "Release",
             "execution": {
                 "stopOnFailure": false,
@@ -102,6 +315,12 @@
     "packagePresets": [
         {
             "name": "msvs2022x64_vcpkg_debug",
+            "condition":
+            {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Windows"
+            },
             "description": "Microsoft Visual Studio 2022 x64 + vcpkg for debug package",
             "displayName": "Microsoft Visual Studio 2022 x64 + vcpkg for debug",
             "configurePreset": "msvs2022x64_vcpkg_debug",
@@ -114,6 +333,12 @@
         },
         {
             "name": "msvs2022x64_vcpkg_release",
+            "condition":
+            {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Windows"
+            },
             "description": "Microsoft Visual Studio 2022 x64 + vcpkg for release package",
             "displayName": "Microsoft Visual Studio 2022 x64 + vcpkg for release",
             "configurePreset": "msvs2022x64_vcpkg_release",
@@ -122,6 +347,50 @@
             ],
             "generators": [
                 "ZIP"
+            ]
+        },
+        {
+            "$comment": [
+                "需要的依赖未完整包含，因此暂不启用。"
+            ],
+            "name": "linux_ninja_vcpkg_debug",
+            "hidden": true,
+            "condition":
+            {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Linux"
+            },
+            "description": "linux ninja + vcpkg for debug package",
+            "displayName": "linux ninja + vcpkg for debug",
+            "configurePreset": "linux_ninja_vcpkg_debug",
+            "configurations": [
+                "Debug"
+            ],
+            "generators": [
+                "TGZ"
+            ]
+        },
+        {
+            "$comment": [
+                "需要的依赖未完整包含，因此暂不启用。"
+            ],
+            "name": "linux_ninja_vcpkg_release",
+            "hidden": true,
+            "condition":
+            {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Linux"
+            },
+            "description": "linux ninja + vcpkg for release package",
+            "displayName": "linux ninja + vcpkg for release",
+            "configurePreset": "linux_ninja_vcpkg_release",
+            "configurations": [
+                "Release"
+            ],
+            "generators": [
+                "TGZ"
             ]
         }
     ],
@@ -177,6 +446,66 @@
                 {
                     "type": "package",
                     "name": "msvs2022x64_vcpkg_release"
+                }
+            ]
+        },
+        {
+            "$comment": [
+                "需要的依赖未完整包含，因此暂不启用。"
+            ],
+            "name": "linux_ninja_vcpkg_debug",
+            "description": "linux ninja + vcpkg for debug workflow",
+            "displayName": "linux ninja + vcpkg for debug",
+            "steps": [
+                {
+                    "type": "configure",
+                    "name": "linux_ninja_vcpkg_debug"
+                },
+                {
+                    "type": "build",
+                    "name": "linux_ninja_vcpkg_debug"
+                },
+                {
+                    "type": "test",
+                    "name": "linux_ninja_vcpkg_debug"
+                },
+                {
+                    "type": "build",
+                    "name": "linux_ninja_vcpkg_debug_install"
+                },
+                {
+                    "type": "package",
+                    "name": "linux_ninja_vcpkg_debug"
+                }
+            ]
+        },
+        {
+            "$comment": [
+                "需要的依赖未完整包含，因此暂不启用。"
+            ],
+            "name": "linux_ninja_vcpkg_release",
+            "description": "linux ninja + vcpkg for release workflow",
+            "displayName": "linux ninja + vcpkg for release",
+            "steps": [
+                {
+                    "type": "configure",
+                    "name": "linux_ninja_vcpkg_release"
+                },
+                {
+                    "type": "build",
+                    "name": "linux_ninja_vcpkg_release"
+                },
+                {
+                    "type": "test",
+                    "name": "linux_ninja_vcpkg_release"
+                },
+                {
+                    "type": "build",
+                    "name": "linux_ninja_vcpkg_release_install"
+                },
+                {
+                    "type": "package",
+                    "name": "linux_ninja_vcpkg_release"
                 }
             ]
         }

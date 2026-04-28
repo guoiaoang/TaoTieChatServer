@@ -39,7 +39,6 @@ public:
         if(!result) {
             return error_status<Reply>(response, ErrorCode::DB_EXECUTE, std::format("GetStatus failed."));
         }
-        // set_success(response, SuccessCode::SUCCESS);
         response->CopyFrom(*result);
         return Status::OK;
     }

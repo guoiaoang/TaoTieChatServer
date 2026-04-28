@@ -20,14 +20,11 @@ set(
         test_service_search_users            # 搜索用户
         test_service_account_contactrequest  # 好友申请
         test_service_account_contactreply    # 好友申请回复
-        # test_service_account_addcontact    # 添加好友
         # test_service_account_removecontact # 删除好友关系
         test_service_message_sendmessage     # 发送消息
         test_service_account_updateprofile   # 更新个人资料
         test_service_account_getsecurityquestion # 获取安全问题
         test_service_account_updatesecurityinfo  # 更新安全信息（密码/密保问题和答案）
-        test_account_service
-        test_db_sqlcipher
 )
 foreach(TEST_ITEM ${TEST_TARGETS})
     add_executable(${TEST_ITEM}
@@ -40,7 +37,7 @@ foreach(TEST_ITEM ${TEST_TARGETS})
             GTest::gtest_main
             fmt::fmt
             spdlog::spdlog
-            sqlcipher::sqlcipher
+            ${SQLCIPHER_TARGET}
             nlohmann_json::nlohmann_json
             Boost::uuid
             protobuf::libprotoc

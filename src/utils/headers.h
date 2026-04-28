@@ -36,14 +36,14 @@
 #include <atomic>
 #include <bitset>
 #include <cassert>
-#include <ccomplex>
+// #include <ccomplex> // 已废弃，使用 <complex> 替代
 #include <cctype>
 #include <cerrno>
 #include <cfenv>
 #include <cfloat>
 #include <chrono>
 #include <cinttypes>
-#include <ciso646>
+// #include <ciso646> // 已废弃，使用 <version> 来检测实现特定的宏
 #include <climits>
 #include <clocale>
 #include <cmath>
@@ -53,13 +53,13 @@
 #include <csetjmp>
 #include <csignal>
 #include <cstdarg>
-#include <cstdbool>
+// #include <cstdbool> // 已废弃，使用 <stdbool.h> 替代
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <ctgmath>
+// #include <ctgmath> // 已废弃，使用 <complex> 或 <cmath> 替代
 #include <ctime>
 #include <cwchar>
 #include <cwctype>
@@ -261,7 +261,13 @@
 // #define SQLITE_ENABLE_STAT4
 // #define SQLITE_ENABLE_UNLOCK_NOTIFY
 #define SQLITE_HAS_CODEC  // 允许加密
+#if __has_include(<sqlcipher/sqlite3.h>)
 #include <sqlcipher/sqlite3.h>
+#elif __has_include(<sqlite3.h>)
+#include <sqlite3.h> // ubuntu homebrew `pkg-config --cflags sqlcipher` 输出的目录要去掉一层
+#else
+#error "SQLCipher header not found: expected <sqlcipher/sqlite3.h> or <sqlite3.h>"
+#endif
 #endif // ENABLE_SQLCIPHER
 
 // #define ENABLE_NLOHMANN_JSON
@@ -373,9 +379,6 @@ using ::TaoTieChat::Contacts;
 using ::TaoTieChat::MessageContext;
 using ::TaoTieChat::MessageReply;
 using ::TaoTieChat::MessageRequest;
-using ::TaoTieChat::FileContent;
-using ::TaoTieChat::FileReply;
-using ::TaoTieChat::FileRequest;
 using ::TaoTieChat::ContactRequestRequest;
 using ::TaoTieChat::ContactRequestReply;
 using ::TaoTieChat::ContactReplyRequest;
@@ -384,7 +387,6 @@ using ::TaoTieChat::GetContactRequestsReply;
 using ::TaoTieChat::ContactReplyCode;
 using ::TaoTieChat::UpdateProfileRequest;
 using ::TaoTieChat::UpdateProfileReply;
-using ::TaoTieChat::FileService;
 using ::TaoTieChat::GetSecurityQuestionReply;
 using ::TaoTieChat::UpdateSecurityInfoRequest;
 using ::TaoTieChat::UpdateSecurityInfoReply;
@@ -392,6 +394,17 @@ using ::TaoTieChat::UpdateSecurityInfoOldSecurityInfo;
 using ::TaoTieChat::UpdateSecurityInfoOldPasswordInfo;
 using ::TaoTieChat::UpdateSecurityInfoNewPasswordInfo;
 using ::TaoTieChat::UpdateSecurityInfoNewSecurityInfo;
+using ::TaoTieChat::FileService;
+using ::TaoTieChat::FileMetadata;
+using ::TaoTieChat::FileChunkData;
+using ::TaoTieChat::FileUploadHeader;
+using ::TaoTieChat::FileDownloadHeader;
+using ::TaoTieChat::GetFileIDRequest;
+using ::TaoTieChat::GetFileIDReply;
+using ::TaoTieChat::FileUploadRequest;
+using ::TaoTieChat::FileUploadReply;
+using ::TaoTieChat::FileDownloadRequest;
+using ::TaoTieChat::FileDownloadReply;
 using AccountStub = ::TaoTieChat::AccountService::Stub;
 using SearchStub  = ::TaoTieChat::SearchService::Stub;
 using StatusStub  = ::TaoTieChat::StatusService::Stub;
