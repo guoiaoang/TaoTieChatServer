@@ -66,5 +66,5 @@ mkdir -p ~/workspace/project/qt
 sudo apt install -y libc6-dev build-essential
 
 # 非编译必须
-brew install vim htop
-# sudo apt install -y locate
+# brew install vim htop
+# sudo apt install -y locate qdirstat aptitude synaptic

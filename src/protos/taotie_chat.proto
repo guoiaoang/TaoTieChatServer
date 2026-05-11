@@ -166,6 +166,74 @@ message Result {
   }
   string        message      = 3;  // 可选的错误消息字段
 }
+
+// 用户信息列表
+message ContactInfos {
+    repeated ContactInfo contact_infos = 1;
+}
+
+// 自己相关的信息 // 目前仅作为标志
+message ContactInfoSelf {
+  bool   modify_self_info     = 1;  // 是否是修改个人信息
+  // string user_id           = 1;  // 用户 ID
+  // string password          = 1;  // 密码
+  // string token             = 2;  // 认证令牌
+  // string security_question = 3;  // 安全问题
+  // string security_answer   = 4;  // 安全答案
+}
+
+// 好友相关的信息
+message ContactInfoFriend {
+            string account_id   = 1;  // 账号 ID  // 获取好友信息时由服务器填充该字段
+            string user_id      = 2;  // 用户 ID  // 修改好友信息时使用该字段查找好友账号 ID
+            int32  status       = 3;  // 是否被拉黑
+            bool   starred      = 4;  // 是否标星
+            bool   silent       = 5;  // 是否免打扰
+            string notes        = 6;  // 备注
+            string added_source = 7;  // 添加来源
+            string added_time   = 8;  // 添加时间
+  repeated  string tags         = 9;  // 标签，逗号分隔
+}
+
+// 用户的基本信息  // 公共信息
+message ContactInfoBase {
+            string account_id   = 1;  // 账号 ID
+            string user_id      = 2;  // 用户 ID  // 修改个人用户 ID 时使用该字段作为目标用户 ID，修改好友 ID 时不使用该字段（不作为校验及目标 ID）
+            string avatar_id    = 3;  // 头像
+            string nickname     = 4;  // 昵称
+            int32  gender       = 5;  // 性别  // 0: 未知 1: 男 2: 女
+            string birthday     = 6;  // 生日
+            string sign         = 7;  // 签名
+            string region       = 8;  // 地区
+            string desc         = 9;  // 个人简介
+  repeated  string phones       = 10;  // 手机号
+  repeated  string emails       = 11;  // 邮箱
+  repeated  string social_links = 12;  // 社交链接，逗号分隔
+  repeated  string moments_id   = 13;  // 朋友圈 ID 列表
+  repeated  string groups_id    = 14;  // 群组 ID 列表
+}
+
+// 用户信息
+message ContactInfo {
+  ContactInfoBase      base_info   = 1;  // 基本信息
+  oneof                extra_info {
+    ContactInfoSelf    self_info   = 2;  // 自己相关的信息
+    ContactInfoFriend  friend_info = 3;  // 好友相关的信息
+  }
+}
+
+// 鉴权参数
+message AuthRequest {
+  oneof auth_id {
+    string account_id = 1;
+    string user_id    = 2;
+  }
+  oneof auth_method {
+    string password = 3;  // 密码;  // 有 token 时就不要使用密码
+    string token    = 4;  // 认证令牌
+  }
+}
+
 // ============================  AccountService  ============================ //
 
 // 用户注册服务
@@ -176,8 +244,6 @@ service AccountService {
   rpc AuthCheck(AuthRequest) returns (AuthReply) {}
   // UserLogin 接收用户登录请求并返回登录结果。
   rpc SignIn(SignInRequest) returns (SignInReply) {}
-  // 获取更新
-  rpc GetUpdate(UpdateRequest) returns (UpdateReply) {}
   // 添加联系人的申请
   rpc ContactRequest(ContactRequestRequest) returns (ContactRequestReply) {}
   // 添加联系人的回复
@@ -186,7 +252,7 @@ service AccountService {
   rpc GetContactRequests(AuthRequest) returns (GetContactRequestsReply) {}
   // // 添加联系人
   // rpc AddContact(AddContactRequest) returns (AddContactReply) {}
-  // 更新个人资料
+  // 更新个人资料  // 获取用户信息使用 `SearchService::SearchUser`
   rpc UpdateProfile(UpdateProfileRequest) returns (UpdateProfileReply) {}
   // 获取安全问题 // 专用接口
   // 1.1. 通过密码修改密码时不需要获取安全问题
@@ -218,18 +284,6 @@ message SignUpReply {
             string        account_id = 3;  // 注册成功后返回的账号 ID
 }
 
-// 鉴权参数
-message AuthRequest {
-  oneof auth_id {
-    string account_id = 1;
-    string user_id    = 2;
-  }
-  oneof auth_method {
-    string password = 3;  // 密码;  // 有 token 时就不要使用密码
-    string token    = 4;  // 认证令牌
-  }
-}
-
 // 鉴权结果
 message AuthReply {
   optional  AuthRequest request    = 1;  // 可选的原始请求信息字段
@@ -249,33 +303,6 @@ message SignInReply {
             Result        result     = 2;  // 状态信息字段
             string        account_id = 3;  // 登录成功后返回的账号 ID
             string        token      = 4;  // 登录成功后返回新获取的认证令牌
-}
-
-// 获取更新
-
-// 要获取更新的消息类型
-enum UpdateType {
-  CONTACTS = 0;  // 联系人列表
-  GROUPS   = 1;  // 群组列表
-  MESSAGES = 2;  // 消息列表
-}
-
-// 请求信息
-message UpdateRequest{
-  optional  AuthRequest request_user_auth = 1;  // 鉴权  // 可能不需要
-            UpdateType  type              = 2;  // 请求类型  // 主要
-            Timestamp   timestamp         = 3;  // 获取该时间戳之后的新内容
-}
-
-// 返回内容
-message UpdateReply{
-  optional  UpdateRequest request     = 1;  // 可选的原始请求信息字段
-            Result        result      = 2;  // 状态信息字段
-            // SignInReply   auth_result = 3;  // 鉴权结果
-  // 消息内容
-  oneof                   body {
-            Contacts      contacts = 3;
-  }
 }
 
 // 添加联系人的申请
@@ -311,13 +338,13 @@ message ContactReplyReply {
             Result              result  = 2;  // 状态信息字段
   optional  string              message = 3;  // 附带的消息
 }
-
+// 获取添加联系人申请的列表
 message GetContactRequestsReply {
   optional  AuthRequest  request_user_auth = 1;  // 鉴权
             Result       result            = 2;  // 状态信息字段
   repeated  ContactRequestInfo contact_request_info = 3;  // 联系人申请信息
 }
-
+// 联系人申请信息
 message ContactRequestInfo {
   string    user_id   = 1;  // 申请人的用户 ID
   string    message   = 2;  // 附带的消息
@@ -341,7 +368,7 @@ message ContactRequestInfo {
 // 更新个人资料
 message UpdateProfileRequest {
   AuthRequest request_user_auth = 1;  // 认证信息  // 必须
-  Contact     contact           = 2;  // 需要更新的个人资料信息
+  ContactInfo contact_info      = 2;  // 需要更新的个人资料信息
 }
 
 // 更新个人资料的结果
@@ -408,55 +435,36 @@ message UpdateSecurityInfoReply {
 
 // 搜索服务
 service SearchService {
-  // 搜索用户  // 公共信息，与好友列表不同
-  rpc SearchUsers(SearchUsersRequest) returns (SearchUsersReply) {}
+  // 搜索并获取陌生用户/好友信息
+  rpc SearchUser(SearchUserRequest) returns (SearchUserReply) {}
   // 搜索群组
-  rpc SearchGroups(SearchGroupsRequest) returns (SearchGroupsReply) {}
+  rpc SearchGroup(SearchGroupRequest) returns (SearchGroupReply) {}
 }
 
 // 搜索用户需要的参数
-message SearchUsersRequest{
+message SearchUserRequest{
   optional  AuthRequest request_user_auth = 1;  // 鉴权
             string      user_id           = 2;  // user_id/nickname/phone/email，其一即可
-            string      user_filter       = 3;  // gender/region/birthday, 过滤条件
 }
 
 // 返回搜索用户的结果
-message SearchUsersReply{
-  optional  SearchUsersRequest request   = 1;  // 可选的原始请求信息字段
-            Result             result    = 2;  // 状态信息字段
-            Contacts           contacts  = 3;  // 用户/账号信息
-}
-
-message Contacts {
-    repeated Contact contact = 1;
-}
-
-// 用户的基本信息  // 暂时设为都必须有
-message Contact{
-            string user_id  = 1;  // 用户 ID
-            string nickname = 2;  // 昵称
-            string avatar   = 3;  // 头像
-            string sign     = 4;  // 签名
-            int32  gender   = 5;  // 性别
-            string region   = 6;  // 地区
-            string birthday = 7;  // 生日
-  repeated  string phones   = 8;  // 手机号
-  repeated  string emails   = 9;  // 邮箱
+message SearchUserReply{
+  optional  SearchUserRequest request      = 1;  // 可选的原始请求信息字段  // “真”可选
+            Result            result       = 2;  // 状态信息字段
+            ContactInfo       contact_info = 3;  // 用户/账号信息
 }
 
 // 搜索群组需要的参数
-message SearchGroupsRequest{
+message SearchGroupRequest{
   optional  AuthRequest request_user_auth = 1;  // 鉴权
-            string      groups_keyword    = 2;  // user_id/nickname/phone/email，其一即可
-            string      groups_filter     = 3;  // gender/region/birthday, 过滤条件
+            string      group_keyword     = 2;  // user_id/nickname/phone/email，其一即可
 }
 
 // 返回搜索群组的结果
-message SearchGroupsReply{
-  optional  SearchGroupsRequest request = 1;  // 鉴权
-            Result              result  = 2;  // 状态信息字段
-            Groups              groups  = 3;  // 群组信息  // 默认最多只返回 10 条信息 // 暂不设置可过滤或分页
+message SearchGroupReply{
+  optional  SearchGroupRequest request = 1;  // 鉴权
+            Result             result  = 2;  // 状态信息字段
+            Group              group   = 3;  // 群组信息  // 默认最多只返回 10 条信息 // 暂不设置可过滤或分页
 }
 
 //
@@ -466,11 +474,11 @@ message Groups {
 
 // 群组的基本信息
 message Group{
-  string id     = 1;  // 群组 ID
-  string name   = 2;  // 群组名称
-  string avatar = 3;  // 头像
-  string sign   = 4;  // 简介
-  string region = 5;  // 地区
+  string id        = 1;  // 群组 ID
+  string name      = 2;  // 群组名称
+  string avatar_id = 3;  // 头像 ID
+  string sign      = 4;  // 简介
+  string region    = 5;  // 地区
 }
 
 // ============================== StatusService ============================== //
@@ -549,6 +557,86 @@ message MessageRequest {
   optional  AuthRequest request_user_auth = 1;  // 鉴权
             string      target_id         = 2;  // 群聊 ID 或私聊 ID
             Timestamp   timestamp         = 3;  // 消息请求时间戳，由客户端设置，服务器可以选择使用或覆盖
+}
+
+// ============================  SyncService  ============================ //
+
+// 客户端存储一张表，表中记录每个事件类型的最后一条消息的 ID，在程序启动时发送该表中的内容给服务器，
+// 服务器检测到更新内容时发送更新消息。
+// 没有更新消息时也需要携带信息告诉客户端无更新，而不是回复空的消息。
+
+// 客户端启动时连接到服务器进行持续监听。
+//   当有新事件时，服务端使用该接口通知客户端事件类型，
+//   客户端根据事件类型发送本地对应事件类型的最后一条消息的 ID 给服务端，
+//   服务端查找更新内容返回给客户端。
+
+// TODO: 1. 添加 pts 表；2. 原表添加 pts_type 与 pts_id 字段。
+
+// 更新事件服务，包含获取更新和监听更新的接口
+service SyncService {
+  // 获取是否有更新
+  rpc GetLastID(AuthRequest) returns (GetLastIDReply) {}
+  // 监听是否有新的消息
+  // 双向流式 RPC，客户端发送 SyncRequest 请求，服务器持续返回 SyncReply 消息流
+  rpc Sync(stream SyncRequest) returns (stream SyncReply) {}
+}
+
+// 要获取更新的消息类型
+enum SyncType {
+  CONTACTS = 0;  // 联系人列表
+  GROUPS   = 1;  // 群组列表
+  MESSAGES = 2;  // 消息列表
+}
+
+// 同步标签，包含要获取更新的消息类型和最后一条消息的 ID
+message GetLastIDTag {
+  SyncType type = 1;  // 更新类型
+  int64    id   = 2;  // 最后一条消息的 ID
+}
+
+// 获取更新结果，包含每个消息类型的最后一条消息的 ID
+message GetLastIDReply {
+  repeated GetLastIDTag tags = 1;  // 同步标签，包含每个消息类型的最后一条消息的 ID
+}
+
+message SyncRequestTag {
+  SyncType type     = 1;  // 更新类型
+  int64    id_start = 2;  // 起始消息的 ID
+  int64    id_end   = 3;  // 结束消息的 ID
+}
+
+// 请求信息
+message SyncRequest{
+  optional  AuthRequest    request_user_auth = 1;  // 鉴权  // 可能不需要
+  repeated  SyncRequestTag sync_tag          = 2;  // 同步标签，包含要获取更新的消息类型和最后一条消息的 ID
+}
+
+// 连接认证结果
+message SyncReplyHeader {
+  optional  SyncRequest   request     = 1;  // 可选的原始请求信息字段
+            Result        result      = 2;  // 状态信息字段
+}
+
+// 认证成功后返回的主要内容
+message SyncReplyBody {
+  // 大分类，比如好友申请与删除均在 CONTACTS 分类下，具体的操作类型需要再解析消息内容来区分。
+  SyncRequestTag tag      = 1;  // 同步标签，包含要获取更新的消息类型和最后一条消息的 ID
+  int64          count    = 2;  // 更新的消息数量
+
+  // 具体的更新消息，需要再进行解析。
+  oneof          content {
+    ContactInfos contact_infos = 3;  // 联系人列表更新内容
+    Groups       groups   = 4;  // 群组列表更新内容
+    // Messages  messages = 5;  // 消息列表更新内容
+  }
+}
+
+// 返回内容
+message SyncReply{
+  oneof             reply {
+    SyncReplyHeader header   = 1;  // 同步回复头，包含请求信息和状态信息
+    SyncReplyBody   body     = 2;  // 同步回复体，包含更新内容
+  }
 }
 
 // ==============================  FileService  ============================== //

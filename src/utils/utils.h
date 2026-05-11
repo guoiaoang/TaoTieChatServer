@@ -85,6 +85,8 @@ void set_timestamp(TaoTieChat::Timestamp& timestamp, const std::chrono::system_c
 // ============================== std 扩展 ============================== //
 vector<string> split(const string&src, const string&div);
 const string join(vector<string>&src, const string&div);
+// protobuf repeated string 的 join
+const string join(const google::protobuf::RepeatedPtrField<std::string>&src, const string&div);
 
 // ====================================================================== //
 // 获取错误信息

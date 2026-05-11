@@ -72,7 +72,7 @@ std::tuple<grpc::Status, SignUpReply> SignUp(
 
 // 用户名为空，返回错误码 USER_ID_EMPTY
 TEST_F(ServiceAccountSignUp, username_empty) {
-    auto [status, response] = SignUp("", "password", "password", "security_question", "security_answer");
+    auto [status, response] = SignUp("", "value_password", "value_password", "value_security_question", "value_security_answer");
     // 验证返回状态
     EXPECT_TRUE(status.ok());
     EXPECT_EQ(response.result().error_code(), ErrorCode::USER_ID_EMPTY);
@@ -80,7 +80,7 @@ TEST_F(ServiceAccountSignUp, username_empty) {
 
 // 密码为空，返回错误码 PASSWORD_EMPTY
 TEST_F(ServiceAccountSignUp, password_empty) {
-    auto [status, response] = SignUp("username", "", "password", "security_question", "security_answer");
+    auto [status, response] = SignUp("value_user_id", "", "value_password", "value_security_question", "value_security_answer");
     // 验证返回状态
     EXPECT_TRUE(status.ok());
     EXPECT_EQ(response.result().error_code(), ErrorCode::PASSWORD_EMPTY);
@@ -88,7 +88,7 @@ TEST_F(ServiceAccountSignUp, password_empty) {
 
 // 确认密码为空，返回错误码 DIFF_PASSWORD_WITH_CONFIRM
 TEST_F(ServiceAccountSignUp, confirm_empty) {
-    auto [status, response] = SignUp("username", "password", "", "security_question", "security_answer");
+    auto [status, response] = SignUp("value_user_id", "value_password", "", "value_security_question", "value_security_answer");
     // 验证返回状态
     EXPECT_TRUE(status.ok());
     EXPECT_EQ(response.result().error_code(), ErrorCode::DIFF_PASSWORD_WITH_CONFIRM);
@@ -96,7 +96,7 @@ TEST_F(ServiceAccountSignUp, confirm_empty) {
 
 // 确认密码与密码不一致，返回错误码 DIFF_PASSWORD_WITH_CONFIRM
 TEST_F(ServiceAccountSignUp, confirm_diff) {
-    auto [status, response] = SignUp("username", "password", "password_confim", "security_question", "security_answer");
+    auto [status, response] = SignUp("value_user_id", "value_password", "password_confim", "value_security_question", "value_security_answer");
     // 验证返回状态
     EXPECT_TRUE(status.ok());
     EXPECT_EQ(response.result().error_code(), ErrorCode::DIFF_PASSWORD_WITH_CONFIRM);
@@ -104,7 +104,7 @@ TEST_F(ServiceAccountSignUp, confirm_diff) {
 
 // 安全问题为空，返回错误码 SECURITY_QUESTION_EMPTY
 TEST_F(ServiceAccountSignUp, security_question_empty) {
-    auto [status, response] = SignUp("username", "password", "password", "", "security_answer");
+    auto [status, response] = SignUp("value_user_id", "value_password", "value_password", "", "value_security_answer");
     // 验证返回状态
     EXPECT_TRUE(status.ok());
     EXPECT_EQ(response.result().error_code(), ErrorCode::SECURITY_QUESTION_EMPTY);
@@ -112,7 +112,7 @@ TEST_F(ServiceAccountSignUp, security_question_empty) {
 
 // 安全答案为空，返回错误码 SECURITY_ANSWER_EMPTY
 TEST_F(ServiceAccountSignUp, security_answer_empty) {
-    auto [status, response] = SignUp("username", "password", "password", "security_question", "");
+    auto [status, response] = SignUp("value_user_id", "value_password", "value_password", "value_security_question", "");
     // 验证返回状态
     EXPECT_TRUE(status.ok());
     EXPECT_EQ(response.result().error_code(), ErrorCode::SECURITY_ANSWER_EMPTY);
@@ -120,7 +120,7 @@ TEST_F(ServiceAccountSignUp, security_answer_empty) {
 
 // 注册成功，返回成功码 SUCCESS
 TEST_F(ServiceAccountSignUp, Signup_success) {
-    auto [status, response] = SignUp("username", "password", "password", "security_question", "security_answer");
+    auto [status, response] = SignUp("value_user_id", "value_password", "value_password", "value_security_question", "value_security_answer");
     // 验证返回状态
     EXPECT_TRUE(status.ok());
     EXPECT_EQ(response.result().success_code(), SuccessCode::SUCCESS);
@@ -131,7 +131,7 @@ TEST_F(ServiceAccountSignUp, Signup_success) {
 // 用户名已存在，返回错误码 USER_ID_EXISTS
 TEST_F(ServiceAccountSignUp, username_exists) {
     // 第一次注册，应该成功
-    auto [status_pre, response_pre] = SignUp("username", "password", "password", "security_question", "security_answer");
+    auto [status_pre, response_pre] = SignUp("value_user_id", "value_password", "value_password", "value_security_question", "value_security_answer");
     // 验证返回状态
     EXPECT_TRUE(status_pre.ok());
     EXPECT_EQ(response_pre.result().success_code(), SuccessCode::SUCCESS);
@@ -139,7 +139,7 @@ TEST_F(ServiceAccountSignUp, username_exists) {
     std::cout << std::format("Registered account_id: {}", response_pre.account_id()) << std::endl;
 
     // 第二次注册，应该因为用户名已存在而失败
-    auto [status_exists, response_exists] = SignUp("username", "password", "password", "security_question", "security_answer");
+    auto [status_exists, response_exists] = SignUp("value_user_id", "value_password", "value_password", "value_security_question", "value_security_answer");
     // 验证返回状态
     EXPECT_TRUE(status_exists.ok());
     EXPECT_EQ(response_exists.result().error_code(), ErrorCode::USER_ID_EXISTS);

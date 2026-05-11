@@ -263,7 +263,7 @@ std::tuple<grpc::Status, MessageReply> SendMessage(
 // 未提供目标用户 ID，返回错误码 TARGET_ID_REQUESTED
 TEST_F(ServiceMessageSendMessage, target_user_id_empty) {
     string client_message_id = Utils::generate_message_id();
-    auto [status, response] = SendMessage("value_user_id", "value_password", "", "Hello", client_message_id);
+    auto [status, response] = SendMessage("value_user_id", "value_password", "", "value_Hello", client_message_id);
     EXPECT_TRUE(status.ok());
     EXPECT_EQ(response.result().error_code(), ErrorCode::TARGET_ID_REQUESTED);
 }
@@ -278,7 +278,7 @@ TEST_F(ServiceMessageSendMessage, message_context_empty) {
 
 // 未提供客户端消息 ID，返回错误码 CLIENT_MESSAGE_ID_REQUIRED
 TEST_F(ServiceMessageSendMessage, client_message_id_missing) {
-    auto [status, response] = SendMessage("value_user_id", "value_password", "value_target_user_id", "Hello", "");
+    auto [status, response] = SendMessage("value_user_id", "value_password", "value_target_user_id", "value_Hello", "");
     EXPECT_TRUE(status.ok());
     EXPECT_EQ(response.result().error_code(), ErrorCode::CLIENT_MESSAGE_ID_REQUIRED);
 }
@@ -286,7 +286,7 @@ TEST_F(ServiceMessageSendMessage, client_message_id_missing) {
 // 未提供认证信息，返回错误码 AUTH_INFO_NONE
 TEST_F(ServiceMessageSendMessage, auth_info_missing) {
     string client_message_id = Utils::generate_message_id();
-    auto [status, response] = SendMessage("", "", "value_target_user_id", "Hello", client_message_id);
+    auto [status, response] = SendMessage("", "", "value_target_user_id", "value_Hello", client_message_id);
     EXPECT_TRUE(status.ok());
     EXPECT_EQ(response.result().error_code(), ErrorCode::AUTH_ID_EMPTY);
 }
@@ -294,7 +294,7 @@ TEST_F(ServiceMessageSendMessage, auth_info_missing) {
 // 错误的用户 ID(认证信息)，返回错误码 USER_ID_NOT_FOUND
 TEST_F(ServiceMessageSendMessage, auth_failed) {
     string client_message_id = Utils::generate_message_id();
-    auto [status, response] = SendMessage("value_user_id", "value_wrong_password", "value_target_user_id", "Hello", client_message_id);
+    auto [status, response] = SendMessage("value_user_id", "value_wrong_password", "value_target_user_id", "value_Hello", client_message_id);
     EXPECT_TRUE(status.ok());
     EXPECT_EQ(response.result().error_code(), ErrorCode::USER_ID_NOT_FOUND);
 }
@@ -311,7 +311,7 @@ TEST_F(ServiceMessageSendMessage, target_user_id_not_found) {
 
     // 发送消息
     string client_message_id = Utils::generate_message_id();
-    auto [status, response] = SendMessage("value_user_id", "value_password", "value_nonexistent_user_id", "Hello", client_message_id);
+    auto [status, response] = SendMessage("value_user_id", "value_password", "value_nonexistent_user_id", "value_Hello", client_message_id);
     EXPECT_TRUE(status.ok());
     EXPECT_EQ(response.result().error_code(), ErrorCode::TARGET_USER_ID_NOT_FOUND);
 }
@@ -336,7 +336,7 @@ TEST_F(ServiceMessageSendMessage, target_user_id_not_contact) {
 
     // 发送消息
     string client_message_id = Utils::generate_message_id();
-    auto [status, response] = SendMessage("value_user_id", "value_password", "value_receiver_user_id", "Hello", client_message_id);
+    auto [status, response] = SendMessage("value_user_id", "value_password", "value_receiver_user_id", "value_Hello", client_message_id);
     EXPECT_TRUE(status.ok());
     EXPECT_NE(response.result().error_code(), ErrorCode::ASSOCIATED); // 不是好友关系
 }
@@ -371,7 +371,7 @@ TEST_F(ServiceMessageSendMessage, send_message_success) {
 
     // 发送消息
     string client_message_id = Utils::generate_message_id();
-    auto [status, response] = SendMessage("value_user_id", "value_password", "value_receiver_user_id", "Hello", client_message_id);
+    auto [status, response] = SendMessage("value_user_id", "value_password", "value_receiver_user_id", "value_Hello", client_message_id);
     EXPECT_TRUE(status.ok());
     EXPECT_EQ(response.result().success_code(), SuccessCode::SUCCESS);  // 成功发送消息
 }
@@ -406,12 +406,12 @@ TEST_F(ServiceMessageSendMessage, send_message_repeat) {
 
     // 发送消息
     string client_message_id = Utils::generate_message_id();
-    auto [status, response] = SendMessage("value_user_id", "value_password", "value_receiver_user_id", "Hello", client_message_id);
+    auto [status, response] = SendMessage("value_user_id", "value_password", "value_receiver_user_id", "value_Hello", client_message_id);
     EXPECT_TRUE(status.ok());
     EXPECT_EQ(response.result().success_code(), SuccessCode::SUCCESS);  // 成功发送消息
 
     // 再次发送消息
-    auto [status_repeat, response_repeat] = SendMessage("value_user_id", "value_password", "value_receiver_user_id", "Hello", client_message_id);
+    auto [status_repeat, response_repeat] = SendMessage("value_user_id", "value_password", "value_receiver_user_id", "value_Hello", client_message_id);
     EXPECT_TRUE(status_repeat.ok());
     EXPECT_EQ(response_repeat.result().error_code(), ErrorCode::DUPLICATE_MESSAGE_ID); // 消息重复发送
 }

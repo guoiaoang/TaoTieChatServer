@@ -116,8 +116,9 @@ namespace SQL{
 
                     -- 用户属性
                     nickname          TEXT,                  -- 昵称
-                    avatar            TEXT,                  -- 头像 URL
+                    avatar_id         TEXT,                  -- 头像 ID
                     sign              TEXT,                  -- 个性签名
+                    desc              TEXT,                  -- 个人简介
                     gender            INTEGER DEFAULT 0,     -- 0:未设置, 1:男, 2:女, 3:保密
                     region            TEXT,                  -- 建议存区域代码 (Code)
                     birthday          TEXT,                  -- 格式: YYYY-MM-DD
@@ -125,6 +126,7 @@ namespace SQL{
                     -- 联系方式
                     phones            TEXT,                  -- 建议存 JSON 数组或独立表  -- 暂定为以 `;` 划分的字符串数组
                     emails            TEXT,                  -- 建议存 JSON 数组或独立表  -- 暂定为以 `;` 划分的字符串数组
+                    social_links      TEXT,                  -- 建议存 JSON 数组或独立表  -- 暂定为以 `;` 划分的字符串数组
 
                     -- 时间戳
                     register_time     DATETIME DEFAULT (datetime('now')),  -- 注册时间
@@ -229,15 +231,15 @@ namespace SQL{
                     -- 关系属性
                     starred           BOOLEAN,   -- starred 好友关系的星标
                     silent            BOOLEAN,   -- silent 好友关系的静音
-                    remark            TEXT,      -- remark 对该好友的备注
+                    notes             TEXT,      -- notes 对该好友的备注
                     tags              TEXT,      -- tags 好友关系的标签
-                    form              TEXT,      -- form 好友关系的来源
+                    added_source      TEXT,      -- added_source 好友关系的来源
 
                     -- 时间戳  -- SQLite 中的 DATETIME 类型实际上是一个文本类型，存储格式为 "YYYY-MM-DD HH:MM:SS"(UTC)
-                    add_time             DATETIME DEFAULT (datetime('now')),  -- add_time 添加为好友的时间
-                    -- add_time_str      TEXT,      -- add_time 添加为好友的时间
-                    remove_time          DATETIME,  -- remove_time 删除好友的时间
-                    -- remove_time_str   TEXT,      -- remove_time 删除好友的时间
+                    added_time            DATETIME DEFAULT (datetime('now')),  -- added_time 添加为好友的时间
+                    -- added_time_str     TEXT,      -- added_time 添加为好友的时间
+                    removed_time          DATETIME,  -- removed_time 删除好友的时间
+                    -- removed_time_str   TEXT,      -- removed_time 删除好友的时间
 
                     -- pin            BOOLEAN,   -- pin 好友关系的置顶     -- 应当存储在聊天列表中
 
@@ -251,11 +253,11 @@ namespace SQL{
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     group_id    TEXT,  -- group_id 群 ID，唯一，注册时由系统生成，不可被用户修改，销号时不回收
                     name        TEXT,  -- name 群名称
-                    avatar      TEXT,  -- avatar 群头像 URL
+                    avatar_id   TEXT,  -- avatar_id 群头像 ID
                     owner_id    TEXT,  -- owner_id 群主的账号 ID
                     member_ids  TEXT,  -- member_ids 群成员的账号 ID 列表，逗号分隔
-                    create_time TEXT,  -- create_time 创建时间
-                    update_time TEXT,  -- update_time 更新时间
+                    create_time DATETIME DEFAULT (datetime('now')),  -- create_time 创建时间
+                    update_time DATETIME DEFAULT (datetime('now')),  -- update_time 更新时间
                     common      TEXT   -- common 通用字段
                 );
             )";
@@ -362,6 +364,36 @@ namespace SQL{
                     common      TEXT
                 );
             )";
+
+            // 事件发生时进行记录及最新计数的更新
+
+            // 创建 pts 记录表，用于记录每个用户的最新消息同步点
+            // 事件发生时记录类型与计数，并填充事件对应的 ID
+            constexpr std::string_view SQL_CREATE_TABLE_PTS_RECORDS = R"(
+                CREATE TABLE IF NOT EXISTS pts (
+                    id           INTEGER PRIMARY KEY AUTOINCREMENT,   -- 记录 ID
+                    account_id   TEXT NOT NULL UNIQUE,                -- 账号 ID
+                    pts_type     TEXT NOT NULL,                       -- 事件主类型 -- 用于客户端更新对比
+                    pts_sub_type TEXT NOT NULL,                       -- 事件子类型 -- 用于指明查找位置
+                    pts_value    INTEGER DEFAULT 0,                   -- 事件序号   -- 自增 ID
+                    pts_event_id TEXT NOT NULL,                       -- 事件 ID    -- 事件对应的全局唯一 ID，如消息 ID 等
+                    update_time  DATETIME DEFAULT (datetime('now')),  -- 更新时间
+                    common       TEXT                                 -- common 通用字段
+                );
+            )";
+
+            // 创建 pts 记录统计表，用于统计每个用户的不同类型事件的最新序号
+            // 事件发生时直接更新对应类型的序号，无需填充事件 ID
+            constexpr std::string_view SQL_CREATE_TABLE_PTS_STATS = R"(
+                CREATE TABLE IF NOT EXISTS pts_stats (
+                    id          INTEGER PRIMARY KEY AUTOINCREMENT,   -- 记录 ID
+                    account_id  TEXT NOT NULL UNIQUE,                -- 账号 ID
+                    pts_type    TEXT NOT NULL,                       -- 事件类型
+                    pts_value   INTEGER DEFAULT 0,                   -- 事件序号  -- 对用户的自增 ID
+                    update_time DATETIME DEFAULT (datetime('now')),  -- 更新时间
+                    common      TEXT                                 -- common 通用字段
+                );
+            )";
         }
 
         // 在有索引的情况下，SQL 多条件查找会先过滤前面的条件，
@@ -452,6 +484,17 @@ namespace SQL{
                 LIMIT 1;
             )";
 
+            // 获取好友的关联信息
+            constexpr std::string_view SQL_QUERY_GET_FRIEND_INFO = R"(
+                SELECT *
+                FROM   friends
+                WHERE
+                        account_id        = :account_id        -- 当前用户的账号 ID
+                    AND friend_account_id = :friend_account_id -- 好友的账号 ID
+                    -- AND status         = 1                  -- 好友关系
+                LIMIT 1;
+            )";
+
             // 获取指定账号的好友添加请求状态
             constexpr std::string_view SQL_QUERY_GET_FRIEND_REQUEST_STATUS = R"(
                 SELECT status
@@ -528,13 +571,13 @@ namespace SQL{
             // 2. 在对方的好友列表中添加自己，状态为已关联
             // 3. 更新好友申请列表中的状态为已接受
             constexpr std::string_view SQL_INSERT_FRIEND = R"(
-                INSERT INTO friends ( account_id,  friend_account_id, status, add_time       )
+                INSERT INTO friends ( account_id,  friend_account_id, status, added_time     )
                 VALUES              (:account_id, :friend_account_id,      1, datetime('now'));
              )";
 
             // 幂等插入好友关系：不存在才插入，避免重复记录
             constexpr std::string_view SQL_INSERT_FRIEND_IF_ABSENT = R"(
-                INSERT INTO friends ( account_id,  friend_account_id, status, add_time       )
+                INSERT INTO friends ( account_id,  friend_account_id, status, added_time    )
                 SELECT               :account_id, :friend_account_id,      1, datetime('now')
                 WHERE NOT EXISTS (
                         SELECT 1
@@ -563,8 +606,8 @@ namespace SQL{
             // 已存在的好友关系更新为已关联
             constexpr std::string_view SQL_UPDATE_FRIEND_ASSOCIATED = R"(
                 UPDATE friends
-                SET    status   = 1,
-                       add_time = datetime('now')
+                SET    status            = 1,
+                       added_time        = datetime('now')
                 WHERE  account_id        = :account_id
                   AND  friend_account_id = :friend_account_id;
             )";
@@ -593,16 +636,30 @@ namespace SQL{
             // 更新用户信息
             constexpr std::string_view SQL_UPDATE_USER_PROFILE = R"(
                 UPDATE users
-                SET    user_id    = :user_id   ,
-                       nickname   = :nickname  ,
-                       avatar     = :avatar    ,
-                       sign       = :sign      ,
-                       gender     = :gender    ,
-                       region     = :region    ,
-                       birthday   = :birthday  ,
-                       phones     = :phones    ,
-                       emails     = :emails
-                WHERE  account_id = :account_id;
+                SET    user_id      = :user_id     ,
+                       nickname     = :nickname    ,
+                       avatar_id    = :avatar_id   ,
+                       sign         = :sign        ,
+                       gender       = :gender      ,
+                       region       = :region      ,
+                       birthday     = :birthday    ,
+                       desc         = :desc        ,
+                       phones       = :phones      ,
+                       emails       = :emails      ,
+                       social_links = :social_links
+                WHERE  account_id   = :account_id  ;
+            )";
+
+            // 更新好友信息
+            constexpr std::string_view SQL_UPDATE_FRIEND_PROFILE = R"(
+                UPDATE  friends
+                SET     status  = :status ,
+                        starred = :starred,
+                        silent  = :silent ,
+                        notes   = :notes  ,
+                        tags    = :tags
+                WHERE   account_id        = :account_id
+                  AND   friend_account_id = :friend_account_id;
             )";
 
             // 使用子语句校验账户 ID 的密码并更新密码哈希

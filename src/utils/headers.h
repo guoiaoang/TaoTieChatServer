@@ -171,6 +171,8 @@
 #include <QMenuBar>
 #include <QMessageBox>
 #include <QMetaEnum>
+#include <QMimeDatabase>
+#include <QMimeType>
 #include <QMovie>
 #include <QMutex>
 #include <QObject>
@@ -260,7 +262,9 @@
 // #define SQLITE_ENABLE_MEMORY_MANAGEMENT
 // #define SQLITE_ENABLE_STAT4
 // #define SQLITE_ENABLE_UNLOCK_NOTIFY
+#ifndef SQLITE_HAS_CODEC
 #define SQLITE_HAS_CODEC  // 允许加密
+#endif // SQLITE_HAS_CODEC
 #if __has_include(<sqlcipher/sqlite3.h>)
 #include <sqlcipher/sqlite3.h>
 #elif __has_include(<sqlite3.h>)
@@ -345,72 +349,81 @@ using ::grpc::ServerContext;
 // client
 #include "taotie_chat.qpb.h"
 #include "taotie_chat_client.grpc.qpb.h"
-using TaoTieChat::StatusService::Client;
-// using TaoTieChat::AccountService::Client;
+using StatusClient     = ::TaoTieChat::StatusService::Client;
+using AccountClient    = ::TaoTieChat::AccountService::Client;
+using SearchClient     = ::TaoTieChat::SearchService::Client;
+using MessageClient    = ::TaoTieChat::MessageService::Client;
+using FileClient       = ::TaoTieChat::FileService::Client;
+using SuccessCode      = ::TaoTieChat::SuccessCodeGadget::SuccessCode;
+using ErrorCode        = ::TaoTieChat::ErrorCodeGadget::ErrorCode;
+using ContactReplyCode = ::TaoTieChat::ContactReplyCodeGadget::ContactReplyCode;
 #elif defined(ENABLE_SERVER)  // ENABLE_SERVER
 // server
 #include "taotie_chat.grpc.pb.h"
 using grpc::ServerReaderWriter;
+// enums
+using ::TaoTieChat::SuccessCode;
+using ::TaoTieChat::ErrorCode;
+using ::TaoTieChat::ContactReplyCode;
+// service
+using ::TaoTieChat::AccountService;
+using ::TaoTieChat::SearchService;
+using ::TaoTieChat::StatusService;
+using ::TaoTieChat::FileService;
+// stubs
+using AccountStub = ::TaoTieChat::AccountService::Stub;
+using SearchStub  = ::TaoTieChat::SearchService::Stub;
+using StatusStub  = ::TaoTieChat::StatusService::Stub;
+using MessageStub = ::TaoTieChat::MessageService::Stub;
+using FileStub    = ::TaoTieChat::FileService::Stub;
 #endif // ENABLE_CLIENT
 
-using ::TaoTieChat::AccountService;
 using ::TaoTieChat::AuthReply;
 using ::TaoTieChat::AuthRequest;
-using ::TaoTieChat::ErrorCode;
+using ::TaoTieChat::AuthRequest;
+using ::TaoTieChat::ContactInfo;
+using ::TaoTieChat::ContactInfoBase;
+using ::TaoTieChat::ContactInfoFriend;
+using ::TaoTieChat::ContactInfos;
+using ::TaoTieChat::ContactInfoSelf;  // 实际未使用
+using ::TaoTieChat::ContactReplyReply;
+using ::TaoTieChat::ContactReplyRequest;
+using ::TaoTieChat::ContactRequestReply;
+using ::TaoTieChat::ContactRequestRequest;
+using ::TaoTieChat::FileChunkData;
+using ::TaoTieChat::FileDownloadHeader;
+using ::TaoTieChat::FileDownloadReply;
+using ::TaoTieChat::FileDownloadRequest;
+using ::TaoTieChat::FileMetadata;
+using ::TaoTieChat::FileUploadHeader;
+using ::TaoTieChat::FileUploadReply;
+using ::TaoTieChat::FileUploadRequest;
+using ::TaoTieChat::GetContactRequestsReply;
+using ::TaoTieChat::GetFileIDReply;
+using ::TaoTieChat::GetFileIDRequest;
+using ::TaoTieChat::GetSecurityQuestionReply;
+using ::TaoTieChat::MessageContext;
+using ::TaoTieChat::MessageReply;
+using ::TaoTieChat::MessageRequest;
 using ::TaoTieChat::Result;
-using ::TaoTieChat::SearchGroupsReply;
-using ::TaoTieChat::SearchGroupsRequest;
-using ::TaoTieChat::SearchService;
-using ::TaoTieChat::SearchUsersReply;
-using ::TaoTieChat::SearchUsersRequest;
+using ::TaoTieChat::SearchGroupReply;
+using ::TaoTieChat::SearchGroupRequest;
+using ::TaoTieChat::SearchUserReply;
+using ::TaoTieChat::SearchUserRequest;
 using ::TaoTieChat::SignInReply;
 using ::TaoTieChat::SignInRequest;
 using ::TaoTieChat::SignUpReply;
 using ::TaoTieChat::SignUpRequest;
 using ::TaoTieChat::StatusReply;
 using ::TaoTieChat::StatusRequest;
-using ::TaoTieChat::StatusService;
-using ::TaoTieChat::SuccessCode;
-using ::TaoTieChat::UpdateReply;
-using ::TaoTieChat::UpdateRequest;
-using ::TaoTieChat::UpdateType;
-using ::TaoTieChat::Contact;
-using ::TaoTieChat::Contacts;
-using ::TaoTieChat::MessageContext;
-using ::TaoTieChat::MessageReply;
-using ::TaoTieChat::MessageRequest;
-using ::TaoTieChat::ContactRequestRequest;
-using ::TaoTieChat::ContactRequestReply;
-using ::TaoTieChat::ContactReplyRequest;
-using ::TaoTieChat::ContactReplyReply;
-using ::TaoTieChat::GetContactRequestsReply;
-using ::TaoTieChat::ContactReplyCode;
-using ::TaoTieChat::UpdateProfileRequest;
 using ::TaoTieChat::UpdateProfileReply;
-using ::TaoTieChat::GetSecurityQuestionReply;
-using ::TaoTieChat::UpdateSecurityInfoRequest;
-using ::TaoTieChat::UpdateSecurityInfoReply;
-using ::TaoTieChat::UpdateSecurityInfoOldSecurityInfo;
-using ::TaoTieChat::UpdateSecurityInfoOldPasswordInfo;
+using ::TaoTieChat::UpdateProfileRequest;
 using ::TaoTieChat::UpdateSecurityInfoNewPasswordInfo;
 using ::TaoTieChat::UpdateSecurityInfoNewSecurityInfo;
-using ::TaoTieChat::FileService;
-using ::TaoTieChat::FileMetadata;
-using ::TaoTieChat::FileChunkData;
-using ::TaoTieChat::FileUploadHeader;
-using ::TaoTieChat::FileDownloadHeader;
-using ::TaoTieChat::GetFileIDRequest;
-using ::TaoTieChat::GetFileIDReply;
-using ::TaoTieChat::FileUploadRequest;
-using ::TaoTieChat::FileUploadReply;
-using ::TaoTieChat::FileDownloadRequest;
-using ::TaoTieChat::FileDownloadReply;
-using AccountStub = ::TaoTieChat::AccountService::Stub;
-using SearchStub  = ::TaoTieChat::SearchService::Stub;
-using StatusStub  = ::TaoTieChat::StatusService::Stub;
-using MessageStub = ::TaoTieChat::MessageService::Stub;
-using FileStub    = ::TaoTieChat::FileService::Stub;
-
+using ::TaoTieChat::UpdateSecurityInfoOldPasswordInfo;
+using ::TaoTieChat::UpdateSecurityInfoOldSecurityInfo;
+using ::TaoTieChat::UpdateSecurityInfoReply;
+using ::TaoTieChat::UpdateSecurityInfoRequest;
 // logs
 // VERBOSE / NOTICE / EMERGENCY / PANIC / AUDIT / ALERT
 // FATAL / CRITICAL / ERROR / WARNING / INFO / DEBUG / TRACE

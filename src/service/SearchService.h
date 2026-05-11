@@ -11,9 +11,9 @@ using Utils::error_status;
 class SearchServiceImpl final : public SearchService::Service {
 public:
     // 搜索用户
-    Status SearchUsers(ServerContext* context, const SearchUsersRequest* request, SearchUsersReply* response) override {
-        using Request = SearchUsersRequest;
-        using Reply   = SearchUsersReply;
+    Status SearchUser(ServerContext* context, const SearchUserRequest* request, SearchUserReply* response) override {
+        using Request = SearchUserRequest;
+        using Reply   = SearchUserReply;
         // =========================== 初始化操作 =========================== //
         log_grpc_context(context);
         if(!context || !request || !response) {
@@ -23,10 +23,10 @@ public:
         DBSQLCipher& db_sqlcipher = DBSQLCipher::instance();
         shared_ptr<Request> params = make_shared<Request>(*request);
         // =========================== 执行操作 =========================== //
-        // 执行注册
-        std::shared_ptr<Reply> result = db_sqlcipher.search_users(params);
+        // 执行操作
+        std::shared_ptr<Reply> result = db_sqlcipher.search_user(params);
         if(!result) {
-            return error_status(response, ErrorCode::DB_EXECUTE, std::format("SearchUsers failed"));
+            return error_status(response, ErrorCode::DB_EXECUTE, std::format("SearchUser failed"));
         }
         // set_success(response, sc::SUCCESS);
         response->CopyFrom(*result);
@@ -34,9 +34,9 @@ public:
     }
 
     // 搜索群组  // TODO:功能未完成
-    Status SearchGroups(ServerContext* context, const SearchGroupsRequest* request, SearchGroupsReply* response) override {
-        using Request = SearchGroupsRequest;
-        using Reply   = SearchGroupsReply;
+    Status SearchGroup(ServerContext* context, const SearchGroupRequest* request, SearchGroupReply* response) override {
+        using Request = SearchGroupRequest;
+        using Reply   = SearchGroupReply;
         // =========================== 初始化操作 =========================== //
         log_grpc_context(context);
         if(!context || !request || !response) {
@@ -68,9 +68,9 @@ public:
         // 参数合法，执行登录验证
         // 初始化相关参数
         // DBSQLCipher& db_sqlcipher = DBSQLCipher::instance();
-        // std::shared_ptr<::TaoTieChat::SearchGroupsRequest> params = std::make_shared<::TaoTieChat::SearchGroupsRequest>(*request);
+        // std::shared_ptr<::TaoTieChat::SearchGroupRequest> params = std::make_shared<::TaoTieChat::SearchGroupRequest>(*request);
         // // 执行登录验证
-        // std::shared_ptr<::TaoTieChat::SearchGroupsReply> result = db_sqlcipher.search_groups(params);
+        // std::shared_ptr<::TaoTieChat::SearchGroupReply> result = db_sqlcipher.search_groups(params);
         // if(!result) {
         //     set_error(response, ec::DB_EXECUTE);
         //     LOG_DEBUG("SignIn failed, code: {:#010x}, message: {}", (int)response->mutable_result()->error_code(), response->mutable_result()->message());

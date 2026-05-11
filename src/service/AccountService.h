@@ -65,54 +65,6 @@ public:
         return Status::OK;
     }
 
-    // update 获取更新内容
-    Status GetUpdate(ServerContext* context, const UpdateRequest* request, UpdateReply* response) override {
-        using Request = UpdateRequest;
-        using Reply   = UpdateReply;
-        // =========================== 初始化操作 =========================== //
-        if(!context || !request || !response) {
-            return Status(StatusCode::INTERNAL, std::format("Invalid request or response pointer"));
-        }
-        log_grpc_context(context);
-        response->mutable_request()->CopyFrom(*request);  // 复制请求
-        DBSQLCipher& db_sqlcipher = DBSQLCipher::instance();
-        // shared_ptr<UpdateReply> params = make_shared<::UpdateReply>(*request);
-        // // =========================== 参数校验 =========================== //
-        // // 获取信息
-        // // 请求
-        // auto type        = request->type       ();  // 请求类型
-        // auto auth_params = request->auth_params();  // 认证信息
-        // auto timestamp   = request->timestamp  ();  // 时间戳
-        // // 鉴权
-        // auto auto_result = response->mutable_auth_result();
-        // // auto_result->set_account_id("");
-
-        // auto func_auth = []() -> bool { return false; };
-        // // 可能部分接口不需要鉴权，因此鉴权放在具体的请求类型内
-        // if(type == UpdateType::CONTACTS) {
-        //     auto get_contacts_update = [&](const SignInRequest&auth, const Timestamp &timestamp) {
-        //         // 鉴权失败
-        //         if(func_auth()) {
-        //             return;
-        //         }
-        //         // 获取结果
-        //     };
-        //     get_contacts_update(auth_params, timestamp);
-        // }
-
-        // =========================== 执行操作 =========================== //
-        // response->mutable_auth()->set_account_id("");
-        // response->result();  // 返回结果
-        // response->auth();  // 返回内容
-        // if(response->has_contacts()) {
-        //     response->contacts().contact();
-        // }
-        // response->timestamp();
-
-        // response->CopyFrom(*result);
-        return Status::OK;
-    }
-
     // 添加联系人的请求
     // TODO: 应该由联系人同意后方可完成添加
     Status ContactRequest(ServerContext* context, const ContactRequestRequest* request, ContactRequestReply* response) override {

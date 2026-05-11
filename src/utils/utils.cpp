@@ -305,6 +305,18 @@ const string join(vector<string>&src, const string&div) {
     return result;
 }
 
+// protobuf repeated string 的 join
+const string join(const google::protobuf::RepeatedPtrField<std::string>&src, const string&div) {
+    string result;
+    for (int i = 0; i < src.size(); ++i) {
+        result += src.Get(i);
+        if (i != src.size() - 1) {
+            result += div;
+        }
+    }
+    return result;
+}
+
 // ====================================================================== //
 
 // 获取错误信息

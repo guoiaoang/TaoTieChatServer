@@ -120,28 +120,28 @@ std::tuple<grpc::Status, SignInReply> SignIn(
 
 // 用户 ID 及账号 ID 均为空，返回错误码 AUTH_ID_EMPTY
 TEST_F(ServiceAccountSignIn, auth_id_empty) {
-    auto [status, response] = SignIn("", "", "token", "password");
+    auto [status, response] = SignIn("", "", "value_token", "value_password");
     EXPECT_TRUE(status.ok());
     EXPECT_EQ(response.result().error_code(), ErrorCode::AUTH_ID_EMPTY);
 }
 
 // token 与密码均为空，返回错误码 AUTH_METHOD_EMPTY
 TEST_F(ServiceAccountSignIn, auth_method_empty) {
-    auto [status, response] = SignIn("", "userid", "", "");
+    auto [status, response] = SignIn("", "value_user_id", "", "");
     EXPECT_TRUE(status.ok());
     EXPECT_EQ(response.result().error_code(), ErrorCode::AUTH_METHOD_EMPTY);
 }
 
 // 用户 ID 不存在、停用或错误，返回错误码 USER_ID_NOT_FOUND
 TEST_F(ServiceAccountSignIn, user_id_not_found) {
-    auto [status, response] = SignIn("", "userid_not_found", "", "password");
+    auto [status, response] = SignIn("", "userid_not_found", "", "value_password");
     EXPECT_TRUE(status.ok());
     EXPECT_EQ(response.result().error_code(), ErrorCode::USER_ID_NOT_FOUND);
 }
 
 // 账号 ID 不存在、停用或错误，返回错误码 ACCOUNT_ID_NOT_FOUND
 TEST_F(ServiceAccountSignIn, account_id_not_found) {
-    auto [status, response] = SignIn("account_not_found", "", "token", "");
+    auto [status, response] = SignIn("value_account_not_found", "", "value_token", "");
     EXPECT_TRUE(status.ok());
     EXPECT_EQ(response.result().error_code(), ErrorCode::ACCOUNT_ID_NOT_FOUND);
 }
@@ -153,7 +153,7 @@ TEST_F(ServiceAccountSignIn, account_id_not_found) {
 // 用户 ID 或账号 ID 存在，但密码错误，返回错误码 PASSWORD_ERROR
 TEST_F(ServiceAccountSignIn, password_error) {
     // 注册一个用户，确保后续登录测试有一个有效的账号
-    auto [status_signup, response_signup] = SignUp("userid", "password", "password", "security_question", "security_answer");
+    auto [status_signup, response_signup] = SignUp("value_user_id", "value_password", "value_password", "value_security_question", "value_security_answer");
     EXPECT_TRUE(status_signup.ok());
     EXPECT_EQ(response_signup.result().success_code(), SuccessCode::SUCCESS);
     EXPECT_TRUE(!response_signup.account_id().empty());  // 注册成功应该返回一个非空的 account_id
@@ -164,7 +164,7 @@ TEST_F(ServiceAccountSignIn, password_error) {
     // 否则会优先使用账号 ID 和 token 进行登录，从而导致验证失败
 
     // 用户 ID + 错误密码 登录
-    auto [status_signin_user_id, response_signin_user_id] = SignIn("", "userid", "", "wrong_password");
+    auto [status_signin_user_id, response_signin_user_id] = SignIn("", "value_user_id", "", "wrong_password");
     EXPECT_TRUE(status_signin_user_id.ok());
     EXPECT_EQ(response_signin_user_id.result().error_code(), ErrorCode::PASSWORD_ERROR);
 
@@ -177,7 +177,7 @@ TEST_F(ServiceAccountSignIn, password_error) {
 // 用户 ID 或账号 ID 存在，但 token 错误，返回错误码 TOKEN_ERROR
 TEST_F(ServiceAccountSignIn, token_error) {
     // 注册一个用户，确保后续登录测试有一个有效的账号
-    auto [status_signup, response_signup] = SignUp("userid", "password", "password", "security_question", "security_answer");
+    auto [status_signup, response_signup] = SignUp("value_user_id", "value_password", "value_password", "value_security_question", "value_security_answer");
     EXPECT_TRUE(status_signup.ok());
     EXPECT_EQ(response_signup.result().success_code(), SuccessCode::SUCCESS);
     EXPECT_TRUE(!response_signup.account_id().empty());  // 注册成功应该返回一个非空的 account_id
@@ -185,12 +185,12 @@ TEST_F(ServiceAccountSignIn, token_error) {
     auto account_id_signup = response_signup.account_id();
 
     // 用户 ID + 错误 token 登录
-    auto [status_signin_user_id, response_signin_user_id] = SignIn("", "userid", "wrong_token", "");
+    auto [status_signin_user_id, response_signin_user_id] = SignIn("", "value_user_id", "value_wrong_token", "");
     EXPECT_TRUE(status_signin_user_id.ok());
     EXPECT_EQ(response_signin_user_id.result().error_code(), ErrorCode::TOKEN_ERROR);
 
     // 账号 ID + 错误 token 登录
-    auto [status_signin_account_id, response_signin_account_id] = SignIn(account_id_signup, "", "wrong_token", "");
+    auto [status_signin_account_id, response_signin_account_id] = SignIn(account_id_signup, "", "value_wrong_token", "");
     EXPECT_TRUE(status_signin_account_id.ok());
     EXPECT_EQ(response_signin_account_id.result().error_code(), ErrorCode::TOKEN_ERROR);
 }
@@ -200,7 +200,7 @@ TEST_F(ServiceAccountSignIn, token_error) {
 // 用户 ID + 密码登录
 TEST_F(ServiceAccountSignIn, user_id_password) {
     // 注册一个用户，确保后续登录测试有一个有效的账号
-    auto [status_signup, response_signup] = SignUp("userid", "password", "password", "security_question", "security_answer");
+    auto [status_signup, response_signup] = SignUp("value_user_id", "value_password", "value_password", "value_security_question", "value_security_answer");
     EXPECT_TRUE(status_signup.ok());
     EXPECT_EQ(response_signup.result().success_code(), SuccessCode::SUCCESS);
     EXPECT_TRUE(!response_signup.account_id().empty());  // 注册成功应该返回一个非空的 account_id
@@ -209,7 +209,7 @@ TEST_F(ServiceAccountSignIn, user_id_password) {
 
     // 使用用户名和密码登录时要确保账号 ID 和 token 都为空，
     // 否则会优先使用账号 ID 和 token 进行登录，从而导致验证失败
-    auto [status_signin, response_signin] = SignIn("", "userid", "", "password");
+    auto [status_signin, response_signin] = SignIn("", "value_user_id", "", "value_password");
     EXPECT_TRUE(status_signin.ok());
     EXPECT_EQ(response_signin.result().success_code(), SuccessCode::SUCCESS);
     EXPECT_TRUE(!response_signin.account_id().empty());  // 登录成功应该返回一个非空的 account_id
@@ -227,7 +227,7 @@ TEST_F(ServiceAccountSignIn, user_id_password) {
 // 账号 ID 需要在注册或登录时获得
 TEST_F(ServiceAccountSignIn, account_id_password) {
     // 注册一个用户，确保后续登录测试有一个有效的账号
-    auto [status_signup, response_signup] = SignUp("userid", "password", "password", "security_question", "security_answer");
+    auto [status_signup, response_signup] = SignUp("value_user_id", "value_password", "value_password", "value_security_question", "value_security_answer");
     EXPECT_TRUE(status_signup.ok());
     EXPECT_EQ(response_signup.result().success_code(), SuccessCode::SUCCESS);
     EXPECT_TRUE(!response_signup.account_id().empty());  // 注册成功应该返回一个非空的 account_id
@@ -236,7 +236,7 @@ TEST_F(ServiceAccountSignIn, account_id_password) {
 
     // 使用账号 ID 和密码登录时要确保 token 为空，
     // 否则会优先使用账号 ID 和 token 进行登录，从而导致验证失败
-    auto [status_signin, response_signin] = SignIn(account_id_signup, "", "", "password");
+    auto [status_signin, response_signin] = SignIn(account_id_signup, "", "", "value_password");
     EXPECT_TRUE(status_signin.ok());
     EXPECT_EQ(response_signin.result().success_code(), SuccessCode::SUCCESS);
     EXPECT_TRUE(!response_signin.account_id().empty());  // 登录成功应该返回一个非空的 account_id
@@ -254,7 +254,7 @@ TEST_F(ServiceAccountSignIn, account_id_password) {
 // token 需要在登录时获得
 TEST_F(ServiceAccountSignIn, user_id_token) {
     // 注册一个用户，确保后续登录测试有一个有效的账号
-    auto [status_signup, response_signup] = SignUp("userid", "password", "password", "security_question", "security_answer");
+    auto [status_signup, response_signup] = SignUp("value_user_id", "value_password", "value_password", "value_security_question", "value_security_answer");
     EXPECT_TRUE(status_signup.ok());
     EXPECT_EQ(response_signup.result().success_code(), SuccessCode::SUCCESS);
     EXPECT_TRUE(!response_signup.account_id().empty());  // 注册成功应该返回一个非空的 account_id
@@ -265,7 +265,7 @@ TEST_F(ServiceAccountSignIn, user_id_token) {
 
     // 使用用户名和密码登录时要确保账号 ID 和 token 都为空，
     // 否则会优先使用账号 ID 和 token 进行登录，从而导致验证失败
-    auto [status_signin, response_signin] = SignIn("", "userid", "", "password");
+    auto [status_signin, response_signin] = SignIn("", "value_user_id", "", "value_password");
     EXPECT_TRUE(status_signin.ok());
     EXPECT_EQ(response_signin.result().success_code(), SuccessCode::SUCCESS);
     EXPECT_TRUE(!response_signin.account_id().empty());  // 登录成功应该返回一个非空的 account_id
@@ -282,7 +282,7 @@ TEST_F(ServiceAccountSignIn, user_id_token) {
 
     // 使用用户名和密码登录时要确保账号 ID 和 token 都为空，
     // 否则会优先使用账号 ID 和 token 进行登录，从而导致验证失败
-    auto [status_auth, response_auth] = SignIn("", "userid", token_signin, "");
+    auto [status_auth, response_auth] = SignIn("", "value_user_id", token_signin, "");
     EXPECT_TRUE(status_auth.ok());
     EXPECT_EQ(response_auth.result().success_code(), SuccessCode::SUCCESS);
     EXPECT_TRUE(!response_auth.account_id().empty());  // 登录成功应该返回一个非空的 account_id
@@ -301,7 +301,7 @@ TEST_F(ServiceAccountSignIn, user_id_token) {
 // 账号 ID + token 登录
 TEST_F(ServiceAccountSignIn, account_id_token) {
     // 注册一个用户，确保后续登录测试有一个有效的账号
-    auto [status_signup, response_signup] = SignUp("userid", "password", "password", "security_question", "security_answer");
+    auto [status_signup, response_signup] = SignUp("value_user_id", "value_password", "value_password", "value_security_question", "value_security_answer");
     EXPECT_TRUE(status_signup.ok());
     EXPECT_EQ(response_signup.result().success_code(), SuccessCode::SUCCESS);
     EXPECT_TRUE(!response_signup.account_id().empty());  // 注册成功应该返回一个非空的 account_id
@@ -312,7 +312,7 @@ TEST_F(ServiceAccountSignIn, account_id_token) {
 
     // 使用用户名和密码登录时要确保账号 ID 和 token 都为空，
     // 否则会优先使用账号 ID 和 token 进行登录，从而导致验证失败
-    auto [status_signin, response_signin] = SignIn("", "userid", "", "password");
+    auto [status_signin, response_signin] = SignIn("", "value_user_id", "", "value_password");
     EXPECT_TRUE(status_signin.ok());
     EXPECT_EQ(response_signin.result().success_code(), SuccessCode::SUCCESS);
     EXPECT_TRUE(!response_signin.account_id().empty());  // 登录成功应该返回一个非空的 account_id
