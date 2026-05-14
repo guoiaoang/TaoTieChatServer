@@ -101,8 +101,9 @@ find_package(fmt           CONFIG   REQUIRED)
 find_package(nlohmann_json CONFIG   REQUIRED)
 find_package(yaml-cpp      CONFIG   REQUIRED)
 find_package(spdlog        CONFIG   REQUIRED)
-find_package(Boost         CONFIG   REQUIRED   COMPONENTS   uuid)
+find_package(Boost         CONFIG   REQUIRED   COMPONENTS   dll   uuid   program_options)
 find_package(stduuid       CONFIG   REQUIRED)
+find_package(unofficial-hash-library CONFIG REQUIRED)
 
 # ubuntu 上的 sqlcipher 没有 cmake 组件，需要使用 pkg-config 查找
 # WSL:`sudo updatedb --prunepaths="/mnt" && locate sqlcipher | grep -v ^/home/user/workspace`
@@ -139,8 +140,9 @@ target_link_libraries(${PROJECT_NAME}   PRIVATE   ${SQLCIPHER_TARGET})
 target_link_libraries(${PROJECT_NAME}   PRIVATE   nlohmann_json::nlohmann_json)
 target_link_libraries(${PROJECT_NAME}   PRIVATE   yaml-cpp::yaml-cpp)
 target_link_libraries(${PROJECT_NAME}   PRIVATE   spdlog::spdlog)
-target_link_libraries(${PROJECT_NAME}   PRIVATE   Boost::uuid)
+target_link_libraries(${PROJECT_NAME}   PRIVATE   Boost::dll Boost::uuid Boost::program_options)
 target_link_libraries(${PROJECT_NAME}   PRIVATE   stduuid)
+target_link_libraries(${PROJECT_NAME}   PRIVATE   unofficial::hash-library)
 # target_link_libraries(${PROJECT_NAME} PRIVATE   magic_enum::magic_enum)
 # target_include_directories(${PROJECT_NAME}   PRIVATE   ${CONJURE_ENUM_INCLUDE_DIRS})
 

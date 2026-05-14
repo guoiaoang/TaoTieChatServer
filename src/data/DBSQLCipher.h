@@ -30,10 +30,10 @@ using namespace SQL::COMMANDS::CREATE;
 using namespace SQL::COMMANDS::QUERY;
 using namespace SQL::COMMANDS::INSERT;
 using namespace SQL::COMMANDS::UPDATE;
+using namespace Utils::Transform;
 
 using Utils::set_success;
 using Utils::set_error;
-using Utils::to_string;
 using Utils::hash_token;
 using Utils::hash_password;
 using Utils::hash_security_answer;
@@ -47,6 +47,7 @@ using Utils::to_utc_string;
 using Utils::split;
 using Utils::success_reply;
 using Utils::error_reply;
+using Utils::Transform::to_string;
 
 // =========================================================================== //
 
@@ -247,10 +248,16 @@ public:
             //
             SQL_CREATE_TABLE_FRIENDS          ,
             // SQL_CREATE_TABLE_GROUPS        ,
-            SQL_CREATE_TABLE_MESSAGES         ,
+            SQL_CREATE_TABLE_MESSAGES      ,
             // SQL_CREATE_TABLE_GROUP_MESSAGES,
             SQL_CREATE_TABLE_FRIEND_REQUESTS  ,
-            SQL_CREATE_TABLE_FILES
+            SQL_CREATE_TABLE_FILE_METADATAS          ,
+            SQL_CREATE_INDEX_FILE_METADATAS_FILE_MD5 ,
+            SQL_CREATE_TABLE_FILE_PERMISSIONS        ,
+            SQL_CREATE_INDEX_FILE_PERMISSIONS_FILE_ID,
+            // SQL_CREATE_TABLE_FILE_STORAGE            ,
+            // SQL_CREATE_TABLE_PTS_RECORDS   ,
+            // SQL_CREATE_TABLE_PTS_STATS
         };
         do{
             for(const auto& cmd : table_creation_commands) {
@@ -1703,9 +1710,14 @@ public:
         return error_reply<Reply>(reply, ErrorCode::DEFAULT, std::format("Default error."));
     }
 
-    // GetFileID 获取文件 ID
-    // 亦可验证是否已经上传完成某文件
-    shared_ptr<GetFileIDReply> get_file_id(const shared_ptr<GetFileIDRequest>&request) {
+    // 当前接口目前仅是获取一个上传 ID，不校验文件是否已经存在及是否正确
+    // 秒传功能在上传接口中
+    // 当前接口会查询 metadata 获取到文件的 ID，如果不存在就返回一个新的文件 ID
+    //
+    // 用户使用文件上传接口进行上传完成时会更新文件的 metadata 和权限信息，
+    // 如果没有数据库中 metadata 信息则认为需要进行上传，
+    // 有 metadata 信息则认为已经上传完成。
+    shared_ptr<GetFileIDReply> get_upload_file_id(const shared_ptr<GetFileIDRequest>&request) {
         using Request = GetFileIDRequest;
         using Reply   = GetFileIDReply;
         // =========================== 初始化操作 =========================== //
@@ -1734,86 +1746,77 @@ public:
             return error_reply<Reply>(reply, ErrorCode::AUTH_FAILED, std::format("Auth failed to get account_id."));
         }
 
+        // 流程：查询 metadata --> 更新 permission --> 获取文件状态
+
         // 获取参数
         auto file_metadata = request->file_metadata();
         auto file_md5  = file_metadata.file_md5 ();
         auto file_name = file_metadata.file_name();
         auto file_size = file_metadata.file_size();
 
-        // 读取记录
-        auto [success_get_file_id, file_id] = get_file_id(account_id, file_name, file_size, file_md5);
+        // 文件 hash 是否存在只影响是否上传，不影响记录元数据与权限
+
+        // 获取文件 ID
+        auto [success_get_file_id, file_id] = get_exist_file_id(file_name, file_size, file_md5);
         if(!success_get_file_id) {
             return error_reply<Reply>(reply, ErrorCode::DB_EXECUTE, std::format("GetFileID failed."));
         }
-        else {
-            reply->set_file_id(file_id);
-            return success_reply<Reply>(reply, SuccessCode::SUCCESS, std::format("GetFileID Successed."));
+        // 文件 hash 不存在或文件 metadata 不存在时都需要记录文件 metadata，生成新的文件 ID
+        if(file_id.empty()) {
+            auto [success_get_new_file_id, new_file_id] = get_new_file_id();
+            if(!success_get_new_file_id) {
+                return error_reply<Reply>(reply, ErrorCode::DB_EXECUTE, std::format("Get new file ID failed."));
+            }
+            file_id = new_file_id;
+            // 记录文件元数据
+            auto [success_write_file_metadata, result_write_file_metadata] = write_file_metadata(file_id, file_name, file_size, file_md5, FileStatusCode::FILE_STATUS_NOT_FOUND);
+            if(!success_write_file_metadata || !result_write_file_metadata) {
+                return error_reply<Reply>(reply, ErrorCode::DB_EXECUTE, std::format("Write file metadata error."));
+            }
+        }
+        // 记录权限关联
+        auto [success_write_file_permission, result_write_file_permission] = write_file_permission(account_id, file_id);
+        if(!success_write_file_permission || !result_write_file_permission) {
+            return error_reply<Reply>(reply, ErrorCode::DB_EXECUTE, std::format("Write file permission error."));
         }
 
-        return error_reply<Reply>(reply, ErrorCode::DEFAULT, std::format("Default error."));
+        // 这里是数据库的操作，只读取文件记录，不校验真实文件是否存在，
+        // 文件的上传和下载接口都不校验文件记录是否存在，只根据文件记录的状态来判断是否需要上传或下载
+        auto [success_get_file_info, check_file_metadata, check_file_status] = get_file_info(file_id);
+        if(!success_get_file_info) {
+            return error_reply<Reply>(reply, ErrorCode::DB_QUERY, std::format("Get file info error."));
+        }
+
+        // 保存需要的数据
+        reply->set_file_id(file_id);
+        reply->set_file_status(check_file_status);
+
+        // 返回是否需要上传的消息
+        return success_reply<Reply>(reply, SuccessCode::SUCCESS, std::format("File hash does not exist, write metadata and permission Successed."));
     }
 
-    // 内部使用
-    // 记录文件的 metadata
-    shared_ptr<GetFileIDReply> write_file_id(const shared_ptr<GetFileIDRequest>&request) {
-        using Request = GetFileIDRequest;
-        using Reply   = GetFileIDReply;
-        // =========================== 初始化操作 =========================== //
-        // 用户登录验证，返回是否登录成功
-        // 1. 根据用户 ID 查询用户记录，如果没有找到则返回失败
-        // 2. 如果找到了用户记录则比较密码和安全问题答案，如果匹配则返回成功，否则返回失败
-        shared_ptr<Reply> reply = make_shared<Reply>();
-        set_error(reply->mutable_result(), ErrorCode::ERROR_INIT);
-        if(!request) {
-            return error_reply<Reply>(reply, ErrorCode::ERROR_INIT, std::format("Invalid Param."));
-        }
-        reply->mutable_request()->CopyFrom(*request.get());
-        set_error(reply->mutable_result(), ErrorCode::UNKNOWN);
-        // =========================== 参数校验 =========================== //
-        // =========================== 执行操作 =========================== //
-        // 验证鉴权是否成功
-        shared_ptr<AuthRequest> auth_request = make_shared<AuthRequest>(request->request_user_auth());
-        auto auth_reply  = auth_check(auth_request);
-        auto&auth_result = auth_reply->result();
-        if(!auth_result.has_success_code()) {
-            return error_reply<Reply>(reply, auth_result.error_code(), auth_result.message());
-        }
-        // 获取结果
-        auto account_id = auth_reply->account_id();
-        if(account_id.empty()) {
-            return error_reply<Reply>(reply, ErrorCode::AUTH_FAILED, std::format("Auth failed to get account_id."));
-        }
-
-        // 获取参数
-        auto file_metadata = request->file_metadata();
-        auto file_md5  = file_metadata.file_md5 ();
-        auto file_name = file_metadata.file_name();
-        auto file_size = file_metadata.file_size();
-
-        // get_new_file_id();
-        auto file_id = Utils::generate_file_id();
-
-        // 读取记录
-        auto [success_write_file_id, result_write_file_id] = write_file_id(account_id, file_id, file_name, file_size, file_md5);
-        if(!success_write_file_id) {
-            return error_reply<Reply>(reply, ErrorCode::DB_EXECUTE, std::format("GetFileID failed."));
-        }
-        else {
-            return success_reply<Reply>(reply, SuccessCode::SUCCESS, std::format("GetFileID Successed."));
-        }
-
-        return error_reply<Reply>(reply, ErrorCode::DEFAULT, std::format("Default error."));
+    // 执行上传前检查文件是否存在
+    // 1. 只处理数据库相关的操作，文件读写不在这里；
+    // 2. 需要检查文件元数据防止上传文件不一致，但不检查上传用户，谁都可以上传文件内容。
+    //    1. 文件 ID 用来判断用户是否有权进行上传;
+    //    2. 文件状态判断用户是否需要上传；
+    //    3. 文件大小用来防止用户上传文件异常，便于截断，防止撑爆服务器；
+    //    4. 文件 md5 用来判断上传的文件是否正确。
+    std::tuple<bool, FileMetadata, FileStatusCode> get_file_info_interface(const string&file_id) {
+        return get_file_info(file_id);
     }
-
-    // FileUpload 文件上传
-    shared_ptr<FileUploadReply> file_upload(const shared_ptr<FileUploadRequest>&request) {
-        return shared_ptr<FileUploadReply>();
+    // std::tuple<bool, bool> record_file_path_interface(const string&file_md5, const string&file_path) {
+    //     return write_file_path(file_md5, file_path);
+    // }
+    std::tuple<bool, bool> update_file_status_interface(const string&file_id, FileStatusCode file_status) {
+        return update_file_status(file_id, file_status);
     }
-
-    // FileDownload 下载文件
-    shared_ptr<FileDownloadReply> file_download(const shared_ptr<FileDownloadRequest>&request) {
-        return shared_ptr<FileDownloadReply>();
+    std::tuple<bool, int> get_file_permission_interface(const string&account_id, const string&file_id) {
+        return get_file_permission(account_id, file_id);
     }
+    // std::tuple<bool, string> get_file_path_interface(const string&file_md5) {
+    //     return get_file_path(file_md5);
+    // }
 
 private:
     void set_timestamp(TaoTieChat::Timestamp& timestamp, const std::chrono::system_clock::time_point& time_point) {
@@ -1984,32 +1987,32 @@ private:
         }
         return {true, friend_info};
     }
-
-    ErrorCode contact_status_to_error_code        (int result) {
-        static map<int, ErrorCode> status_error_code_map = {
-            {-1, ErrorCode::DB_RECORD_NOT_FOUND },  // 好友请求未找到
-            {0, ErrorCode::PENDING   },  // 存在好友申请
-            {1, ErrorCode::ASSOCIATED},  // 已经是好友了
-            {2, ErrorCode::REFUSED   },  // 好友请求被拒绝
-            {3, ErrorCode::BLOCKED   },  // 被对方拉黑了
-        };
-        if(status_error_code_map.find(result) != status_error_code_map.end()) {
-            return status_error_code_map[result];
+    // 获取文件 ID 对应的信息
+    std::tuple<bool, FileMetadata, FileStatusCode> get_file_info(const SqlRows&rows) {
+        // 调用该函数就说明执行成功，返回结果为空时依然是有效值
+        std::tuple<bool, FileMetadata, FileStatusCode> file_info;
+        // 解析获取 file_info 并返回
+        for(auto&row : rows) {
+            file_info = std::make_tuple(true, FileMetadata{}, FileStatusCode::FILE_STATUS_NONE);
+            auto ite_end = row.end();
+            // auto ite_file_id     = row.find("file_id"    );
+            auto ite_file_name      = row.find("file_name"  );
+            auto ite_file_size      = row.find("file_size"  );
+            auto ite_file_md5       = row.find("file_md5"   );
+            auto ite_file_status    = row.find("file_status");
+            // auto ite_upload_time = row.find("upload_time");
+            // auto ite_common      = row.find("common"     );
+            // if(ite_file_id    != ite_end) { std::get<1>(file_info).set_file_id    (get_string(ite_file_id    ->second)); }
+            if(ite_file_name     != ite_end) { std::get<1>(file_info).set_file_name  (get_string(ite_file_name  ->second)); }
+            if(ite_file_size     != ite_end) { std::get<1>(file_info).set_file_size  (get_int   (ite_file_size  ->second)); }
+            if(ite_file_md5      != ite_end) { std::get<1>(file_info).set_file_md5   (get_string(ite_file_md5   ->second)); }
+            if(ite_file_status   != ite_end) { std::get<2>(file_info) = file_status_to_file_status_code(get_int(ite_file_status->second)); }
+            // if(ite_file_status!= ite_end) { std::get<1>(file_info).set_file_status(get_int   (ite_file_status->second)); }
+            // if(ite_upload_time!= ite_end) { std::get<1>(file_info).set_upload_time(get_string(ite_upload_time->second)); }
+            // if(ite_common     != ite_end) { std::get<1>(file_info).set_common     (get_string(ite_common     ->second)); }
+            return file_info;  // 一次查询实际只有一条
         }
-        return ErrorCode::DEFAULT;
-    }
-    ErrorCode contact_request_status_to_error_code(int result) {
-        static map<int, ErrorCode> status_error_code_map = {
-            {-1, ErrorCode::DB_RECORD_NOT_FOUND },  // 好友请求未找到
-            {0, ErrorCode::PENDING },  // 好友请求待处理
-            {1, ErrorCode::ACCEPTED},  // 同意好友申请
-            {2, ErrorCode::REFUSED },  // 拒绝好友申请
-            {3, ErrorCode::IGNORED },  // 忽略好友申请（不回复，既不接受也不拒绝）
-        };
-        if(status_error_code_map.find(result) != status_error_code_map.end()) {
-            return status_error_code_map[result];
-        }
-        return ErrorCode::DEFAULT;
+        return file_info;
     }
 
     // ============================== 读数据库 ============================== //
@@ -2023,6 +2026,93 @@ private:
             // 查询命令执行成功
             return get_version_value(sql_result->rows);
         }
+        return {false, string{}};
+    }
+    std::tuple<bool, string> get_new_account_id() {
+        // 循环 1000 次还重复，说明数据库可能存在异常
+        for(int i = 0; i < 1000; ++i) {
+            // 生成 account_id
+            string account_id = generate_account_id();
+            // 账号 ID 不存在时则说明可用
+            auto[success, exist] = check_exist_account_id(account_id);
+            // 查询失败则返回错误
+            if(!success) {
+                return {false, string{}};
+            }
+            // 查询成功且没有该 ID
+            if(!exist) {
+                return {true, account_id};
+            }
+            // 账号 ID 存在就继续循环获取新的 ID
+            // else {
+            //     return {true, string()};
+            // }
+        }
+        LOG_ERROR("database account_id maybe full.");
+        return {false, string{}};
+    }
+    std::tuple<bool, string> get_new_token(const string&account_id) {
+        if(account_id.empty()) {
+            return {false, string{}};
+        }
+        // 循环 1000 次还重复，说明数据库可能存在异常
+        for(int i = 0; i < 1000; ++i) {
+            // 生成 account_id
+            string token = generate_token();
+            // 账号 ID 不存在时则说明可用
+            auto[success, exist] = check_token(account_id, token);
+            // 查询失败则返回错误
+            if(!success) {
+                return {false, string{}};
+            }
+            // 查询成功且没有该 ID
+            if(!exist) {
+                return {true, token};
+            }
+            // 账号 ID 存在就继续循环获取新的 ID
+        }
+        LOG_ERROR("database token maybe full. account_id:{}.", account_id);
+        return {false, string{}};
+    }
+    // 可包含时间戳，可使用雪花算法等
+    std::tuple<bool, string> get_new_message_id() {
+        // 循环 1000 次还重复，说明数据库可能存在异常
+        for(int i = 0; i < 1000; ++i) {
+            // 生成 message_id
+            string message_id = generate_message_id();
+            // message_id 不存在时则说明可用
+            auto[success, exist] = check_exist_server_message_id(message_id);
+            // 查询失败则返回错误
+            if(!success) {
+                return {false, string{}};
+            }
+            // 查询成功且没有该 ID
+            if(!exist) {
+                return {true, message_id};
+            }
+            // 账号 ID 存在就继续循环获取新的 ID
+        }
+        LOG_ERROR("database message_id maybe full.");
+        return {false, string{}};
+    }
+    std::tuple<bool, string> get_new_file_id() {
+        // 循环 1000 次还重复，说明数据库可能存在异常
+        for(int i = 0; i < 1000; ++i) {
+            // 生成 file_id
+            string file_id = generate_file_id();
+            // 文件 ID 不存在时则说明可用
+            auto[success, exist] = check_exist_file_id(file_id);
+            // 查询失败则返回错误
+            if(!success) {
+                return {false, string{}};
+            }
+            // 查询成功且没有该 ID
+            if(!exist) {
+                return {true, file_id};
+            }
+            // 文件 ID 存在就继续循环获取新的 ID
+        }
+        LOG_ERROR("database file_id maybe full.");
         return {false, string{}};
     }
     // 用户注册时搜索 user_id 是否可用  // 仅查找在用的用户 ID 即可
@@ -2301,25 +2391,74 @@ private:
         return {false, false};
     };
     // 获取已经上传文件的文件 ID
-    std::tuple<bool, string> get_file_id(const string& account_id, const string& file_name, int64_t file_size, const string& file_md5) {
+    std::tuple<bool, string> get_exist_file_id(const string& file_name, int64_t file_size, const string& file_md5) {
         // =========================== 参数校验 =========================== //
-        if(account_id.empty() || file_name.empty() || file_size <= 0 || file_md5.empty()) {
+        if(file_name.empty() || file_size < 0 || file_md5.empty()) {
             return {false, string{}};
         }
         // =========================== 执行操作 =========================== //
         // 构造参数
         auto sql_params = make_shared<SqlParams>();
-        (*sql_params)[":account_id"] = account_id;
         (*sql_params)[":file_name" ] = file_name ;
         (*sql_params)[":file_size" ] = file_size ;
         (*sql_params)[":file_md5"  ] = file_md5  ;
-        auto sql_result = execute(SQL_QUERY_GET_ACTIVE_ACCOUNT_FILE_ID, sql_params);
+        auto sql_result = execute(SQL_QUERY_GET_FILE_ID, sql_params);
         if(sql_result && sql_result->done) {
             // 查询命令执行成功
             return get_first_string(sql_result->rows, "file_id");
         }
         return {false, string{}};
     }
+    std::tuple<bool, FileMetadata, FileStatusCode> get_file_info(const string&file_id) {
+        // =========================== 参数校验 =========================== //
+        if(file_id.empty()) {
+            return {false, FileMetadata{}, FileStatusCode::FILE_STATUS_NONE};
+        }
+        // =========================== 执行操作 =========================== //
+        // 构造参数
+        auto sql_params = make_shared<SqlParams>();
+        (*sql_params)[":file_id"] = file_id;
+        auto sql_result = execute(SQL_QUERY_GET_FILE_INFO, sql_params);
+        if(sql_result && sql_result->done) {
+            return get_file_info(sql_result->rows);
+        }
+        return {false, FileMetadata{}, FileStatusCode::FILE_STATUS_NONE};
+    }
+    std::tuple<bool, int> get_file_permission(const string&account_id, const string&file_id) {
+        // =========================== 参数校验 =========================== //
+        if(file_id.empty() || account_id.empty()) {
+            return {false, 0};
+        }
+        // =========================== 执行操作 =========================== //
+        // 构造参数
+        auto sql_params = make_shared<SqlParams>();
+        (*sql_params)[":file_id"   ] = file_id   ;
+        (*sql_params)[":account_id"] = account_id;
+        auto sql_result = execute(SQL_QUERY_GET_FILE_PERMISSION, sql_params);
+        if(sql_result && sql_result->done) {
+            auto [success, permission_code] = get_first_int(sql_result->rows, "permission_code");
+            if(success) {
+                return {true, permission_code};
+            }
+        }
+        return {false, 0};
+    }
+    // std::tuple<bool, string> get_file_path(const string&file_md5) {
+    //     // =========================== 参数校验 =========================== //
+    //     if(file_md5.empty()) {
+    //         return {false, string{}};
+    //     }
+    //     // =========================== 执行操作 =========================== //
+    //     // 构造参数
+    //     auto sql_params = make_shared<SqlParams>();
+    //     (*sql_params)[":file_md5"] = file_md5;
+    //     auto sql_result = execute(SQL_QUERY_GET_FILE_PATH, sql_params);
+    //     if(sql_result && sql_result->done) {
+    //         // 查询命令执行成功
+    //         return get_first_string(sql_result->rows, "file_path");
+    //     }
+    //     return {false, string{}};
+    // }
 
     // ============================== 写数据库 ============================== //
 
@@ -2360,93 +2499,6 @@ private:
             return {true, true};
         }
         return {false, false};
-    }
-    std::tuple<bool, string> get_new_account_id() {
-        // 循环 1000 次还重复，说明数据库可能存在异常
-        for(int i = 0; i < 1000; ++i) {
-            // 生成 account_id
-            string account_id = generate_account_id();
-            // 账号 ID 不存在时则说明可用
-            auto[success, exist] = check_exist_account_id(account_id);
-            // 查询失败则返回错误
-            if(!success) {
-                return {false, string{}};
-            }
-            // 查询成功且没有该 ID
-            if(!exist) {
-                return {true, account_id};
-            }
-            // 账号 ID 存在就继续循环获取新的 ID
-            // else {
-            //     return {true, string()};
-            // }
-        }
-        LOG_ERROR("database account_id maybe full.");
-        return {false, string{}};
-    }
-    std::tuple<bool, string> get_new_token(const string&account_id) {
-        if(account_id.empty()) {
-            return {false, string{}};
-        }
-        // 循环 1000 次还重复，说明数据库可能存在异常
-        for(int i = 0; i < 1000; ++i) {
-            // 生成 account_id
-            string token = generate_token();
-            // 账号 ID 不存在时则说明可用
-            auto[success, exist] = check_token(account_id, token);
-            // 查询失败则返回错误
-            if(!success) {
-                return {false, string{}};
-            }
-            // 查询成功且没有该 ID
-            if(!exist) {
-                return {true, token};
-            }
-            // 账号 ID 存在就继续循环获取新的 ID
-        }
-        LOG_ERROR("database token maybe full. account_id:{}.", account_id);
-        return {false, string{}};
-    }
-    // 可包含时间戳，可使用雪花算法等
-    std::tuple<bool, string> get_new_message_id() {
-        // 循环 1000 次还重复，说明数据库可能存在异常
-        for(int i = 0; i < 1000; ++i) {
-            // 生成 message_id
-            string message_id = generate_message_id();
-            // message_id 不存在时则说明可用
-            auto[success, exist] = check_exist_server_message_id(message_id);
-            // 查询失败则返回错误
-            if(!success) {
-                return {false, string{}};
-            }
-            // 查询成功且没有该 ID
-            if(!exist) {
-                return {true, message_id};
-            }
-            // 账号 ID 存在就继续循环获取新的 ID
-        }
-        LOG_ERROR("database message_id maybe full.");
-        return {false, string{}};
-    }
-    std::tuple<bool, string> get_new_file_id() {
-        // 循环 1000 次还重复，说明数据库可能存在异常
-        for(int i = 0; i < 1000; ++i) {
-            // 生成 file_id
-            string file_id = generate_file_id();
-            // 文件 ID 不存在时则说明可用
-            auto[success, exist] = check_exist_file_id(file_id);
-            // 查询失败则返回错误
-            if(!success) {
-                return {false, string{}};
-            }
-            // 查询成功且没有该 ID
-            if(!exist) {
-                return {true, file_id};
-            }
-            // 文件 ID 存在就继续循环获取新的 ID
-        }
-        LOG_ERROR("database file_id maybe full.");
-        return {false, string{}};
     }
     std::tuple<bool, string> user_register(const string&user_id, const string&password, const string&security_question, const string&security_answer) {
         auto [success_get_new_account_id, account_id] = get_new_account_id();  // 一般不会枯竭
@@ -2564,12 +2616,6 @@ private:
             return {true, true};
         }
         return {false, false};
-    }
-    int to_int(const ContactReplyCode&code) {
-        ;    if(code == ContactReplyCode::CONTACT_REPLY_ACCEPT) { return 1; }
-        else if(code == ContactReplyCode::CONTACT_REPLY_REJECT) { return 2; }
-        else if(code == ContactReplyCode::CONTACT_REPLY_IGNORE) { return 3; }
-        return -1;
     }
     // 设置好友请求的状态为同意/拒绝/忽略
     std::tuple<bool, bool> set_contact_request_status(const string&request_account_id, const string&target_account_id, const ContactReplyCode&code) {
@@ -2712,19 +2758,19 @@ private:
         }
         return {false, false};
     }
-    std::tuple<bool, bool> write_file_id(const string&account_id, const string&file_id, const string&file_name, const int64_t file_size, const string&file_md5) {
+    std::tuple<bool, bool> write_file_metadata(const string&file_id, const string&file_name, const int64_t file_size, const string&file_md5, FileStatusCode status) {
         // =========================== 参数校验 =========================== //
-        if( account_id.empty() || file_id.empty() || file_name.empty() || file_size < 0 || file_md5.empty()) {
+        if( file_id.empty() || file_name.empty() || file_size < 0 || file_md5.empty()) {
             return {false, false};
         }
         // =========================== 执行操作 =========================== //
         // 构造参数
         auto sql_params = make_shared<SqlParams>();
-        (*sql_params)[":account_id" ] = account_id ;
-        (*sql_params)[":file_id"    ] = file_id    ;
-        (*sql_params)[":file_name"  ] = file_name  ;
-        (*sql_params)[":file_size"  ] = file_size  ;
-        (*sql_params)[":file_md5"   ] = file_md5   ;
+        (*sql_params)[":file_id"    ] = file_id  ;
+        (*sql_params)[":file_name"  ] = file_name;
+        (*sql_params)[":file_size"  ] = file_size;
+        (*sql_params)[":file_md5"   ] = file_md5 ;
+        (*sql_params)[":file_status"] = Utils::Transform::to_int(status);
         auto sql_result = execute(SQL_INSERT_FILE_METADATA, sql_params);
         if(sql_result && sql_result->done) {
             // 查询命令执行成功
@@ -2732,7 +2778,69 @@ private:
         }
         return {false, false};
     }
+    std::tuple<bool, bool> write_file_permission(const std::string& account_id, const std::string& file_id) {
+        // =========================== 参数校验 =========================== //
+        if( account_id.empty() || file_id.empty()) {
+            return {false, false};
+        }
+        // =========================== 执行操作 =========================== //
+        // 获取权限代码
+        int permission_code = Utils::Transform::to_int(PermissionCode::PERMISSION_NONE);
+        permission_code += Utils::Transform::to_int(PermissionCode::PERMISSION_NONE   ); // =  0;  // 0000 0000 // 无权限
+        permission_code += Utils::Transform::to_int(PermissionCode::PERMISSION_CREATE ); // =  1;  // 0000 0001 //
+        permission_code += Utils::Transform::to_int(PermissionCode::PERMISSION_READ   ); // =  2;  // 0000 0010 //
+        permission_code += Utils::Transform::to_int(PermissionCode::PERMISSION_WRITE  ); // =  4;  // 0000 0100 //
+        permission_code += Utils::Transform::to_int(PermissionCode::PERMISSION_MODIFY ); // =  8;  // 0000 1000 //
+        permission_code += Utils::Transform::to_int(PermissionCode::PERMISSION_DELETE ); // = 16;  // 0001 0000 //
+        permission_code += Utils::Transform::to_int(PermissionCode::PERMISSION_SHARE  ); // = 32;  // 0010 0000 //
+        permission_code += Utils::Transform::to_int(PermissionCode::PERMISSION_EXECUTE); // = 64;  // 0100 0000 //
 
+        // 构造参数
+        auto sql_params = make_shared<SqlParams>();
+        (*sql_params)[":account_id"     ] = account_id;
+        (*sql_params)[":file_id"        ] = file_id   ;
+        (*sql_params)[":permission_code"] = permission_code; // 暂时先给全部权限
+        auto sql_result = execute(SQL_UPDATE_FILE_PERMISSION, sql_params);
+        if(sql_result && sql_result->done) {
+            // 查询命令执行成功
+            return {true, true};
+        }
+        return {false, false};
+    }
+    // std::tuple<bool, bool> write_file_path(const std::string& file_md5, const std::string& file_path) {
+    //     // =========================== 参数校验 =========================== //
+    //     if(file_md5.empty() || file_path.empty()) {
+    //         return {false, false};
+    //     }
+    //     // =========================== 执行操作 =========================== //
+    //     // 构造参数
+    //     auto sql_params = make_shared<SqlParams>();
+    //     (*sql_params)[":file_md5" ] = file_md5 ;
+    //     (*sql_params)[":file_path"] = file_path;
+    //     auto sql_result = execute(SQL_INSERT_FILE_PATH, sql_params);
+    //     if(sql_result && sql_result->done) {
+    //         // 查询命令执行成功
+    //         return {true, true};
+    //     }
+    //     return {false, false};
+    // }
+    std::tuple<bool, bool> update_file_status(const std::string& file_id, const FileStatusCode& status) {
+        // =========================== 参数校验 =========================== //
+        if(file_id.empty()) {
+            return {false, false};
+        }
+        // =========================== 执行操作 =========================== //
+        // 构造参数
+        auto sql_params = make_shared<SqlParams>();
+        (*sql_params)[":file_id"    ] = file_id;
+        (*sql_params)[":file_status"] = Utils::Transform::to_int(status);
+        auto sql_result = execute(SQL_UPDATE_FILE_STATUS, sql_params);
+        if(sql_result && sql_result->done) {
+            // 查询命令执行成功
+            return {true, true};
+        }
+        return {false, false};
+    }
 private:
     path          m_db_path;
     sqlite3*      m_db_sqlcipher = nullptr;

@@ -13,8 +13,8 @@ using google::protobuf::Timestamp;
 using Utils::set_success;
 using Utils::set_error;
 using Utils::log_grpc_context;
-using Utils::to_string;
 using Utils::error_status;
+using Utils::Transform::to_string;
 
 // 服务端实现
 class AccountServiceImpl final : public AccountService::Service {

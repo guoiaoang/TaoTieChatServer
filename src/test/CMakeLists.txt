@@ -1,17 +1,30 @@
 include(GoogleTest)
 
-set(TEST_ITEM test_helloworld)
-add_executable(${TEST_ITEM}
-    ${TEST_ITEM}.cc
-)
-target_link_libraries(${TEST_ITEM}
-    PRIVATE
-        GTest::gtest_main
-)
-gtest_discover_tests(${TEST_ITEM})
+# set(
+#     TEST_TARGETS
+#         test_helloworld
+#         # test_hash
+# )
+# foreach(TEST_ITEM ${TEST_TARGETS})
+#     add_executable(${TEST_ITEM}
+#         ${TEST_ITEM}.cc
+#     )
+#     target_link_libraries(${TEST_ITEM}
+#         PRIVATE
+#             GTest::gtest_main
+#     )
+#     # if(TEST_ITEM STREQUAL "test_hash")
+#     #     target_link_libraries(${TEST_ITEM}
+#     #         PRIVATE
+#     #             unofficial::hash-library
+#     #     )
+#     # endif()
+#     gtest_discover_tests(${TEST_ITEM})
+# endforeach()
 
 set(
     TEST_TARGETS
+        test_hash                            # 哈希函数测试
         test_service_status_getstatus        # 获取用户在线状态 # 未实现实际功能
         test_service_account_signup          # 账号注册
         test_service_account_signin          # 账号登录
@@ -25,6 +38,7 @@ set(
         test_service_account_updateprofile   # 更新个人资料
         test_service_account_getsecurityquestion # 获取安全问题
         test_service_account_updatesecurityinfo  # 更新安全信息（密码/密保问题和答案）
+        test_service_file                    # 文件上传下载测试
 )
 foreach(TEST_ITEM ${TEST_TARGETS})
     add_executable(${TEST_ITEM}
@@ -39,7 +53,10 @@ foreach(TEST_ITEM ${TEST_TARGETS})
             spdlog::spdlog
             ${SQLCIPHER_TARGET}
             nlohmann_json::nlohmann_json
+            Boost::filesystem
+            Boost::system
             Boost::uuid
+            unofficial::hash-library
             protobuf::libprotoc
             protobuf::libprotobuf
             protobuf::libprotobuf-lite

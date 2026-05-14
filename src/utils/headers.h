@@ -6,11 +6,12 @@
 
 #define ENABLE_SQLCIPHER
 #define ENABLE_NLOHMANN_JSON
+#define ENABLE_BOOST_DLL
 #define ENABLE_BOOST_UUID
+#define ENABLE_BOOST_PROGRAM_OPTIONS
 #define ENABLE_FMT
 #define ENABLE_STDUUID
-// #define ENABLE_CONJURE_ENUM
-// #define ENABLE_MAGIC_ENUM
+#define ENABLE_HASH_LIBRARY
 // #define ENABLE_CLIENT
 
 #ifdef ENABLE_CLIENT
@@ -280,39 +281,44 @@
 #include <nlohmann/json.hpp>
 #endif // ENABLE_NLOHMANN_JSON
 
+// #define ENABLE_BOOST_DLL
+#ifdef ENABLE_BOOST_DLL
+// boost dll  // 用于获取当前可执行文件的路径
+#include <boost/dll.hpp>
+#endif // ENABLE_BOOST_DLL
+
 // #define ENABLE_BOOST_UUID
 #ifdef ENABLE_BOOST_UUID
 // boost uuid
 #include <boost/uuid.hpp>
 #endif // ENABLE_BOOST_UUID
 
+// #define ENABLE_BOOST_PROGRAM_OPTIONS
+#ifdef ENABLE_BOOST_PROGRAM_OPTIONS
+// boost program_options
+#include <boost/program_options.hpp>
+#endif // ENABLE_BOOST_PROGRAM_OPTIONS
+
 #ifdef ENABLE_STDUUID
 #include <stduuid/uuid.h>
 #endif // ENABLE_STDUUID
+
+// hash-library
+#ifdef ENABLE_HASH_LIBRARY
+#include <crc32.h>
+#include <hash.h>
+#include <hmac.h>
+#include <keccak.h>
+#include <md5.h>
+#include <sha1.h>
+#include <sha3.h>
+#include <sha256.h>
+#endif // ENABLE_HASH_LIBRARY
 
 // #define ENABLE_FMT
 #ifdef ENABLE_FMT
 #include <fmt/format.h>
 #endif // ENABLE_FMT
-
-// #define ENABLE_CONJURE_ENUM
-#ifdef ENABLE_CONJURE_ENUM
-// 约束条件：enum 从 0 开始且连续
-// template<typename T>
-// concept valid_bitset_enum = valid_enum<T> and requires(T)
-// {
-//   requires conjure_enum<T>::is_continuous();
-//   requires conjure_enum<T>::get_actual_enum_min_value() == 0;
-//   requires conjure_enum<T>::get_actual_enum_max_value() < conjure_enum<T>::count();
-// };
-#include <fix8/conjure_enum.hpp>
-#include <fix8/conjure_enum_bitset.hpp>
-#endif // ENABLE_CONJURE_ENUM
-
-// #define ENABLE_MAGIC_ENUM
-#ifdef ENABLE_MAGIC_ENUM
-#include <magic_enum/magic_enum.hpp>
-#endif // ENABLE_MAGIC_ENUM
 
 // #define ENABLE_GOOGLE_GRPC
 #ifdef ENABLE_GOOGLE_GRPC
@@ -360,11 +366,17 @@ using ContactReplyCode = ::TaoTieChat::ContactReplyCodeGadget::ContactReplyCode;
 #elif defined(ENABLE_SERVER)  // ENABLE_SERVER
 // server
 #include "taotie_chat.grpc.pb.h"
-using grpc::ServerReaderWriter;
+using ::grpc::ServerContext;
+using ::grpc::ServerReader;
+using ::grpc::ServerReaderWriter;
+using ::grpc::ServerWriter;
+using ::grpc::Status;
 // enums
 using ::TaoTieChat::SuccessCode;
 using ::TaoTieChat::ErrorCode;
 using ::TaoTieChat::ContactReplyCode;
+using ::TaoTieChat::FileStatusCode;
+using ::TaoTieChat::PermissionCode;
 // service
 using ::TaoTieChat::AccountService;
 using ::TaoTieChat::SearchService;

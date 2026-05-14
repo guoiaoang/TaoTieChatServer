@@ -2,8 +2,8 @@
 
 class ServiceSearchUser : public ::testing::Test {
 protected:
-    const std::filesystem::path db_path = std::filesystem::current_path() / (get_current_file_name(__FILE__) + ".db");
-    const std::string encryption_key = "your_secure_encryption_key";
+    const path db_path = Utils::app_dir() / (get_current_file_name(__FILE__) + ".db");
+    const string encryption_key = "your_secure_encryption_key";
 
     // 每个 TEST_F 运行前都会执行
     void SetUp() override {
@@ -13,23 +13,22 @@ protected:
         // 所有操作都必须成功，否则测试无法继续进行
 
         // 删除旧的数据库文件，确保每次测试都从干净的状态开始
-        if (exists(db_path)) {
+        if(Utils::exists(db_path)) {
             try {
                 // remove 返回 bool 值：成功删除返回 true，文件不存在返回 false
-                if (remove(db_path)) {
+                auto [removed, existed] = Utils::remove(db_path);
+                if (existed) {
                     std::cout << std::format("file {} removed successfully.", db_path.string()) << std::endl;
-                }
-                else {
+                } else {
                     std::cerr << std::format("file {} does not exist, no need to remove.", db_path.string()) << std::endl;
                 }
-            }
-            catch (const filesystem_error& e) {
+            } catch (const filesystem_error& e) {
                 // 如果文件正在被占用或权限不足，会抛出异常
                 std::cerr << std::format("remove {} failed: {}", db_path.string(), e.what()) << std::endl;
             }
             // remove(db_path);
         }
-        ASSERT_FALSE(exists(db_path)) << std::format("Failed to remove old database file: {}", db_path.string());
+        ASSERT_FALSE(Utils::exists(db_path)) << std::format("Failed to remove old database file: {}", db_path.string());
 
         DBSQLCipher& db_sqlcipher = DBSQLCipher::instance();
         db_sqlcipher.set_init_params(db_path, encryption_key);

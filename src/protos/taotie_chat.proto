@@ -85,6 +85,12 @@ enum ErrorCode {
   BLOCKED                         = 0x00003006;  // 被拉黑    // 如：被对方拉黑
   UNASSOCIATED                    = 0x00003101;  // 未关联    // 如：还不是好友
   ASSOCIATED                      = 0x00003102;  // 已关联    // 如：已经是好友
+  PERMISSION_DENIED               = 0x00003103;  // 权限不足  // 如：没有权限访问文件
+  // 文件上传相关错误码  // 0x00004001 - 0x00004FFF
+  FILE_WRITE                      = 0x00004001;  // 文件写入失败
+  FILE_MD5_MISMATCH               = 0x00004002;  // 文件 MD5 校验失败
+  FILE_READER_ERROR               = 0x00004003;  // 文件读取错误
+  FILE_NOT_FOUND                  = 0x00004004;  // 文件未找到
   // 单参数  // 0x00011011 - 0x00011FFF
   USER_ID_ERROR                   = 0x00011011;  //
   USER_ID_EMPTY                   = 0x00011012;  // 用户 ID 为空
@@ -156,7 +162,40 @@ enum ErrorCode {
   CLIENT_MESSAGE_ID_REQUIRED      = 0x10011011;  // 需要客户端消息 ID，但未提供
   DUPLICATE_MESSAGE_ID            = 0x10011012;  // 重复的客户端消息 ID
   FRIEND_REQUEST_NOT_FOUND        = 0x10011013;  // 好友请求未找到
+  FILE_HEADER_REQUIRED            = 0x10011014;  // 需要 header，但未提供
+  FILE_ID_REQUIRED                = 0x10011015;  // 需要 file_id，但未提供
 }
+
+// 直接使用 `IGNORE`会导致宏定义冲突
+enum ContactReplyCode {
+  CONTACT_REPLY_ACCEPT = 0;  // 同意
+  CONTACT_REPLY_REJECT = 1;  // 拒绝
+  CONTACT_REPLY_IGNORE = 2;  // 忽略
+}
+
+// 文件状态码
+enum FileStatusCode {
+  FILE_STATUS_NONE      = 0;  // 未设置
+  FILE_STATUS_UPLOADED  = 1;  // 文件已上传完成
+  FILE_STATUS_PENDING   = 2;  // 文件正在上传中
+  FILE_STATUS_NOT_FOUND = 3;  // 文件不存在
+}
+
+enum PermissionCode {
+  PERMISSION_NONE    =  0;  // 0000 0000 // 无权限
+  PERMISSION_CREATE  =  1;  // 0000 0001 //
+  PERMISSION_READ    =  2;  // 0000 0010 //
+  PERMISSION_WRITE   =  4;  // 0000 0100 //
+  PERMISSION_MODIFY  =  8;  // 0000 1000 //
+  PERMISSION_DELETE  = 16;  // 0001 0000 //
+  PERMISSION_SHARE   = 32;  // 0010 0000 //
+  PERMISSION_EXECUTE = 64;  // 0100 0000 //
+}
+
+// enum PermissionValue {
+//   PERMISSION_DENY    = 0;  // 禁止
+//   PERMISSION_ALLOW   = 1;  // 允许
+// }
 
 // Result 结果消息
 message Result {
@@ -316,13 +355,6 @@ message ContactRequestReply {
   optional  ContactRequestRequest request = 1;  // 可选的原始请求信息字段
             Result                result  = 2;  // 状态信息字段
   optional  string                message = 3;  // 附带的消息
-}
-
-// 直接使用 `IGNORE`会导致宏定义冲突
-enum ContactReplyCode {
-  CONTACT_REPLY_ACCEPT = 0;  // 同意
-  CONTACT_REPLY_REJECT = 1;  // 拒绝
-  CONTACT_REPLY_IGNORE = 2;  // 忽略
 }
 
 // 被添加联系人的回复
@@ -642,19 +674,22 @@ message SyncReply{
 // ==============================  FileService  ============================== //
 
 // 文件上传接口
-// metadata 与文件内容分开存储，防止相同文件不同 metadata 导致显示相同的异常问题。
-// 上传时校验 metadata 及 md5 是否已存在，md5 存在但 metadata 不同时则只需上传新的 metadata，并生成新的文件 ID。
-// 存储时与用户关联，防止非法访问其他用户的文件。
-// 相同 metadata 可能是不同的文件内容，相同的 md5 可能是不同的 metadata。
-// md5 暂且认为不会冲突。
+// 1. metadata 与文件内容分开存储，防止相同文件不同 metadata 导致显示相同的异常问题。
+// 2. 上传时校验 metadata 及 md5 是否已存在，md5 存在但 metadata 不同时则只需上传新的 metadata，并生成新的文件 ID。
+// 3. 存储时与用户关联，防止非法访问其他用户的文件。
+// 4. 相同 metadata 可能是不同的文件内容，相同的 md5 可能是不同的 metadata。
+// 5. md5 暂且认为不会冲突。
+// 6. 实现秒传需要使用双向流，并合理设置超时时间防止服务器卡死，服务端要定时发送数据防止客户端超时断开连接。
 service FileService {
   // GetFileID 获取文件 ID
   // 只校验，不更新
+  // 文件内容存在时直接保存元数据
   rpc GetFileID(GetFileIDRequest) returns (GetFileIDReply) {}
   // FileUpload 上传文件
   // 客户端流式上传
   // 上传完成后获取文件的 ID，文件 ID 中主要关联了文件的 metadata
-  rpc FileUpload(stream FileUploadRequest) returns (FileUploadReply);
+  // 使用双向流式上传时，服务端获取到文件信息返回一次是否需要上传的状态，上传完成后再返回一次上传完成的状态
+  rpc FileUpload(stream FileUploadRequest) returns (stream FileUploadReply);
   // FileDownload 下载文件
   // 通过文件 ID 获取不同的 metadata 和文件内容
   rpc FileDownload(FileDownloadRequest) returns (stream FileDownloadReply);
@@ -678,7 +713,8 @@ message GetFileIDReply {
   optional  GetFileIDRequest request         = 1;
             Result           result          = 2;  // 状态信息字段
             string           file_id         = 3;  // 文件 ID
-            string           message         = 4;  // 可选的错误消息字段
+            FileStatusCode   file_status     = 4;  // 文件状态
+            string           message         = 5;  // 可选的错误消息字段
 }
 
 // 是谁因为什么原因要上传什么文件，以便后续关联消息等信息，防止垃圾文件的产生。
@@ -693,9 +729,10 @@ message FileUploadRequest {
 // 1. 鉴权信息：可用于防止非法访问
 // 2. 文件元数据：用于关联文件 ID
 // 3. 上传原因：用于记录文件上传的目的，便于垃圾清理。
+// 上传时要求账号 ID 和文件 ID 均一致
 message FileUploadHeader {
-  optional  AuthRequest  request_user_auth = 1;  // 鉴权
-            FileMetadata file_metadata     = 2;  // 文件元数据
+  optional  AuthRequest  request_user_auth = 1;  // 鉴权  // 实际不需要
+            string       file_id           = 2;  // 文件 ID
             string       reason            = 3;  // 上传原因
 }
 
@@ -713,18 +750,21 @@ message FileChunkData {
   // }
 }
 
+// 文件上传结果
 message FileUploadReply {
-  optional  FileUploadRequest request = 1;  // 可选的原始请求信息字段
-            Result            result  = 2;  // 状态信息字段
-            string            file_id = 3;  // 上传完成后返回的文件 ID
-            string            message = 4;  // 可选的错误消息字段
+  optional  FileUploadRequest request     = 1;  // 可选的原始请求信息字段
+            Result            result      = 2;  // 状态信息字段
+            FileStatusCode    file_status = 3;  // 文件状态
+            string            message     = 4;  // 可选的错误消息字段
 }
 
+// 文件下载请求
 message FileDownloadRequest {
   optional  AuthRequest  request_user_auth = 1;  // 鉴权
             string       file_id           = 2;  // 文件 ID
 }
 
+// 文件下载响应
 message FileDownloadReply {
   oneof data {
     FileDownloadHeader header = 1;  // 第一条消息发送文件元数据（文件名、哈希等）
@@ -732,9 +772,12 @@ message FileDownloadReply {
   }
 }
 
+// 文件下载头信息
 message FileDownloadHeader {
   optional  FileDownloadRequest  request       = 1;  // 鉴权
-            FileMetadata         file_metadata = 2;  // 文件元数据
+            Result               result        = 2;  // 状态信息字段
+            FileMetadata         file_metadata = 3;  // 文件元数据
+            string               message       = 4;  // 可选的错误消息字段
 }
 
 // =========================================================================== //

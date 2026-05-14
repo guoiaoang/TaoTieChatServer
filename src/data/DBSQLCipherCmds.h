@@ -247,20 +247,20 @@ namespace SQL{
                 );
             )";
 
-            // 群组信息  // 暂定，后续根据实际需求调整
-            constexpr std::string_view SQL_CREATE_TABLE_GROUPS = R"(
-                CREATE TABLE IF NOT EXISTS groups (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    group_id    TEXT,  -- group_id 群 ID，唯一，注册时由系统生成，不可被用户修改，销号时不回收
-                    name        TEXT,  -- name 群名称
-                    avatar_id   TEXT,  -- avatar_id 群头像 ID
-                    owner_id    TEXT,  -- owner_id 群主的账号 ID
-                    member_ids  TEXT,  -- member_ids 群成员的账号 ID 列表，逗号分隔
-                    create_time DATETIME DEFAULT (datetime('now')),  -- create_time 创建时间
-                    update_time DATETIME DEFAULT (datetime('now')),  -- update_time 更新时间
-                    common      TEXT   -- common 通用字段
-                );
-            )";
+            // // 群组信息  // 暂定，后续根据实际需求调整
+            // constexpr std::string_view SQL_CREATE_TABLE_GROUPS = R"(
+            //     CREATE TABLE IF NOT EXISTS groups (
+            //         id INTEGER PRIMARY KEY AUTOINCREMENT,
+            //         group_id    TEXT,  -- group_id 群 ID，唯一，注册时由系统生成，不可被用户修改，销号时不回收
+            //         name        TEXT,  -- name 群名称
+            //         avatar_id   TEXT,  -- avatar_id 群头像 ID
+            //         owner_id    TEXT,  -- owner_id 群主的账号 ID
+            //         member_ids  TEXT,  -- member_ids 群成员的账号 ID 列表，逗号分隔
+            //         create_time DATETIME DEFAULT (datetime('now')),  -- create_time 创建时间
+            //         update_time DATETIME DEFAULT (datetime('now')),  -- update_time 更新时间
+            //         common      TEXT   -- common 通用字段
+            //     );
+            // )";
 
             // 聊天记录
             // 一对一的聊天记录和群聊记录都存储在同一个表中，
@@ -296,6 +296,7 @@ namespace SQL{
                     common            TEXT   -- common 通用字段
                 );
             )";
+
             // // 群聊消息记录 // 群聊消息记录表可以存储一些特定于群聊的信息，如 @提及 的用户列表等
             // // 也可以不单独存储，而是在 messages 表中通过 content 字段
             // // 来存储一个 JSON 对象，包含消息内容和一些额外的元信息，这样可以避免表结构的复杂化，同时也更灵活地适应未来可能出现的需求变化。
@@ -338,15 +339,12 @@ namespace SQL{
                 );
             )";
 
-            // 文件 metadata 表，包含唯一的文件 ID、账号 ID、文件名、文件大小、文件内容的 MD5
-            constexpr std::string_view SQL_CREATE_TABLE_FILES = R"(
-                CREATE TABLE IF NOT EXISTS files (
+            // 文件 metadata 表，包含唯一的文件 ID、权限 ID、文件名、文件大小、文件内容的 MD5
+            constexpr std::string_view SQL_CREATE_TABLE_FILE_METADATAS = R"(
+                CREATE TABLE IF NOT EXISTS file_metadatas (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     -- file_id 文件 ID，唯一，注册时由系统生成，不可被用户修改，销号时不回收
                     file_id    TEXT NOT NULL UNIQUE,
-
-                    -- account_id 账号 ID，文件所属的账号 ID
-                    account_id TEXT NOT NULL,
 
                     -- file_name 文件名，包含扩展名
                     file_name   TEXT NOT NULL,
@@ -357,6 +355,9 @@ namespace SQL{
                     -- file_md5 文件内容的 MD5 哈希值，用于校验文件完整性和去重
                     file_md5   TEXT NOT NULL,
 
+                    -- file_status 文件状态：0:未设置, 1:已上传, 2:上传中, 3: 不存在
+                    file_status INTEGER DEFAULT 0,
+
                     -- upload_time 文件上传时间戳
                     upload_time DATETIME DEFAULT (datetime('now')),
 
@@ -364,6 +365,59 @@ namespace SQL{
                     common      TEXT
                 );
             )";
+            // 为 file_md5 创建索引，提升查询性能
+            constexpr std::string_view SQL_CREATE_INDEX_FILE_METADATAS_FILE_MD5 = R"(
+                CREATE INDEX IF NOT EXISTS idx_file_metadatas_file_md5 ON file_metadatas(file_md5);
+            )";
+            // 文件读取权限关联信息表，包含文件 ID、账号 ID、访问权限类型、访问权限值等信息
+            constexpr std::string_view SQL_CREATE_TABLE_FILE_PERMISSIONS = R"(
+                CREATE TABLE IF NOT EXISTS file_permissions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    -- file_id 文件 ID，关联 file_metadatas 表的 file_id
+                    file_id    TEXT NOT NULL,
+
+                    -- account_id 账号 ID，文件所属的账号 ID
+                    account_id TEXT NOT NULL,
+
+                    -- permission_code 访问权限
+                    permission_code INTEGER DEFAULT 0,  -- 0:无权限
+
+                    -- update_time 权限更新时间戳
+                    update_time DATETIME DEFAULT (datetime('now')),
+
+                    -- common 通用字段
+                    common      TEXT,
+
+                    -- 必须添加这一行：定义联合唯一约束，
+                    -- 即 (file_id, account_id) 的组合必须唯一，
+                    -- 确保同一个账号 ID 对同一个文件 ID 只能有一条权限记录，避免权限冲突和冗余
+                    UNIQUE(file_id, account_id),
+
+                    -- 外键约束，确保 file_id 的有效性
+                    FOREIGN KEY (file_id) REFERENCES file_metadatas(file_id)
+                );
+            )";
+            // 为 file_id 创建索引，提升查询性能
+            constexpr std::string_view SQL_CREATE_INDEX_FILE_PERMISSIONS_FILE_ID = R"(
+                CREATE INDEX IF NOT EXISTS idx_file_permissions_file_id ON file_permissions(file_id);
+            )";
+            // // 创建文件 md5 与实际路径的映射表，包含文件 MD5、文件存储路径等信息
+            // constexpr std::string_view SQL_CREATE_TABLE_FILE_STORAGE = R"(
+            //     CREATE TABLE IF NOT EXISTS file_storage (
+            //         id INTEGER PRIMARY KEY AUTOINCREMENT,
+            //         -- file_md5 文件内容的 MD5 哈希值，唯一，注册时由系统生成，不可被用户修改，销号时不回收
+            //         file_md5   TEXT NOT NULL UNIQUE,
+
+            //         -- file_path 文件存储路径，指向实际存储文件的路径或 URL
+            //         file_path   TEXT NOT NULL,
+
+            //         -- update_time 更新时间戳
+            //         update_time DATETIME DEFAULT (datetime('now')),
+
+            //         -- common 通用字段
+            //         common      TEXT
+            //     );
+            // )";
 
             // 事件发生时进行记录及最新计数的更新
 
@@ -432,8 +486,12 @@ namespace SQL{
             // 检查客户端生成的消息 ID(client_message_id) 是否存在
             constexpr std::string_view SQL_QUERY_EXIST_CLIENT_MESSAGE_ID = R"(SELECT 1 FROM   messages WHERE  client_message_id = :message_id AND sender_account_id = :sender_account_id LIMIT 1; )";
 
+            // 检查文件 md5 是否已经存在
+            constexpr std::string_view SQL_QUERY_EXIST_FILE_MD5          = R"(SELECT 1 FROM   file_metadatas WHERE  file_md5 = :file_md5 LIMIT 1; )";
             // 检查文件 ID 是否已经存在
-            constexpr std::string_view SQL_QUERY_EXIST_FILE_ID           = R"(SELECT 1 FROM   files    WHERE  file_id = :file_id LIMIT 1; )";
+            constexpr std::string_view SQL_QUERY_EXIST_FILE_ID           = R"(SELECT 1 FROM   file_metadatas WHERE  file_id  = :file_id  LIMIT 1; )";
+            // 通过文件 ID 获取文件信息
+            constexpr std::string_view SQL_QUERY_GET_FILE_INFO           = R"(SELECT * FROM   file_metadatas WHERE  file_id  = :file_id  LIMIT 1; )";
 
             // 校验用户注册是否成功/一致
             constexpr std::string_view SQL_QUERY_CHECK_REGISTER = R"(
@@ -527,17 +585,34 @@ namespace SQL{
                 LIMIT 1;
             )";
 
-            // 查询账号 ID 下是否存在文件 metadata 和 MD5 匹配的记录
-            constexpr std::string_view SQL_QUERY_GET_ACTIVE_ACCOUNT_FILE_ID = R"(
+            // 查询文件 metadata 和 MD5 匹配的记录
+            constexpr std::string_view SQL_QUERY_GET_FILE_ID = R"(
                 SELECT file_id
-                FROM   files
+                FROM   file_metadatas
                 WHERE
-                        account_id = :account_id  -- 账号 ID 匹配
-                    AND file_name  = :file_name   -- 文件名匹配
+                        file_name  = :file_name   -- 文件名匹配
                     AND file_size  = :file_size   -- 文件大小匹配
                     AND file_md5   = :file_md5    -- 文件 MD5 匹配
                 LIMIT 1;
             )";
+
+            // 查询账号文件权限
+            constexpr std::string_view SQL_QUERY_GET_FILE_PERMISSION = R"(
+                SELECT permission_code
+                FROM   file_permissions
+                WHERE
+                        file_id    = :file_id    -- 文件 ID 匹配
+                    AND account_id = :account_id -- 账号 ID 匹配
+                LIMIT 1;
+            )";
+
+            // // 查询文件存储路径
+            // constexpr std::string_view SQL_QUERY_GET_FILE_PATH = R"(
+            //     SELECT file_path
+            //     FROM   file_storage
+            //     WHERE  file_md5 = :file_md5   -- 文件 MD5 匹配
+            //     LIMIT 1;
+            // )";
         }
 
         // 插入
@@ -595,9 +670,16 @@ namespace SQL{
 
             // 写入文件 metadata 记录
             constexpr std::string_view SQL_INSERT_FILE_METADATA = R"(
-                INSERT INTO files ( file_id,  account_id,  file_name,  file_size,  file_md5,  upload_time    )
-                VALUES            (:file_id, :account_id, :file_name, :file_size, :file_md5,  datetime('now'));
+                INSERT INTO file_metadatas ( file_id,  file_name,  file_size,  file_md5,  file_status, upload_time    )
+                VALUES                     (:file_id, :file_name, :file_size, :file_md5, :file_status, datetime('now'));
             )";
+
+            // // 保存文件 md5 与路径的映射关系
+            // constexpr std::string_view SQL_INSERT_FILE_PATH = R"(
+            //     INSERT INTO file_storage ( file_md5,  file_path, update_time    )
+            //     VALUES                   (:file_md5, :file_path, datetime('now'))
+            //  )";
+
         }
 
         // 更新
@@ -681,8 +763,8 @@ namespace SQL{
                   AND  status               = 0; -- 确保账号状态正常，排除冻结或注销的账户
             )";
 
-             // 使用子语句校验账户 ID 的安全问题并更新用户安全问题和答案
-             constexpr std::string_view SQL_UPDATE_USER_SECURITY_BY_SECURITY = R"(
+            // 使用子语句校验账户 ID 的安全问题并更新用户安全问题和答案
+            constexpr std::string_view SQL_UPDATE_USER_SECURITY_BY_SECURITY = R"(
                 UPDATE users
                 SET    security_question    = :new_security_question,
                        security_answer_hash = :new_security_answer_hash
@@ -690,7 +772,24 @@ namespace SQL{
                   AND  security_question    = :old_security_question
                   AND  security_answer_hash = :old_security_answer_hash
                   AND  status               = 0; -- 确保账号状态正常，排除冻结或注销的账户
+            )";
+
+            // 如果文件权限表中已经有当前文件 ID 和账号 ID 的记录，则更新权限值；如果没有，则插入新记录
+            constexpr std::string_view SQL_UPDATE_FILE_PERMISSION = R"(
+                INSERT INTO file_permissions ( file_id,  account_id,  permission_code, update_time    )
+                VALUES                       (:file_id, :account_id, :permission_code, datetime('now'))
+                ON CONFLICT(file_id, account_id)
+                DO UPDATE SET
+                    permission_code  = excluded.permission_code,
+                    update_time      = excluded.update_time         -- datetime('now');
              )";
+
+            // 更新文件状态
+            constexpr std::string_view SQL_UPDATE_FILE_STATUS = R"(
+                UPDATE file_metadatas
+                SET    file_status = :file_status
+                WHERE  file_id     = :file_id;
+            )";
         }
     }
 }

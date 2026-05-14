@@ -9,37 +9,37 @@
 #include "MessageService.h"
 #include "FileService.h"
 
+using std::filesystem::path;
+using std::string;
+
 bool initialize_spdlog();
 
 // absl flag
 ABSL_FLAG(uint16_t, port, 50051, "Server port for the service");
 
 int main(int argc, char** argv) {
-    // 存储命令行参数，供后续使用
-    Utils::store_args(argc, argv);
+    absl::ParseCommandLine(argc, argv);
+
     initialize_spdlog();
 
     // 输出基本信息
-    // 输出当前工作目录
-    LOG_DEBUG("Current working directory: {}", std::filesystem::current_path().string());
     // 输出程序完整路径
-    LOG_DEBUG("Program path: {}", std::filesystem::absolute(argv[0]).string());
-    // 输出命令行参数
-    LOG_TRACE("Command line arguments:");
-    for (int i = 0; i < argc; ++i) {
-        LOG_TRACE("  argv[{}]: {}", i, argv[i]);
-    }
+    LOG_DEBUG("Program path: {}", Utils::app_path().string());
+    // 输出当前工作目录
+    LOG_DEBUG("Current working directory: {}", Utils::app_dir().string());
 
-    std::filesystem::path data_dir = Utils::file_path() / "data";
-    auto [success, path_data] = Utils::mkdir(data_dir);
-    if(!success) {
-        LOG_ERROR("Failed to create data directory: {}", path_data.string());
+    // 数据库路径和加密密钥
+    const path db_path = Utils::data_dir() / (TOSTRING(PROJECT_NAME) ".db");
+    const string encryption_key = "your_secure_encryption_key";
+
+    // 创建数据库目录
+    auto [success, exists_data_dir] = Utils::mkdir(db_path.parent_path());
+    if(!exists_data_dir) {
+        LOG_ERROR("Failed to create data directory: {}", db_path.parent_path().string());
         return 0;
     }
 
     // 初始化数据库连接
-    const std::filesystem::path db_path = data_dir / "taotie_chat_server.db";
-    const std::string encryption_key = "your_secure_encryption_key";
     DBSQLCipher& db_sqlcipher = DBSQLCipher::instance();
     db_sqlcipher.set_init_params(db_path, encryption_key);
     if (!db_sqlcipher.database_open()) {
@@ -95,10 +95,10 @@ int main(int argc, char** argv) {
 
 bool initialize_spdlog() {
     // 设置日志目录
-    std::filesystem::path log_dir = Utils::logs_path();
-    auto [success, path_log] = Utils::mkdir(log_dir);
-    if(!success) {
-        LOG_ERROR("Failed to create log directory: {}", path_log.string());
+    path log_dir = Utils::logs_dir();
+    auto [success, exists_log_dir] = Utils::mkdir(log_dir);
+    if(!exists_log_dir) {
+        LOG_ERROR("Failed to create log directory: {}", log_dir.string());
         return false;
     }
 
