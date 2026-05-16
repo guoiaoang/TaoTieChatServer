@@ -211,14 +211,15 @@ message ContactInfos {
     repeated ContactInfo contact_infos = 1;
 }
 
-// 自己相关的信息 // 目前仅作为标志
+// 自己相关的信息。
+// 目前仅用于标志及存储，不用于信息的修改，仅作为账号登陆记录
 message ContactInfoSelf {
-  bool   modify_self_info     = 1;  // 是否是修改个人信息
-  // string user_id           = 1;  // 用户 ID
-  // string password          = 1;  // 密码
-  // string token             = 2;  // 认证令牌
-  // string security_question = 3;  // 安全问题
-  // string security_answer   = 4;  // 安全答案
+  bool   modify_self_info  = 1;  // 是否是修改个人信息
+  string user_id           = 2;  // 用户 ID
+  string password          = 3;  // 密码
+  string token             = 4;  // 认证令牌
+  string security_question = 5;  // 安全问题
+  string security_answer   = 6;  // 安全答案
 }
 
 // 好友相关的信息
@@ -649,18 +650,46 @@ message SyncReplyHeader {
             Result        result      = 2;  // 状态信息字段
 }
 
+// 单条消息增量事件
+message MessageEvent {
+  string server_message_id   = 1;  // 服务端消息 ID
+  string client_message_id   = 2;  // 客户端消息 ID
+  string sender_account_id   = 3;  // 发送方账号 ID
+  string receiver_account_id = 4;  // 接收方账号 ID
+  string short_text          = 5;  // 文本消息内容
+  string timestamp           = 6;  // 服务端落库时间（UTC 字符串）
+  string event_sub_type      = 7;  // 事件子类型（如 MESSAGE_TEXT）
+}
+
+// 消息增量列表
+message Messages {
+  repeated MessageEvent messages = 1;
+}
+
+// 单条文件增量事件
+message FileEvent {
+  string         file_id      = 1;  // 文件 ID
+  FileMetadata   file_metadata= 2;  // 文件元数据
+  FileStatusCode file_status  = 3;  // 文件状态
+  string         event_sub_type = 4;  // 事件子类型（如 FILE_UPLOAD）
+}
+
+// 文件增量列表
+message FileEvents {
+  repeated FileEvent file_events = 1;
+}
+
 // 认证成功后返回的主要内容
 message SyncReplyBody {
   // 大分类，比如好友申请与删除均在 CONTACTS 分类下，具体的操作类型需要再解析消息内容来区分。
   SyncRequestTag tag      = 1;  // 同步标签，包含要获取更新的消息类型和最后一条消息的 ID
   int64          count    = 2;  // 更新的消息数量
 
-  // 具体的更新消息，需要再进行解析。
-  oneof          content {
-    ContactInfos contact_infos = 3;  // 联系人列表更新内容
-    Groups       groups   = 4;  // 群组列表更新内容
-    // Messages  messages = 5;  // 消息列表更新内容
-  }
+  // 具体的更新消息，不同类型的字段由服务端按 tag.type 填充。
+  ContactInfos contact_infos = 3;  // 联系人列表更新内容
+  Groups       groups        = 4;  // 群组列表更新内容
+  Messages     messages      = 5;  // 消息列表更新内容
+  FileEvents   file_events   = 6;  // 文件事件列表更新内容
 }
 
 // 返回内容

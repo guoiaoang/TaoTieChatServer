@@ -119,6 +119,15 @@ struct SQLResult{
         : done(done), msg(msg), rows(rows) {}
 };
 
+struct MessageRecord {
+    string server_message_id;
+    string client_message_id;
+    string sender_account_id;
+    string receiver_account_id;
+    string short_text;
+    string timestamp;
+};
+
 class DBSQLCipher {
 private:
     DBSQLCipher() = default;
@@ -248,16 +257,16 @@ public:
             //
             SQL_CREATE_TABLE_FRIENDS          ,
             // SQL_CREATE_TABLE_GROUPS        ,
-            SQL_CREATE_TABLE_MESSAGES      ,
+            SQL_CREATE_TABLE_MESSAGES         ,
             // SQL_CREATE_TABLE_GROUP_MESSAGES,
             SQL_CREATE_TABLE_FRIEND_REQUESTS  ,
             SQL_CREATE_TABLE_FILE_METADATAS          ,
             SQL_CREATE_INDEX_FILE_METADATAS_FILE_MD5 ,
             SQL_CREATE_TABLE_FILE_PERMISSIONS        ,
             SQL_CREATE_INDEX_FILE_PERMISSIONS_FILE_ID,
-            // SQL_CREATE_TABLE_FILE_STORAGE            ,
-            // SQL_CREATE_TABLE_PTS_RECORDS   ,
-            // SQL_CREATE_TABLE_PTS_STATS
+            // SQL_CREATE_TABLE_FILE_STORAGE         ,
+            SQL_CREATE_TABLE_PTS_RECORDS             ,
+            SQL_CREATE_TABLE_PTS_STATS
         };
         do{
             for(const auto& cmd : table_creation_commands) {
@@ -1405,22 +1414,31 @@ public:
             //     return error_reply<Reply>(reply, ErrorCode::AUTH_FAILED, std::format("Base info account_id does not match authenticated account_id."));
             // }
 
-            // 目标用户 ID 与验证的用户 ID 不一致，只能是账号密码登陆才允许修改
-            if(contact_info.base_info().user_id() != auth_request->user_id ()) {
-                if(    !auth_request->has_user_id () || auth_request->user_id ().empty()
-                    || !auth_request->has_password() || auth_request->password().empty()) {
-                    return error_reply<Reply>(reply, ErrorCode::AUTH_FAILED, std::format("User ID in self info does not match authenticated user ID."));
-                }
-            }
-
-            // 要修改为的用户 ID 不能为空
-            if(contact_info.base_info().user_id().empty()) {
+            // 必须提供要修改为的用户 ID
+            auto target_user_id  = contact_info.base_info().user_id();
+            if(target_user_id.empty()) {
                 return error_reply<Reply>(reply, ErrorCode::TARGET_USER_ID_EMPTY, std::format("Base info user_id is empty."));
             }
 
+            // 只有用户 ID + 密码登陆的方式支持修改用户 ID
+            // auto auth_account_id = auth_request->has_account_id() ? auth_request->account_id() : string();
+            auto auth_user_id    = auth_request->has_user_id   () ? auth_request->user_id   () : string();
+            auto auth_password   = auth_request->has_password  () ? auth_request->password  () : string{};
+            auto [success_get_active_user_id, current_user_id] = get_active_user_id(account_id);
+            if(!success_get_active_user_id) {
+                return error_reply<Reply>(reply, ErrorCode::DB_QUERY, std::format("db get active user id error."));
+            }
+
+            // 非用户 ID + 密码登陆时不允许修改用户 ID
+            if(auth_user_id.empty() || auth_password.empty()) {
+                if(current_user_id != target_user_id) {
+                    return error_reply<Reply>(reply, ErrorCode::UNSUPPORTED, std::format("Authenticated user ID does not match user ID in auth request."));
+                }
+            }
+
             // 如果要修改用户 ID 的话，需要检查目标的用户 ID 是否可用
-            if(contact_info.base_info().user_id() != auth_request->user_id()) {
-                auto [success_check_user_id, result_check_user_id] = search_active_user_id(contact_info.base_info().user_id());
+            if(target_user_id != current_user_id) {
+                auto [success_check_user_id, result_check_user_id] = search_active_user_id(target_user_id);
                 if(!success_check_user_id) {
                     return error_reply<Reply>(reply, ErrorCode::DB_QUERY, std::format("Check user ID error."));
                 }
@@ -1429,10 +1447,11 @@ public:
                 }
             }
 
-            // 保存参数
-            if(contact_info.base_info().account_id().empty()) {
-                contact_info.mutable_base_info()->set_account_id(account_id);
-            }
+            // 不需要 base_info 中的 account_id 字段
+            // // 保存参数
+            // if(contact_info.base_info().account_id().empty()) {
+            //     contact_info.mutable_base_info()->set_account_id(account_id);
+            // }
 
             // 更新个人资料
             auto [success_update_self_profile, result_update_self_profile] = update_self_profile(account_id, contact_info.base_info());
@@ -1780,6 +1799,9 @@ public:
             return error_reply<Reply>(reply, ErrorCode::DB_EXECUTE, std::format("Write file permission error."));
         }
 
+        // 文件上传相关状态变化计入 MESSAGES 增量，事件 ID 使用 file_id。
+        write_pts_event(account_id, "MESSAGES", "FILE_UPLOAD", file_id);
+
         // 这里是数据库的操作，只读取文件记录，不校验真实文件是否存在，
         // 文件的上传和下载接口都不校验文件记录是否存在，只根据文件记录的状态来判断是否需要上传或下载
         auto [success_get_file_info, check_file_metadata, check_file_status] = get_file_info(file_id);
@@ -1814,9 +1836,68 @@ public:
     std::tuple<bool, int> get_file_permission_interface(const string&account_id, const string&file_id) {
         return get_file_permission(account_id, file_id);
     }
+    std::tuple<bool, MessageRecord> get_message_record_interface(const string& server_message_id) {
+        return get_message_record(server_message_id);
+    }
+    std::tuple<bool, ContactInfo> get_active_account_info_interface(const string&account_id) {
+        return get_active_account_info(account_id);
+    }
+    std::tuple<bool, std::shared_ptr<ContactInfoFriend>> get_friend_info_interface(const string&self_account_id, const string&friend_account_id) {
+        return get_friend_info(self_account_id, friend_account_id);
+    }
     // std::tuple<bool, string> get_file_path_interface(const string&file_md5) {
     //     return get_file_path(file_md5);
     // }
+
+    // 获取指定账号各事件类型的最新 PTS 值（用于客户端同步）
+    shared_ptr<GetLastIDReply> get_last_id(const shared_ptr<AuthRequest>& request) {
+        using Reply = GetLastIDReply;
+        auto reply = make_shared<Reply>();
+        if(!request) { return reply; }
+
+        // 身份验证
+        auto auth_reply = auth_check(make_shared<AuthRequest>(*request));
+        if(!auth_reply->result().has_success_code()) { return reply; }
+        auto account_id = auth_reply->account_id();
+        if(account_id.empty()) { return reply; }
+
+        // 查询该账号所有 pts_stats 记录
+        auto sql_params = make_shared<SqlParams>();
+        (*sql_params)[":account_id"] = account_id;
+        auto sql_result = execute(SQL_QUERY_GET_PTS_STATS, sql_params);
+        if(!sql_result || !sql_result->done) { return reply; }
+
+        // 解析结果，填充 GetLastIDReply
+        for(auto& row : sql_result->rows) {
+            auto ite_type  = row.find("pts_type" );
+            auto ite_value = row.find("pts_value");
+            if(ite_type == row.end() || ite_value == row.end()) { continue; }
+            auto pts_type_str = get_string(ite_type ->second);
+            auto pts_value    = get_int   (ite_value->second);
+            auto* tag = reply->add_tags();
+            if     (pts_type_str == "CONTACTS") { tag->set_type(SyncType::CONTACTS); }
+            else if(pts_type_str == "GROUPS"  ) { tag->set_type(SyncType::GROUPS  ); }
+            else if(pts_type_str == "MESSAGES") { tag->set_type(SyncType::MESSAGES); }
+            else { continue; }  // 跳过未知类型
+            tag->set_id(pts_value);
+        }
+        return reply;
+    }
+
+    // 查询指定账号与类型的增量事件明细
+    std::tuple<bool, SqlRows> get_pts_records(const string& account_id, const string& pts_type, int64_t id_start, int64_t id_end) {
+        if(account_id.empty() || pts_type.empty()) { return {false, SqlRows{}}; }
+        auto sql_params = make_shared<SqlParams>();
+        (*sql_params)[":account_id"] = account_id;
+        (*sql_params)[":pts_type"  ] = pts_type;
+        (*sql_params)[":id_start"  ] = id_start;
+        (*sql_params)[":id_end"    ] = id_end;
+        auto sql_result = execute(SQL_QUERY_GET_PTS_RECORDS, sql_params);
+        if(!sql_result || !sql_result->done) {
+            return {false, SqlRows{}};
+        }
+        return {true, sql_result->rows};
+    }
 
 private:
     void set_timestamp(TaoTieChat::Timestamp& timestamp, const std::chrono::system_clock::time_point& time_point) {
@@ -2013,6 +2094,26 @@ private:
             return file_info;  // 一次查询实际只有一条
         }
         return file_info;
+    }
+    std::tuple<bool, MessageRecord> get_message_record(const SqlRows& rows) {
+        MessageRecord record{};
+        for(auto& row : rows) {
+            auto ite_end = row.end();
+            auto ite_server_id = row.find("server_message_id");
+            auto ite_client_id = row.find("client_message_id");
+            auto ite_sender    = row.find("sender_account_id");
+            auto ite_receiver  = row.find("receiver_account_id");
+            auto ite_short     = row.find("short_text");
+            auto ite_time      = row.find("timestamp");
+            if(ite_server_id != ite_end) { record.server_message_id   = get_string(ite_server_id->second); }
+            if(ite_client_id != ite_end) { record.client_message_id   = get_string(ite_client_id->second); }
+            if(ite_sender    != ite_end) { record.sender_account_id   = get_string(ite_sender   ->second); }
+            if(ite_receiver  != ite_end) { record.receiver_account_id = get_string(ite_receiver ->second); }
+            if(ite_short     != ite_end) { record.short_text          = get_string(ite_short    ->second); }
+            if(ite_time      != ite_end) { record.timestamp           = get_string(ite_time     ->second); }
+            return {true, record};
+        }
+        return {false, MessageRecord{}};
     }
 
     // ============================== 读数据库 ============================== //
@@ -2301,6 +2402,18 @@ private:
         }
         return {false, false};
     }
+    std::tuple<bool, MessageRecord> get_message_record(const string&server_message_id) {
+        if(server_message_id.empty()) {
+            return {false, MessageRecord{}};
+        }
+        auto sql_params = make_shared<SqlParams>();
+        (*sql_params)[":server_message_id"] = server_message_id;
+        auto sql_result = execute(SQL_QUERY_GET_MESSAGE_BY_SERVER_ID, sql_params);
+        if(sql_result && sql_result->done) {
+            return get_message_record(sql_result->rows);
+        }
+        return {false, MessageRecord{}};
+    }
     // 客户端生成的消息 ID // 同一账号生成的 ID 不重复即可认为是新消息，不需要全局唯一性校验
     // ID 存在代表消息重复发送
     std::tuple<bool, bool> check_exist_client_message_id(const string&sender_account_id, const string&message_id) {
@@ -2543,7 +2656,9 @@ private:
         (*sql_params)[":message"           ] = message           ;
         auto sql_result = execute(SQL_INSERT_FRIEND_REQUEST, sql_params);
         if(sql_result && sql_result->done) {
-            // 查询命令执行成功
+            // 通知目标用户有新的好友申请（CONTACTS pts）
+            // 事件 ID 使用申请方账号 ID，便于客户端拉取申请人资料。
+            write_pts_event(target_account_id, "CONTACTS", "FRIEND_REQUEST", request_account_id);
             return {true, true};
         }
         return {false, false};
@@ -2587,6 +2702,10 @@ private:
         if(!sql_result || !sql_result->done) {
             return {false, false};
         }
+        // 通知双方联系人列表已更新（CONTACTS pts）
+        // 各自事件 ID 使用“对端账号 ID”，便于客户端按对端刷新联系人卡片。
+        write_pts_event(request_account_id, "CONTACTS", "FRIEND_ACCEPT", target_account_id);
+        write_pts_event(target_account_id,  "CONTACTS", "FRIEND_ACCEPT", request_account_id);
         return {true, true};
     }
     // 记录文本消息到数据库
@@ -2612,7 +2731,9 @@ private:
         (*sql_params)[":timestamp"          ] = timestamp;
         auto sql_result = execute(SQL_INSERT_SHORT_MESSAGE, sql_params);
         if(sql_result && sql_result->done) {
-            // 查询命令执行成功
+            // 通知接收方有新消息（MESSAGES pts）
+            // 事件 ID 使用 server_message_id，便于增量同步时直接回填完整消息明细。
+            write_pts_event(receiver_account_id, "MESSAGES", "MESSAGE_TEXT", server_message_id);
             return {true, true};
         }
         return {false, false};
@@ -2824,6 +2945,51 @@ private:
     //     }
     //     return {false, false};
     // }
+    // 写入或递增 pts_stats 中指定账号、类型的计数器
+    std::tuple<bool, bool> write_pts_stats(const string& account_id, const string& pts_type) {
+        if(account_id.empty() || pts_type.empty()) { return {false, false}; }
+        auto sql_params = make_shared<SqlParams>();
+        (*sql_params)[":account_id"] = account_id;
+        (*sql_params)[":pts_type"  ] = pts_type;
+        auto sql_result = execute(SQL_UPSERT_PTS_STATS, sql_params);
+        if(sql_result && sql_result->done) { return {true, true}; }
+        return {false, false};
+    }
+
+    // 写入单条增量事件：先递增计数，再写入明细记录。
+    std::tuple<bool, bool> write_pts_event(const string& account_id, const string& pts_type, const string& pts_sub_type, const string& pts_event_id) {
+        if(account_id.empty() || pts_type.empty()) { return {false, false}; }
+
+        auto [success_update_stats, result_update_stats] = write_pts_stats(account_id, pts_type);
+        if(!success_update_stats || !result_update_stats) {
+            return {false, false};
+        }
+
+        auto sql_get_params = make_shared<SqlParams>();
+        (*sql_get_params)[":account_id"] = account_id;
+        (*sql_get_params)[":pts_type"  ] = pts_type;
+        auto sql_get_result = execute(SQL_QUERY_GET_PTS_VALUE, sql_get_params);
+        if(!sql_get_result || !sql_get_result->done) {
+            return {false, false};
+        }
+        auto [success_get_value, pts_value] = get_first_int(sql_get_result->rows, "pts_value");
+        if(!success_get_value || pts_value <= 0) {
+            return {false, false};
+        }
+
+        auto sql_insert_params = make_shared<SqlParams>();
+        (*sql_insert_params)[":account_id"  ] = account_id;
+        (*sql_insert_params)[":pts_type"    ] = pts_type;
+        (*sql_insert_params)[":pts_sub_type"] = pts_sub_type;
+        (*sql_insert_params)[":pts_value"   ] = static_cast<int64_t>(pts_value);
+        (*sql_insert_params)[":pts_event_id"] = pts_event_id;
+        auto sql_insert_result = execute(SQL_INSERT_PTS_RECORD, sql_insert_params);
+        if(!sql_insert_result || !sql_insert_result->done) {
+            return {false, false};
+        }
+        return {true, true};
+    }
+
     std::tuple<bool, bool> update_file_status(const std::string& file_id, const FileStatusCode& status) {
         // =========================== 参数校验 =========================== //
         if(file_id.empty()) {

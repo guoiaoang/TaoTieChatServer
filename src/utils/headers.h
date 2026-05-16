@@ -32,19 +32,21 @@
 // std
 // #define ENABLE_HEADERS_STD
 #ifdef ENABLE_HEADERS_STD
+// #include <ccomplex> // 已废弃，使用 <complex> 替代
+// #include <ciso646> // 已废弃，使用 <version> 来检测实现特定的宏
+// #include <cstdbool> // 已废弃，使用 <stdbool.h> 替代
+// #include <ctgmath> // 已废弃，使用 <complex> 或 <cmath> 替代
 #include <algorithm>
 #include <array>
 #include <atomic>
 #include <bitset>
 #include <cassert>
-// #include <ccomplex> // 已废弃，使用 <complex> 替代
 #include <cctype>
 #include <cerrno>
 #include <cfenv>
 #include <cfloat>
 #include <chrono>
 #include <cinttypes>
-// #include <ciso646> // 已废弃，使用 <version> 来检测实现特定的宏
 #include <climits>
 #include <clocale>
 #include <cmath>
@@ -54,13 +56,11 @@
 #include <csetjmp>
 #include <csignal>
 #include <cstdarg>
-// #include <cstdbool> // 已废弃，使用 <stdbool.h> 替代
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-// #include <ctgmath> // 已废弃，使用 <complex> 或 <cmath> 替代
 #include <ctime>
 #include <cwchar>
 #include <cwctype>
@@ -183,6 +183,8 @@
 #include <QPicture>
 #include <QPixmap>
 #include <QPropertyAnimation>
+#include <QProtobufJsonSerializer>
+#include <QProtobufMessage>
 #include <QPushButton>
 #include <QRegularExpression>
 #include <QRegularExpressionMatch>
@@ -336,7 +338,6 @@ using ::grpc::ServerContext;
 using ::grpc::ServerUnaryReactor;
 using ::grpc::Status;
 using ::grpc::StatusCode;
-using ::grpc::ServerContext;
 // using google::protobuf::Timestamp;
 #endif // ENABLE_GOOGLE_GRPC
 
@@ -355,14 +356,15 @@ using ::grpc::ServerContext;
 // client
 #include "taotie_chat.qpb.h"
 #include "taotie_chat_client.grpc.qpb.h"
-using StatusClient     = ::TaoTieChat::StatusService::Client;
-using AccountClient    = ::TaoTieChat::AccountService::Client;
-using SearchClient     = ::TaoTieChat::SearchService::Client;
-using MessageClient    = ::TaoTieChat::MessageService::Client;
-using FileClient       = ::TaoTieChat::FileService::Client;
-using SuccessCode      = ::TaoTieChat::SuccessCodeGadget::SuccessCode;
-using ErrorCode        = ::TaoTieChat::ErrorCodeGadget::ErrorCode;
-using ContactReplyCode = ::TaoTieChat::ContactReplyCodeGadget::ContactReplyCode;
+using AccountClient = ::TaoTieChat::AccountService::Client;
+using FileClient    = ::TaoTieChat::FileService::Client;
+using MessageClient = ::TaoTieChat::MessageService::Client;
+using SearchClient  = ::TaoTieChat::SearchService::Client;
+using StatusClient  = ::TaoTieChat::StatusService::Client;
+using ::TaoTieChat::ContactReplyCodeGadget::ContactReplyCode;
+using ::TaoTieChat::ErrorCodeGadget::ErrorCode;
+using ::TaoTieChat::SuccessCodeGadget::SuccessCode;
+using ::TaoTieChat::SyncTypeGadget::SyncType;
 #elif defined(ENABLE_SERVER)  // ENABLE_SERVER
 // server
 #include "taotie_chat.grpc.pb.h"
@@ -372,26 +374,27 @@ using ::grpc::ServerReaderWriter;
 using ::grpc::ServerWriter;
 using ::grpc::Status;
 // enums
-using ::TaoTieChat::SuccessCode;
-using ::TaoTieChat::ErrorCode;
 using ::TaoTieChat::ContactReplyCode;
+using ::TaoTieChat::ErrorCode;
 using ::TaoTieChat::FileStatusCode;
 using ::TaoTieChat::PermissionCode;
+using ::TaoTieChat::SuccessCode;
+using ::TaoTieChat::SyncType;
 // service
 using ::TaoTieChat::AccountService;
+using ::TaoTieChat::FileService;
 using ::TaoTieChat::SearchService;
 using ::TaoTieChat::StatusService;
-using ::TaoTieChat::FileService;
+using ::TaoTieChat::SyncService;
 // stubs
 using AccountStub = ::TaoTieChat::AccountService::Stub;
+using FileStub    = ::TaoTieChat::FileService::Stub;
+using MessageStub = ::TaoTieChat::MessageService::Stub;
 using SearchStub  = ::TaoTieChat::SearchService::Stub;
 using StatusStub  = ::TaoTieChat::StatusService::Stub;
-using MessageStub = ::TaoTieChat::MessageService::Stub;
-using FileStub    = ::TaoTieChat::FileService::Stub;
 #endif // ENABLE_CLIENT
 
 using ::TaoTieChat::AuthReply;
-using ::TaoTieChat::AuthRequest;
 using ::TaoTieChat::AuthRequest;
 using ::TaoTieChat::ContactInfo;
 using ::TaoTieChat::ContactInfoBase;
@@ -406,6 +409,8 @@ using ::TaoTieChat::FileChunkData;
 using ::TaoTieChat::FileDownloadHeader;
 using ::TaoTieChat::FileDownloadReply;
 using ::TaoTieChat::FileDownloadRequest;
+using ::TaoTieChat::FileEvent;
+using ::TaoTieChat::FileEvents;
 using ::TaoTieChat::FileMetadata;
 using ::TaoTieChat::FileUploadHeader;
 using ::TaoTieChat::FileUploadReply;
@@ -413,10 +418,13 @@ using ::TaoTieChat::FileUploadRequest;
 using ::TaoTieChat::GetContactRequestsReply;
 using ::TaoTieChat::GetFileIDReply;
 using ::TaoTieChat::GetFileIDRequest;
+using ::TaoTieChat::GetLastIDReply;
 using ::TaoTieChat::GetSecurityQuestionReply;
 using ::TaoTieChat::MessageContext;
+using ::TaoTieChat::MessageEvent;
 using ::TaoTieChat::MessageReply;
 using ::TaoTieChat::MessageRequest;
+using ::TaoTieChat::Messages;
 using ::TaoTieChat::Result;
 using ::TaoTieChat::SearchGroupReply;
 using ::TaoTieChat::SearchGroupRequest;
@@ -428,6 +436,11 @@ using ::TaoTieChat::SignUpReply;
 using ::TaoTieChat::SignUpRequest;
 using ::TaoTieChat::StatusReply;
 using ::TaoTieChat::StatusRequest;
+using ::TaoTieChat::SyncReply;
+using ::TaoTieChat::SyncReplyBody;
+using ::TaoTieChat::SyncReplyHeader;
+using ::TaoTieChat::SyncRequest;
+using ::TaoTieChat::SyncRequestTag;
 using ::TaoTieChat::UpdateProfileReply;
 using ::TaoTieChat::UpdateProfileRequest;
 using ::TaoTieChat::UpdateSecurityInfoNewPasswordInfo;

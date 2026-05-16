@@ -426,11 +426,11 @@ namespace SQL{
             constexpr std::string_view SQL_CREATE_TABLE_PTS_RECORDS = R"(
                 CREATE TABLE IF NOT EXISTS pts (
                     id           INTEGER PRIMARY KEY AUTOINCREMENT,   -- 记录 ID
-                    account_id   TEXT NOT NULL UNIQUE,                -- 账号 ID
+                    account_id   TEXT NOT NULL,                       -- 账号 ID
                     pts_type     TEXT NOT NULL,                       -- 事件主类型 -- 用于客户端更新对比
-                    pts_sub_type TEXT NOT NULL,                       -- 事件子类型 -- 用于指明查找位置
+                    pts_sub_type TEXT NOT NULL DEFAULT '',            -- 事件子类型 -- 用于指明查找位置
                     pts_value    INTEGER DEFAULT 0,                   -- 事件序号   -- 自增 ID
-                    pts_event_id TEXT NOT NULL,                       -- 事件 ID    -- 事件对应的全局唯一 ID，如消息 ID 等
+                    pts_event_id TEXT NOT NULL DEFAULT '',            -- 事件 ID    -- 事件对应的全局唯一 ID，如消息 ID 等
                     update_time  DATETIME DEFAULT (datetime('now')),  -- 更新时间
                     common       TEXT                                 -- common 通用字段
                 );
@@ -438,14 +438,16 @@ namespace SQL{
 
             // 创建 pts 记录统计表，用于统计每个用户的不同类型事件的最新序号
             // 事件发生时直接更新对应类型的序号，无需填充事件 ID
+            // 使用 (account_id, pts_type) 联合唯一约束，支持每个账号多种事件类型
             constexpr std::string_view SQL_CREATE_TABLE_PTS_STATS = R"(
                 CREATE TABLE IF NOT EXISTS pts_stats (
                     id          INTEGER PRIMARY KEY AUTOINCREMENT,   -- 记录 ID
-                    account_id  TEXT NOT NULL UNIQUE,                -- 账号 ID
+                    account_id  TEXT NOT NULL,                       -- 账号 ID
                     pts_type    TEXT NOT NULL,                       -- 事件类型
                     pts_value   INTEGER DEFAULT 0,                   -- 事件序号  -- 对用户的自增 ID
                     update_time DATETIME DEFAULT (datetime('now')),  -- 更新时间
-                    common      TEXT                                 -- common 通用字段
+                    common      TEXT,                                -- common 通用字段
+                    UNIQUE(account_id, pts_type)                    -- 联合唯一：每个账号的每种类型只有一条统计记录
                 );
             )";
         }
@@ -485,6 +487,14 @@ namespace SQL{
             constexpr std::string_view SQL_QUERY_EXIST_SERVER_MESSAGE_ID = R"(SELECT 1 FROM   messages WHERE  server_message_id = :message_id LIMIT 1; )";
             // 检查客户端生成的消息 ID(client_message_id) 是否存在
             constexpr std::string_view SQL_QUERY_EXIST_CLIENT_MESSAGE_ID = R"(SELECT 1 FROM   messages WHERE  client_message_id = :message_id AND sender_account_id = :sender_account_id LIMIT 1; )";
+
+            // 通过服务端消息 ID 查询完整消息记录
+            constexpr std::string_view SQL_QUERY_GET_MESSAGE_BY_SERVER_ID = R"(
+                SELECT server_message_id, client_message_id, sender_account_id, receiver_account_id, short_text, timestamp
+                FROM   messages
+                WHERE  server_message_id = :server_message_id
+                LIMIT 1;
+            )";
 
             // 检查文件 md5 是否已经存在
             constexpr std::string_view SQL_QUERY_EXIST_FILE_MD5          = R"(SELECT 1 FROM   file_metadatas WHERE  file_md5 = :file_md5 LIMIT 1; )";
@@ -585,6 +595,35 @@ namespace SQL{
                 LIMIT 1;
             )";
 
+            // 查询账号所有 pts_stats 记录（各事件类型的最新序号）
+            constexpr std::string_view SQL_QUERY_GET_PTS_STATS = R"(
+                SELECT pts_type, pts_value
+                FROM   pts_stats
+                WHERE  account_id = :account_id
+                ORDER BY pts_type;
+            )";
+
+            // 查询账号指定事件类型的最新 pts 值
+            constexpr std::string_view SQL_QUERY_GET_PTS_VALUE = R"(
+                    SELECT pts_value
+                    FROM   pts_stats
+                    WHERE  account_id = :account_id
+                        AND  pts_type   = :pts_type
+                    LIMIT 1;
+            )";
+
+            // 查询账号指定事件类型在区间内的明细记录
+            // id_end <= 0 时表示不限制上界（同步到最新）
+            constexpr std::string_view SQL_QUERY_GET_PTS_RECORDS = R"(
+                    SELECT pts_type, pts_sub_type, pts_value, pts_event_id, update_time
+                    FROM   pts
+                    WHERE  account_id = :account_id
+                        AND  pts_type   = :pts_type
+                        AND  pts_value  > :id_start
+                        AND (:id_end <= 0 OR pts_value <= :id_end)
+                    ORDER BY pts_value ASC;
+            )";
+
             // 查询文件 metadata 和 MD5 匹配的记录
             constexpr std::string_view SQL_QUERY_GET_FILE_ID = R"(
                 SELECT file_id
@@ -666,6 +705,22 @@ namespace SQL{
             constexpr std::string_view SQL_INSERT_SHORT_MESSAGE = R"(
             INSERT INTO messages ( server_message_id,  client_message_id,  sender_account_id,  receiver_account_id,  short_text,  timestamp)
             VALUES               (:server_message_id, :client_message_id, :sender_account_id, :receiver_account_id, :short_text, :timestamp);
+            )";
+
+            // pts_stats 事件计数 UPSERT：有则加 1，没有则插入初始值 1
+            constexpr std::string_view SQL_UPSERT_PTS_STATS = R"(
+                INSERT INTO pts_stats (account_id, pts_type, pts_value, update_time)
+                VALUES (:account_id, :pts_type, 1, datetime('now'))
+                ON CONFLICT(account_id, pts_type)
+                DO UPDATE SET
+                    pts_value   = pts_stats.pts_value + 1,
+                    update_time = datetime('now');
+            )";
+
+            // 写入单条 pts 明细事件
+            constexpr std::string_view SQL_INSERT_PTS_RECORD = R"(
+                INSERT INTO pts (account_id, pts_type, pts_sub_type, pts_value, pts_event_id, update_time)
+                VALUES (:account_id, :pts_type, :pts_sub_type, :pts_value, :pts_event_id, datetime('now'));
             )";
 
             // 写入文件 metadata 记录

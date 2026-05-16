@@ -8,6 +8,7 @@
 #include "MessageService.h"
 #include "SearchService.h"
 #include "StatusService.h"
+#include "SyncService.h"
 
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>

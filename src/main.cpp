@@ -8,6 +8,7 @@
 #include "SearchService.h"
 #include "MessageService.h"
 #include "FileService.h"
+#include "SyncService.h"
 
 using std::filesystem::path;
 using std::string;
@@ -75,6 +76,8 @@ int main(int argc, char** argv) {
     server_builder.RegisterService(&service_message);
     FileServiceImpl                 service_file;
     server_builder.RegisterService(&service_file);
+    SyncServiceImpl                 service_sync;
+    server_builder.RegisterService(&service_sync);
 
     // 校验端口是否绑定成功，以防 server 为 nullptr
     if (selected_port == 0) {

@@ -81,6 +81,7 @@ CMakeLists.txt.user*
 .uic/
 
 # mine added
+/vcpkg_installed/
 /out*/
 /build*/
 /.cache/
@@ -89,4 +90,3 @@ CMakeLists.txt.user*
 
 # grpc 生成的文件
 /src/protos/include/
-

@@ -39,12 +39,13 @@ set(
         test_service_account_getsecurityquestion # 获取安全问题
         test_service_account_updatesecurityinfo  # 更新安全信息（密码/密保问题和答案）
         test_service_file                    # 文件上传下载测试
+        test_service_sync_pts                # 消息/事件同步
 )
 foreach(TEST_ITEM ${TEST_TARGETS})
     add_executable(${TEST_ITEM}
-        test_headers.h
-        ../utils/utils.cpp
-        ${TEST_ITEM}.cc
+        "${PROJECT_DIR_SOURCE}/utils/utils.cpp"
+        "${PROJECT_DIR_TEST}/test_headers.h"
+        "${PROJECT_DIR_TEST}/${TEST_ITEM}.cc"
     )
     target_link_libraries(${TEST_ITEM}
         PRIVATE
@@ -64,7 +65,7 @@ foreach(TEST_ITEM ${TEST_TARGETS})
             gRPC::grpc
             gRPC::grpc++
             gRPC::grpc++_alts
-            lib_proto_taotie_chat
+            ${PROJECT_LIB_PROTO_NAME}
     )
     gtest_discover_tests(${TEST_ITEM})
 endforeach()
