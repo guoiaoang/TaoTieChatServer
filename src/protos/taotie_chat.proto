@@ -46,21 +46,20 @@ message Timestamp{
 // 成功码
 enum SuccessCode {
   option allow_alias = true;  // 允许不同名但同值的枚举值  // 没有重名会报错
-
+  SUCCESS_UNSET  = 0x00000000;  // 未设置成功码
   // 成功
-  SUCCESS        = 0x00000000;  // 成功
-  STATUS_SUCCESS = 0x00000000;  // 成功
-  STATUS_RUNNING = 0x00000000;  // 运行中
-  STATUS_ONLINE  = 0x00000000;  // 在线
+  SUCCESS        = 0x00000001;  // 成功
+  STATUS_SUCCESS = 0x00000001;  // 成功
+  STATUS_RUNNING = 0x00000001;  // 运行中
+  STATUS_ONLINE  = 0x00000001;  // 在线
   SUCCESS_INIT   = 0x00000101;  // 返回初始值
 }
 
 // 错误码
 enum ErrorCode {
   // option allow_alias = true;  // 允许不同名但同值的枚举值  // 没有重名会报错
-
+  ERROR_UNSET                     = 0x00000000;  // 未设置错误码
   // 通用错误码  // 0x00000000 - 0x00000FFF
-  UNSET                           = 0x00000000;  // 未设置错误码
   UNKNOWN                         = 0x00000001;  // 未知错误
   DEFAULT                         = 0x00000002;  // 未知错误
   // grpc 相关的错误码  // 0x00001001 - 0x00001FFF
@@ -86,11 +85,6 @@ enum ErrorCode {
   UNASSOCIATED                    = 0x00003101;  // 未关联    // 如：还不是好友
   ASSOCIATED                      = 0x00003102;  // 已关联    // 如：已经是好友
   PERMISSION_DENIED               = 0x00003103;  // 权限不足  // 如：没有权限访问文件
-  // 文件上传相关错误码  // 0x00004001 - 0x00004FFF
-  FILE_WRITE                      = 0x00004001;  // 文件写入失败
-  FILE_MD5_MISMATCH               = 0x00004002;  // 文件 MD5 校验失败
-  FILE_READER_ERROR               = 0x00004003;  // 文件读取错误
-  FILE_NOT_FOUND                  = 0x00004004;  // 文件未找到
   // 单参数  // 0x00011011 - 0x00011FFF
   USER_ID_ERROR                   = 0x00011011;  //
   USER_ID_EMPTY                   = 0x00011012;  // 用户 ID 为空
@@ -147,6 +141,19 @@ enum ErrorCode {
   MESSAGE_CONTEXT_ERROR              = 0x00013031;  //
   MESSAGE_CONTEXT_EMPTY              = 0x00013032;  // 消息内容为空
   MESSAGE_CONTEXT_NOT_FOUND          = 0x00013033;  //
+  // 文件上传相关错误码  // 0x00004001 - 0x00004FFF
+  FILE_READ_ERROR                    = 0x00014001;  // 文件读取错误
+  FILE_WRITE_ERROR                   = 0x00014002;  // 文件写入失败
+  FILE_REQUIRED                      = 0x00014003;  // 文件不能为空
+  FILE_NOT_FOUND                     = 0x00014004;  // 文件未找到
+  FILE_ID_REQUIRED                   = 0x00014005;  // 需要 file_id，但未提供
+  FILE_HEADER_REQUIRED               = 0x00014006;  // 需要 header，但未提供
+  FILE_NAME_EMPTY                    = 0x00014007;  // 文件名不能为空
+  FILE_SIZE_INVALID                  = 0x00014008;  // 文件大小无效
+  FILE_MD5_EMPTY                     = 0x00014009;  // 文件 MD5 不能为空
+  FILE_MD5_MISMATCH                  = 0x00014010;  // 文件 MD5 校验失败
+  FILE_UPLOAD_ERROR                  = 0x00014011;  // 文件上传失败
+  FILE_DOWNLOAD_ERROR                = 0x00014012;  // 文件下载失败
 
   // 多参 // 0x00021011 - 0x00021FFF
   // 鉴权
@@ -162,8 +169,6 @@ enum ErrorCode {
   CLIENT_MESSAGE_ID_REQUIRED      = 0x10011011;  // 需要客户端消息 ID，但未提供
   DUPLICATE_MESSAGE_ID            = 0x10011012;  // 重复的客户端消息 ID
   FRIEND_REQUEST_NOT_FOUND        = 0x10011013;  // 好友请求未找到
-  FILE_HEADER_REQUIRED            = 0x10011014;  // 需要 header，但未提供
-  FILE_ID_REQUIRED                = 0x10011015;  // 需要 file_id，但未提供
 }
 
 // 直接使用 `IGNORE`会导致宏定义冲突
@@ -177,7 +182,7 @@ enum ContactReplyCode {
 enum FileStatusCode {
   FILE_STATUS_NONE      = 0;  // 未设置
   FILE_STATUS_UPLOADED  = 1;  // 文件已上传完成
-  FILE_STATUS_PENDING   = 2;  // 文件正在上传中
+  FILE_STATUS_UPLOADING = 2;  // 文件正在上传中
   FILE_STATUS_NOT_FOUND = 3;  // 文件不存在
 }
 
@@ -191,11 +196,6 @@ enum PermissionCode {
   PERMISSION_SHARE   = 32;  // 0010 0000 //
   PERMISSION_EXECUTE = 64;  // 0100 0000 //
 }
-
-// enum PermissionValue {
-//   PERMISSION_DENY    = 0;  // 禁止
-//   PERMISSION_ALLOW   = 1;  // 允许
-// }
 
 // Result 结果消息
 message Result {
@@ -255,10 +255,10 @@ message ContactInfoBase {
 
 // 用户信息
 message ContactInfo {
-  ContactInfoBase      base_info   = 1;  // 基本信息
-  oneof                extra_info {
-    ContactInfoSelf    self_info   = 2;  // 自己相关的信息
-    ContactInfoFriend  friend_info = 3;  // 好友相关的信息
+  ContactInfoBase     base_info   = 1;  // 基本信息
+  oneof               extra_info {
+    ContactInfoSelf   self_info   = 2;  // 自己相关的信息
+    ContactInfoFriend friend_info = 3;  // 好友相关的信息
   }
 }
 
@@ -383,20 +383,6 @@ message ContactRequestInfo {
   string    message   = 2;  // 附带的消息
   Timestamp timestamp = 3;  // 申请时间
 }
-
-// // 添加联系人
-// // AuthRequest 没有添加 optional 字段，
-// // 即使调用 has_request_user_auth() ，
-// // 然后再使用 has_request_user_auth() 判断，也依然返回 true。
-// message AddContactRequest {
-//   AuthRequest request_user_auth = 1;  // 鉴权
-//   string      target_user_id    = 2;  // 要添加的联系人 ID
-// }
-//
-// message AddContactReply {
-//   optional  AddContactRequest request = 1;  // 可选的原始请求信息字段
-//             Result            result  = 2;  // 状态信息字段
-// }
 
 // 更新个人资料
 message UpdateProfileRequest {
@@ -547,21 +533,21 @@ service MessageService {
 
 // 消息上下文  // 发送消息时不要使用列表，每条消息都进行身份验证
 message MessageContext {
-  optional  AuthRequest  request_user_auth = 1;  // 鉴权
-            Timestamp    timestamp         = 2;  // 客户端消息发送的时间  // 用于客户端时间校准，服务端不处理该时间戳
-            string       client_message_id = 3;  // 客户端生成的消息 ID，用于判断消息是否重复发送
+  optional  AuthRequest request_user_auth = 1;  // 鉴权
+            Timestamp   timestamp         = 2;  // 客户端消息发送的时间  // 用于客户端时间校准，服务端不处理该时间戳
+            string      client_message_id = 3;  // 客户端生成的消息 ID，用于判断消息是否重复发送
             // `oneof{}` 相比较与 `enum Type {...}`
             // 1. 更符合 protobuf 的设计理念。
             // 2. 仅占用一个位置。
             // 3. 语义明确，不会误设置 Type 导致混淆。
-            oneof         chat_room {
-              string      group_id  = 4;  // 群聊 ID
-              string      user_id   = 5;  // 私聊 ID
+            oneof    chat_room {
+              string group_id  = 4;  // 群聊 ID
+              string user_id   = 5;  // 私聊 ID
             }
             // 消息内容均不能为空
-            oneof         content {
+            oneof    content {
               // 客户端需要注意不同字符串类型占用的空间大小不一致的问题
-              string      short_text   = 6;  // 短文本消息内容  // [0, 8192) 个字节以内的文本消息内容
+              string short_text   = 6;  // 短文本消息内容  // [0, 8192) 个字节以内的文本消息内容
               // FileContent long_text = 6;  // 长文本消息内容  // [8192, ...) 个字节以上的文本消息内容。
               // FileContent image     = 7;  // 图片消息内容
               // FileContent audio     = 8;  // 音频消息内容
@@ -646,8 +632,8 @@ message SyncRequest{
 
 // 连接认证结果
 message SyncReplyHeader {
-  optional  SyncRequest   request     = 1;  // 可选的原始请求信息字段
-            Result        result      = 2;  // 状态信息字段
+  optional  SyncRequest request = 1;  // 可选的原始请求信息字段
+            Result      result  = 2;  // 状态信息字段
 }
 
 // 单条消息增量事件
@@ -668,9 +654,9 @@ message Messages {
 
 // 单条文件增量事件
 message FileEvent {
-  string         file_id      = 1;  // 文件 ID
-  FileMetadata   file_metadata= 2;  // 文件元数据
-  FileStatusCode file_status  = 3;  // 文件状态
+  string         file_id        = 1;  // 文件 ID
+  FileMetadata   file_metadata  = 2;  // 文件元数据
+  FileStatusCode file_status    = 3;  // 文件状态
   string         event_sub_type = 4;  // 事件子类型（如 FILE_UPLOAD）
 }
 
@@ -682,8 +668,8 @@ message FileEvents {
 // 认证成功后返回的主要内容
 message SyncReplyBody {
   // 大分类，比如好友申请与删除均在 CONTACTS 分类下，具体的操作类型需要再解析消息内容来区分。
-  SyncRequestTag tag      = 1;  // 同步标签，包含要获取更新的消息类型和最后一条消息的 ID
-  int64          count    = 2;  // 更新的消息数量
+  SyncRequestTag tag   = 1;  // 同步标签，包含要获取更新的消息类型和最后一条消息的 ID
+  int64          count = 2;  // 更新的消息数量
 
   // 具体的更新消息，不同类型的字段由服务端按 tag.type 填充。
   ContactInfos contact_infos = 3;  // 联系人列表更新内容
@@ -695,8 +681,8 @@ message SyncReplyBody {
 // 返回内容
 message SyncReply{
   oneof             reply {
-    SyncReplyHeader header   = 1;  // 同步回复头，包含请求信息和状态信息
-    SyncReplyBody   body     = 2;  // 同步回复体，包含更新内容
+    SyncReplyHeader header = 1;  // 同步回复头，包含请求信息和状态信息
+    SyncReplyBody   body   = 2;  // 同步回复体，包含更新内容
   }
 }
 
@@ -737,13 +723,13 @@ message FileMetadata {
   int64  file_size = 3;
 }
 
-// 获取文件上传结果
+// 获取文件上传结果  // 获取文件上传 ID 时不需要获取已经上传的大小
 message GetFileIDReply {
-  optional  GetFileIDRequest request         = 1;
-            Result           result          = 2;  // 状态信息字段
-            string           file_id         = 3;  // 文件 ID
-            FileStatusCode   file_status     = 4;  // 文件状态
-            string           message         = 5;  // 可选的错误消息字段
+  optional  GetFileIDRequest request     = 1;  // 可选的原始请求信息字段
+            Result           result      = 2;  // 状态信息字段
+            string           file_id     = 3;  // 文件 ID
+            FileStatusCode   file_status = 4;  // 文件状态
+            string           message     = 5;  // 可选的错误消息字段
 }
 
 // 是谁因为什么原因要上传什么文件，以便后续关联消息等信息，防止垃圾文件的产生。
@@ -760,14 +746,16 @@ message FileUploadRequest {
 // 3. 上传原因：用于记录文件上传的目的，便于垃圾清理。
 // 上传时要求账号 ID 和文件 ID 均一致
 message FileUploadHeader {
-  optional  AuthRequest  request_user_auth = 1;  // 鉴权  // 实际不需要
-            string       file_id           = 2;  // 文件 ID
-            string       reason            = 3;  // 上传原因
+  optional  AuthRequest request_user_auth = 1;  // 鉴权  // 实际不需要
+            string      file_id           = 2;  // 文件 ID
+            string      reason            = 3;  // 上传原因
 }
 
 // 文件上传的数据部分
 message FileChunkData {
-  bytes chunk_data = 1;  // 文件碎片数据
+  // string file_id = 1;  // 文件 ID
+  int64 chunk_offset = 1;  // 当前分片在整个文件中的起始偏移量
+  bytes chunk_data   = 2;  // 文件碎片数据
   // message chunk_info {
   //   int64 file_size    = 2;  // 文件总大小，用于校验上传完成
   //   int64 offset       = 3;  // 文件碎片在整个文件中的偏移位置
@@ -781,16 +769,18 @@ message FileChunkData {
 
 // 文件上传结果
 message FileUploadReply {
-  optional  FileUploadRequest request     = 1;  // 可选的原始请求信息字段
-            Result            result      = 2;  // 状态信息字段
-            FileStatusCode    file_status = 3;  // 文件状态
-            string            message     = 4;  // 可选的错误消息字段
+  optional  FileUploadRequest request        = 1;  // 可选的原始请求信息字段
+            Result            result         = 2;  // 状态信息字段
+            FileStatusCode    file_status    = 3;  // 文件状态
+            string            message        = 4;  // 可选的错误消息字段
+            int64             uploaded_bytes = 5;  // 服务器已接收的字节数
 }
 
 // 文件下载请求
 message FileDownloadRequest {
-  optional  AuthRequest  request_user_auth = 1;  // 鉴权
-            string       file_id           = 2;  // 文件 ID
+  optional  AuthRequest request_user_auth = 1;  // 鉴权
+            string      file_id           = 2;  // 文件 ID
+            int64       downloaded_bytes  = 3;  // 客户端已接收的字节数
 }
 
 // 文件下载响应
@@ -803,10 +793,10 @@ message FileDownloadReply {
 
 // 文件下载头信息
 message FileDownloadHeader {
-  optional  FileDownloadRequest  request       = 1;  // 鉴权
-            Result               result        = 2;  // 状态信息字段
-            FileMetadata         file_metadata = 3;  // 文件元数据
-            string               message       = 4;  // 可选的错误消息字段
+  optional  FileDownloadRequest request       = 1;  // 鉴权
+            Result              result        = 2;  // 状态信息字段
+            FileMetadata        file_metadata = 3;  // 文件元数据
+            string              message       = 4;  // 可选的错误消息字段
 }
 
 // =========================================================================== //

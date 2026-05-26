@@ -496,6 +496,7 @@ public:
             // 执行过程发生错误
             results->done = false;
             results->msg  = sqlite3_errmsg(m_db_sqlcipher);
+            LOG_TRACE("SQL execution failed. SQL: {}, msg: {}", sql, results->msg);
             sqlite3_finalize(stmt);
             rollback_if_needed();
             return results;

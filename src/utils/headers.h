@@ -6,6 +6,7 @@
 
 #define ENABLE_SQLCIPHER
 #define ENABLE_NLOHMANN_JSON
+#define ENABLE_M_INI
 #define ENABLE_BOOST_DLL
 #define ENABLE_BOOST_UUID
 #define ENABLE_BOOST_PROGRAM_OPTIONS
@@ -26,6 +27,8 @@
 #define ENABLE_SPDLOG
 #define ENABLE_ABSL_LIB
 #endif // ENABLE_CLIENT
+
+#define ENABLE_PROTO_PROJECT_NAMESPACE
 
 // ================ 内容 ================ //
 
@@ -52,6 +55,7 @@
 #include <cmath>
 #include <codecvt>
 #include <complex>
+#include <concepts>  // C++20，模板约束条件
 #include <condition_variable>
 #include <csetjmp>
 #include <csignal>
@@ -133,6 +137,8 @@
 #include <QCheckBox>
 #include <QColor>
 #include <QCommandLineParser>
+#include <QCoreApplication>
+#include <QCryptographicHash>
 #include <QDataStream>
 #include <QDate>
 #include <QDateEdit>
@@ -176,6 +182,7 @@
 #include <QMimeType>
 #include <QMovie>
 #include <QMutex>
+#include <QMutexLocker>
 #include <QObject>
 #include <QPainter>
 #include <QPainterPath>
@@ -199,6 +206,7 @@
 #include <QScrollBar>
 #include <QScroller>
 #include <QSemaphore>
+#include <QSet>
 #include <QSettings>
 #include <QSharedData>
 #include <QSharedDataPointer>
@@ -222,6 +230,7 @@
 #include <QSyntaxHighlighter>
 #include <QSysInfo>
 #include <QSystemTrayIcon>
+#include <QtConcurrent/QtConcurrent>
 #include <QtDebug>
 #include <QtGrpc/QGrpcStatus>
 #include <QThread>
@@ -282,6 +291,12 @@
 // nlohmann json
 #include <nlohmann/json.hpp>
 #endif // ENABLE_NLOHMANN_JSON
+
+// #define ENABLE_M_INI
+#ifdef ENABLE_M_INI
+// m-ini
+#include <mini/ini.h>   // cpp
+#endif // ENABLE_M_INI
 
 // #define ENABLE_BOOST_DLL
 #ifdef ENABLE_BOOST_DLL
@@ -363,6 +378,8 @@ using SearchClient  = ::TaoTieChat::SearchService::Client;
 using StatusClient  = ::TaoTieChat::StatusService::Client;
 using ::TaoTieChat::ContactReplyCodeGadget::ContactReplyCode;
 using ::TaoTieChat::ErrorCodeGadget::ErrorCode;
+using ::TaoTieChat::FileStatusCodeGadget::FileStatusCode;
+using ::TaoTieChat::PermissionCodeGadget::PermissionCode;
 using ::TaoTieChat::SuccessCodeGadget::SuccessCode;
 using ::TaoTieChat::SyncTypeGadget::SyncType;
 #elif defined(ENABLE_SERVER)  // ENABLE_SERVER
@@ -394,6 +411,8 @@ using SearchStub  = ::TaoTieChat::SearchService::Stub;
 using StatusStub  = ::TaoTieChat::StatusService::Stub;
 #endif // ENABLE_CLIENT
 
+// #define ENABLE_PROTO_PROJECT_NAMESPACE
+#ifdef ENABLE_PROTO_PROJECT_NAMESPACE
 using ::TaoTieChat::AuthReply;
 using ::TaoTieChat::AuthRequest;
 using ::TaoTieChat::ContactInfo;
@@ -449,6 +468,8 @@ using ::TaoTieChat::UpdateSecurityInfoOldPasswordInfo;
 using ::TaoTieChat::UpdateSecurityInfoOldSecurityInfo;
 using ::TaoTieChat::UpdateSecurityInfoReply;
 using ::TaoTieChat::UpdateSecurityInfoRequest;
+#endif  // ENABLE_PROTO_PROJECT_NAMESPACE
+
 // logs
 // VERBOSE / NOTICE / EMERGENCY / PANIC / AUDIT / ALERT
 // FATAL / CRITICAL / ERROR / WARNING / INFO / DEBUG / TRACE

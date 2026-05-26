@@ -137,19 +137,35 @@ std::tuple<grpc::Status, std::unique_ptr<FileUploadReply>, bool> FileUpload(cons
     // 判断是否是秒传
     bool is_fast_upload = file_status == FileStatusCode::FILE_STATUS_UPLOADED ? true : false;
 
-    if(file_status == FileStatusCode::FILE_STATUS_NOT_FOUND) {
+    if(file_status == FileStatusCode::FILE_STATUS_NOT_FOUND || file_status == FileStatusCode::FILE_STATUS_UPLOADING) {
         std::cout << "File does not exist on server, need to upload." << std::endl;
+
+        // 获取已经上传文件的大小
+        int64_t uploaded_bytes = reply->uploaded_bytes();  // 已上传文件的大小，可用于断点续传
+        int64_t file_size = std::get<1>(Utils::file_size(file_path));
+        // 如果服务器返回的已上传字节数超过了实际文件大小，
+        // 说明服务器可能没有正确处理断点续传的逻辑，
+        // 此时重置为 0 以进行重新上传。
+        if(uploaded_bytes > file_size) {
+            uploaded_bytes = 0;
+        }
 
         // 继续上传文件内容，模拟上传文件的后续步骤
         const size_t chunk_size = 128 * 1024; // 每次上传 128KB
         std::vector<char> buffer(chunk_size);
         std::ifstream ifs(file_path, std::ios::binary);
-        // 空文件特殊处理
-        bool is_empty_file = ifs.peek() == std::ifstream::traits_type::eof();
-        while (ifs.read(buffer.data(), buffer.size()) || ifs.gcount() > 0 || is_empty_file) {
+        if(uploaded_bytes >= 0) {
+            ifs.seekg(uploaded_bytes);
+        }
+        // 空文件或有有效数据都要发送至少一次
+        // 读取到文件末尾时由 while 内的判断条件检测退出
+        bool is_end_of_file = ifs.peek() == std::ifstream::traits_type::eof(); // 空文件也要进入循环
+        while (ifs.read(buffer.data(), buffer.size()) || ifs.gcount() > 0 || is_end_of_file) {
             FileUploadRequest chunk_request;
             chunk_request.mutable_chunk()->set_chunk_data(buffer.data(), ifs.gcount());
+            chunk_request.mutable_chunk()->set_chunk_offset(uploaded_bytes);
             stream->Write(chunk_request);
+            uploaded_bytes += ifs.gcount();
             // 对于空文件，第一次读取就会返回 EOF，
             // 但我们仍然需要发送一个空的 chunk 来让服务器知道这是一个空文件。
             // 读取到文件末尾
@@ -186,8 +202,8 @@ std::tuple<grpc::Status, std::unique_ptr<FileDownloadReply>> FileDownload(const 
     using Reply   = FileDownloadReply;
     // =========== 准备服务器
     // 创建服务器并在内存中启动
-    auto builder = std::make_unique<ServerBuilder  >();;
     auto service = std::make_unique<FileServiceImpl>();;
+    auto builder = std::make_unique<ServerBuilder  >();;
     builder->RegisterService(service.get());
     auto server  = builder->BuildAndStart();
     auto channel = server->InProcessChannel(grpc::ChannelArguments());
@@ -200,6 +216,7 @@ std::tuple<grpc::Status, std::unique_ptr<FileDownloadReply>> FileDownload(const 
     request->mutable_request_user_auth()->set_user_id (user_id );
     request->mutable_request_user_auth()->set_password(password);
     request->set_file_id(file_id);
+    request->set_downloaded_bytes(0);  // 从文件开头开始下载
 
     auto stream  = stub->FileDownload(context.get(), *request);
 
@@ -223,13 +240,13 @@ std::tuple<grpc::Status, std::unique_ptr<FileDownloadReply>> FileDownload(const 
     path download_path = Utils::downloaded_dir() / file_name;
     Utils::mkdir(download_path.parent_path());
     std::ofstream ofs(download_path, std::ios::binary);
+    // 文件下载是从头开始下的，且为本地通知客户端进行跳转偏移，客户端不需要自己跳转
     while (stream->Read(reply.get())) {
         auto&chunk_data = reply->chunk().chunk_data();
         ofs.write(chunk_data.data(), chunk_data.size());
     }
     ofs.close();
     Status status = stream->Finish();
-    EXPECT_TRUE(status.ok());
 
     // =========== 关闭服务器
     server->Shutdown();
@@ -267,6 +284,7 @@ TEST_F(ServiceFile, UploadAndDownloadEmptyFile) {
     // 创建一个空文件，测试是否支持空文件的上传
     path empty_file_path = Utils::temp_dir() / "test_file.txt";
     Utils::mkdir(empty_file_path.parent_path());
+    Utils::remove(empty_file_path);  // 确保文件不存在
     std::ofstream ofs(empty_file_path);
     ofs.close();
 

@@ -625,3 +625,537 @@ IM 系统将数据分为**“持久化状态”**和**“瞬时状态”**：
 
 **总结：**
 [cite_start]`pts` 是为了保证**“必须到达的消息和变更”**不丢失的保险机制 [cite: 76, 84][cite_start]。而像好友列表这种基础框架数据，通过**专门的快照接口**获取效率更高；在线状态这种瞬时数据，则通过**独立的推送通道**处理更合理 [cite: 89, 90, 114]。
+
+## Q11: grpc 用户登陆的流程是什么样的？是先建立连接再发送登陆信息吗？后面的操作需要再鉴权吗？
+在 gRPC 的架构中，用户登录的流程设计和传统的 HTTP (REST) 有一些微妙但很重要的区别。
+
+简单直接地回答你的核心疑问：**是的，必须先建立连接，才能发送登录数据；而后续的操作通常需要持续鉴权，但不需要每次都重复发送账号密码。**
+
+下面我们把这个流程、底层的连接机制以及后续的鉴权细节拆开来看。
+
+---
+
+### 1. 它是先建立连接，再发送登录信息吗？
+
+**是的。**
+
+gRPC 是基于 **HTTP/2** 协议的。任何 gRPC 请求（包括登录）能够发送的前提，是客户端与服务端之间已经完成了下层协议的握手：
+
+1. **TCP 三次握手**：建立基础的网络连接。
+2. **TLS 握手**：在生产环境中，这一步用来加密通信、交换证书（也就是建立安全连接）。
+3. **HTTP/2 连接确立**：完成连接前序（Preface）和配置帧（SETTINGS）的交换。
+
+当这个底层的通道（Channel）准备好之后，客户端才会发起登录的 RPC 调用，将用户名、密码等数据作为 Protobuf 消息通过这个通道发送给服务端。
+
+---
+
+### 2. 标准的 gRPC 用户登录流程
+
+在实际开发中，登录流程通常是这样运转的：
+
+1. **客户端发起登录请求：** 基于已有 Channel.
+客户端通过建立好的 gRPC 通道，调用如 `rpc Login(LoginRequest) returns (LoginResponse)` 方法，将凭证（密码、验证码等）发送给服务器。
+
+2. **服务端校验并签发 Token:** 生成身份凭证。
+服务端验证账号密码正确后，生成一个无状态的身份令牌（最常见的是 **JWT - JSON Web Token**），并在 `LoginResponse` 中返回给客户端。
+
+3. **客户端本地缓存 Token:** 持久化或内存存储。
+客户端收到 Token 后，将其安全地保存在本地内存或持久化存储中，准备用于后续的请求。
+
+---
+
+### 3. 后面的操作需要再鉴权吗？怎么鉴？
+
+**需要鉴权，但不再需要密码。**
+
+gRPC 的网络连接（Channel）是**长连接**，并且支持多路复用。这意味着登录成功后，后续的所有业务请求（如获取好友列表、发送消息）都是走这同一个连接。
+
+但服务器是无状态的（或者为了安全起见），**它不能仅仅因为「这个请求来自刚刚登录过的那个 TCP 连接」就盲目信任它**。因为一个 Channel 内部可以跑成百上千个不同的 Stream（流），且中间可能会有代理或连接复用。因此，**每一个后续的业务 RPC 请求，都需要携带鉴权信息**。
+
+#### 标准做法：利用 Metadata（元数据）
+
+gRPC 提供了 `Metadata` 机制（类似于 HTTP 的 Header）。后续请求的鉴权通常这样处理：
+
+* **客户端自动注入**：你不需要在每个 Protobuf 消息体里都手动加上 `string token` 字段。gRPC 支持拦截器（Interceptor）或统一的凭证器（Credentials）。在发送任何业务请求前，拦截器会自动把 Token 塞进 Metadata 里：
+```text
+authorization: Bearer <your_jwt_token>
+```
+
+* **服务端统一拦截**：服务端同样挂载一个全局的**一元/流式拦截器（Unary/Stream Interceptor）**。在业务逻辑执行前，拦截器先去抽调 Metadata 中的 `authorization`，解析并验证 Token。
+  * **验证成功**：把解析出来的 `UserId` 塞进上下文（Context）中，放行进入业务层。
+  * **验证失败**：直接截断请求，返回 gRPC 的状态码 `UNAUTHENTICATED (16)`。
+
+---
+
+### 💡 进阶：如果是双向流（Bidirectional Streaming）呢？
+
+如果你在做即时通讯（IM）或者文件传输，经常会用到 gRPC 的双向流。这时候的鉴权有一点小变化：
+
+1. **建流时鉴权**：在客户端刚发起这个长连接流（Stream）的一瞬间，把 Token 放在 Metadata 里一起发过去。服务端在接收这个流的 Hooks 里校验 Token。
+2. **流期间信任**：一旦这个流验证通过并成功建立，只要**这个流没有断开**，后续在这个流内部连续发送的 Protobuf 消息，通常**不需要**再重复鉴权了。因为长双向流在生命周期内是强绑定、独占的，服务端可以在内存里维持该流对应的用户状态。
+3. **断线重连**：如果网络波动导致流断开，客户端重新建立流时，必须重新在 Metadata 里携带 Token 进行握手鉴权。
+
+<FollowUp label="想了解如何在 gRPC 拦截器中实现 Token 自动注入和校验的具体代码吗？" query="展示在 gRPC 中如何使用客户端拦截器注入 Token，并在服务端拦截器中进行鉴权校验的示例代码。"/>
+
+## Q12: 如何在 gRPC 拦截器中实现 Token 自动注入和校验的具体代码吗？展示在 gRPC 中如何使用客户端拦截器注入 Token，并在服务端拦截器中进行鉴权校验的示例代码。
+
+由于在实际开发中，你可能更倾向于在高性能、长连接的场景（比如你的 TaoTieChat 项目）中使用 **C++** 作为服务端和核心组件，同时使用 **Qt/C++** 来构建客户端，这里我就为你提供一份原生的 **gRPC C++** 客户端与服务端的拦截器（Interceptor）鉴权实现。
+
+在 gRPC C++ 中，拦截器的概念是通过 `grpc::experimental::Interceptor` 和 `grpc::experimental::InterceptorFactory` 来实现的。下面我们来看具体的代码架构。
+
+---
+
+### 1. 客户端：自动注入 Token
+
+在客户端，我们不需要在每个 RPC 请求中手动去塞 Token。我们可以通过一个自定义的 `ClientInterceptor`，在请求真正发送出去之前，拦截并向 `client_metadata` 中添加一条 `authorization` 记录。
+
+```cpp
+#include <grpcpp/grpcpp.h>
+#include <grpcpp/support/client_interceptor.h>
+#include <iostream>
+#include <string>
+
+// 客户端拦截器：负责注入 Token
+class TokenClientInterceptor : public grpc::experimental::Interceptor {
+public:
+    explicit TokenClientInterceptor(const std::string& token) : token_(token) {}
+
+    void Intercept(grpc::experimental::InterceptorBatchMethods* methods) override {
+        // 当客户端准备发送初始元数据（Initial Metadata）时，将其拦截并修改
+        if (methods->QueryInterceptionHookPoint(grpc::experimental::InterceptionHookPoints::PRE_SEND_INITIAL_METADATA)) {
+
+            auto* metadata = methods->GetSendInitialMetadata();
+            if (metadata != nullptr) {
+                // 注入 Token，通常配合 Bearer 格式
+                metadata->insert(std::make_pair("authorization", "Bearer " + token_));
+            }
+        }
+        // 必须调用 Proceed，否则整个 RPC 流程会被卡死在这里
+        methods->Proceed();
+    }
+
+private:
+    std::string token_;
+};
+
+// 拦截器工厂：用来为每一次 RPC 调用创建拦截器实例
+class TokenClientInterceptorFactory : public grpc::experimental::ClientInterceptorFactoryInterface {
+public:
+    explicit TokenClientInterceptorFactory(const std::string& token) : token_(token) {}
+
+    grpc::experimental::Interceptor* CreateClientInterceptor(grpc::experimental::ClientRpcInfo* info) override {
+        return new TokenClientInterceptor(token_);
+    }
+
+private:
+    std::string token_;
+};
+```
+
+#### 客户端如何挂载这个拦截器：
+
+在你通过 `Channel` 创建 `Stub` 的时候，将这个工厂传进去：
+
+```cpp
+void RunClient() {
+    auto channel = grpc::CreateChannel("localhost:50051", grpc::InsecureChannelCredentials());
+
+    // 模拟从登录接口或者本地持久化缓存（如 SQLite）中拿到的真实 Token
+    std::string my_saved_token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...";
+
+    // 创建拦截器列表
+    std::vector<std::unique_ptr<grpc::experimental::ClientInterceptorFactoryInterface>> creators;
+    creators.push_back(std::make_unique<TokenClientInterceptorFactory>(my_saved_token));
+
+    // 使用带有拦截器的 Channel 创建你的 Stub
+    // 假设你的服务叫 TaoTieChatService
+    auto stub = TaoTieChatService::NewStub(channel, grpc::StubOptions(std::move(creators)));
+
+    // 之后你正常调用任何 rpc，拦截器都会在底层自动帮你加上 Token！
+}
+```
+
+---
+
+### 2. 服务端：统一拦截与鉴权校验
+
+服务端拦截器会在请求到达真正的业务类（如继承自 `Service` 的具体实现）之前被触发。它会检查 `client_metadata`，抽取 Token 并做合法性校验。如果校验失败，可以直接中止请求并返回 `UNAUTHENTICATED` 错误。
+
+```cpp
+#include <grpcpp/grpcpp.h>
+#include <grpcpp/support/server_interceptor.h>
+#include <iostream>
+#include <string>
+
+// 服务端拦截器：负责提取并校验 Token
+class AuthServerInterceptor : public grpc::experimental::Interceptor {
+public:
+    void Intercept(grpc::experimental::InterceptorBatchMethods* methods) override {
+        // 在接收到客户端的初始元数据时进行拦截
+        if (methods->QueryInterceptionHookPoint(grpc::experimental::InterceptionHookPoints::POST_RECV_INITIAL_METADATA)) {
+
+            auto* metadata = methods->GetRecvInitialMetadata();
+            bool authenticated = false;
+            std::string auth_header = "";
+
+            if (metadata != nullptr) {
+                auto it = metadata->find("authorization");
+                if (it != metadata->end()) {
+                    auth_header = std::string(it->second.data(), it->second.length());
+
+                    // 进行你的 Token 校验逻辑（例如使用 jwt-cpp 库解密，或者去 Redis/内存中匹配）
+                    if (VerifyToken(auth_header)) {
+                        authenticated = true;
+                    }
+                }
+            }
+
+            if (!authenticated) {
+                // 鉴权失败：拒绝当前调用，返回 16 (UNAUTHENTICATED) 状态码
+                std::cout << "[Auth] 鉴权失败，拒绝访问。" << std::endl;
+                methods->ModifyCallbackStatus(grpc::Status(grpc::StatusCode::UNAUTHENTICATED, "Missing or invalid token."));
+                // 注意：在这里我们直接返回，不再调用 methods->Proceed()，从而截断了请求流程
+                return;
+            }
+        }
+
+        // 鉴权成功，继续后续的业务流
+        methods->Proceed();
+    }
+
+private:
+    bool VerifyToken(const std::string& auth_header) {
+        // 实际业务中这里可以解析 JWT 字符串
+        // 这里做一个简单的 Hardcode 示例
+        return auth_header == "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...";
+    }
+};
+
+// 服务端拦截器工厂
+class AuthServerInterceptorFactory : public grpc::experimental::ServerInterceptorFactoryInterface {
+public:
+    grpc::experimental::Interceptor* CreateServerInterceptor(grpc::experimental::ServerRpcInfo* info) override {
+        return new AuthServerInterceptor();
+    }
+};
+```
+
+#### 服务端如何挂载这个拦截器：
+
+在初始化 `ServerBuilder` 时，将其注册进去：
+
+```cpp
+void RunServer() {
+    std::string server_address("0.0.0.0:50051");
+    TaoTieChatServiceImpl service;  // 你的业务具体实现类
+
+    grpc::ServerBuilder builder;
+    builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
+    builder.RegisterService(&service);
+
+    // 注册服务端全局拦截器
+    std::vector<std::unique_ptr<grpc::experimental::ServerInterceptorFactoryInterface>> creators;
+    creators.push_back(std::make_unique<AuthServerInterceptorFactory>());
+    builder.experimental().SetInterceptorCreators(std::move(creators));
+
+    std::unique_ptr<grpc::Server> server(builder.BuildAndStart());
+    std::cout << "Server listening on " << server_address << std::endl;
+    server->Wait();
+}
+```
+
+---
+
+#### 📌 细节考 close up（特别针对长连接/流式 RPC）
+
+1. **一元调用 (Unary RPC)  vs 流式调用 (Streaming RPC)**:
+对于一元调用（比如普通的获取用户信息请求），每次调用上面的 `Intercept` 都会跑一遍流程。
+而对于**双向流（Bidirectional Streaming）**，这个拦截器通常也**只会在流刚建立（POST_RECV_INITIAL_METADATA）的那一刻触发一次**。只要流建立了，只要你不手动在内部针对特定消息帧写代码校验，底层的拦截器不会对流里后续发出的每一个数据包都进行 `VerifyToken` 操作。这就保证了在类似即时聊天时，高频发送消息不会产生密集的 Token 解析开销。
+2. **内存释放**:
+gRPC 的 `InterceptorFactory` 创建的拦截器指针，其生命周期由 gRPC 框架本身管理。当对应的 RPC 调用结束时，框架会自动 `delete` 拦截器实例，所以你不需要担心内存泄漏。
+
+## Q13: 流式上传下载文件设计为支持断点续传时，可以支持暂停恢复吗？需要重新建立流还是继续发送数据即可？
+
+对于基于 gRPC 流式（Streaming）的文件断点续传设计，**完全可以支持暂停和恢复**。
+
+至于暂停后恢复时是“重新建立流”还是“继续发送数据”，结论非常明确：**在长连接的实际网络环境下，强烈建议采用「重新建立流」的方式来处理恢复。**
+
+这背后的根本原因在于**客户端的暂停往往伴随着不确定性**，网络底层的特性决定了维持一个“卡住不发数据”的流是低效且危险的。我们来拆解一下这两种路径的本质区别和设计差异。
+
+---
+
+### 1. 为什么不建议“原地等待、继续发送”？
+
+如果客户端点击了暂停，技术上你可以让客户端的线程直接停止向流中调用 `stream->Write()`，从而把流卡在原地。当点击恢复时，再继续调用 `Write()`。
+
+但这在生产环境中会引发一系列严重的衍生问题：
+
+* **触发 gRPC/HTTP2 内置超时**：大多数 gRPC 服务端和反向代理（如 Nginx、Envoy）都配置了 `grpc-timeout` 或者 `keepalive` 闲置超时。如果一个流超过 30 秒或几分钟没有任何数据往来，中间的网络设备或服务端拦截器会强制掐断这个流，抛出 `DEADLINE_EXCEEDED` 或 `UNAVAILABLE` 错误。
+* **内存与连接资源的浪费**：长连接流在服务端是占用独立的协程/线程以及内存缓冲区的。如果用户暂停去吃了个饭，半小时后才回来，服务端就会白白挂着这个僵尸流半小时，极其消耗服务器并发承载能力。
+* **网络环境切换**：用户在手机上点暂停，走到电梯里，切换了 Wi-Fi 到 5G。此时旧的流和底层 TCP 连接其实已经由于网络切换悄悄断开了（半死不活状态），你根本无法在原流上继续写入。
+
+---
+
+### 2. 推荐的设计：销毁旧流，重连建新流
+
+标准的断点续传、暂停、恢复设计，应当将每次“恢复”都视作一次“带有上下文的初始化”。
+
+#### 核心业务流程
+
+无论是上传还是下载，当用户点击**暂停**时：
+
+1. 客户端立即调用 `stream->WritesDone()` 或直接 `context.TryCancel()` 显式**关闭并销毁当前的流**。
+2. 客户端在本地数据库（如 SQLite）中记录当前文件的关键元数据：
+* 文件的唯一标识（如 `MD5` / `SHA256`）
+* **已成功传输并被服务端确认的字节数（`Offset`）**
+* 服务端可能返回的 `UploadID` / `SessionID`
+
+当用户点击**恢复**时：
+
+1. **客户端发起新请求：** 携带 Offset.
+客户端向服务端重新发起流式 RPC 请求。关键在于：必须在请求的 Metadata（元数据）或第一个初始消息包中，明确带上 Offset 和 FileID。
+
+2. **服务端响应并对齐：** Seek 到指定位置。
+服务端收到请求后，根据 FileID 校验权限，在磁盘上找到已写了一半的文件，执行 seek(Offset) 将文件指针移动到对应位置，并做好接收/发送准备。
+
+3. **开启新流开始传输：** 完全等同于首次传输。
+流成功建立，客户端/服务端从 Offset 位置开始读取本地文件，并源源不断地通过新流发送数据。
+
+---
+
+### 3. 流式断点续传的架构细节（以客户端上传为例）
+
+为了让「重新建立流」方案稳健运行，你需要在 Protobuf 消息设计上做一点微调。
+
+#### 消息设计 (Protobuf)
+
+不要让流里的每一个数据包都包含一堆重复的元数据。可以用一个 `oneof` 结构，把“握手信息”和“纯数据块”区分开：
+
+```protobuf
+message UploadRequest {
+  oneof payload {
+    InitInfo init_info = 1;   // 只有流的第一个包发这个
+    DataChunk chunk = 2;     // 后续所有的包都发纯数据
+  }
+}
+
+message InitInfo {
+  string file_id = 1;        // 文件唯一标识（MD5）
+  int64  start_offset = 2;   // 告诉服务器，我这次从第几个字节开始传
+}
+
+message DataChunk {
+  bytes buffer = 1;          // 每次读 64KB/1MB 的二进制数据
+}
+```
+
+#### 服务端写入安全防范：分块确认机制
+
+由于网络层有缓冲区，客户端 `stream->Write(chunk)` 成功，并不代表数据已经落到了服务器的硬盘上。如果此时发生暂停或断线，容易发生数据丢失。
+
+* **优化方案**：在流的通讯中引入**双向反馈**（即采用双向流 `Bidirectional Streaming` 传输文件）。
+* 客户端每发送 10 个数据包（或者每传 1MB），就等待服务端在流里回一个 `UploadProgressResponse` 的确认包（Ack）。
+* 客户端本地只记录**被服务端真正 Ack 确认过的 `Offset**`。这样即使拔掉网线或者强行暂停，下次恢复时，客户端从最后一次 Ack 的位置重新 Seek 并发送即可，服务端直接覆盖未确认的残缺数据，保证绝对的数据一致性。
+
+> **总结：**
+> 暂停恢复的本质就是**“优雅地死掉，安全地重生”**。不要试图去维持一个被暂停的脆弱流，主动断开并在恢复时通过携带 `Offset` 的新流进行无缝对接，才是能经受住复杂网络环境考验的工业级设计。
+
+## Q14.1: 原生 grpc 流模式客户端不断 write 没有阻塞，导致服务端只接收到了一次有效数据
+
+如果客户端确实在外层写了循环、多次调用了 `writer->Write()`，但服务端的 `while(stream->Read())` 内部依然**只执行了一次**，那问题 90% 概率不在网络层，而是隐藏在 gRPC 的**对象复用机制**、**客户端的多线程阻塞**或者**服务端生命周期管理**中。
+
+在 gRPC C++ 生产开发中，导致这种「客户端发了多次，服务端只读到一次就退出或挂起」的常见底层原因有以下几种：
+
+---
+
+### 1. 客户端没有正确处理 `Write()` 的返回值（最常见原因）
+
+gRPC 的流式发送不是无限容量的。因为底层 HTTP/2 有流控（Flow Control）机制，当服务端的接收缓冲区满了，或者底层网络发送队列阻塞时，客户端的 `Write()` 会返回 `false`。
+
+如果你的客户端代码是类似这样写的：
+
+```cpp
+// ❌ 错误示范：没有判断 Write 的返回值
+for (int i = 0; i < 10; ++i) {
+    writer->Write(chunk);
+}
+```
+
+实际情况可能是：**只有第一次 `Write()` 成功了，后面 9 次全部失败并返回了 `false**`。但因为客户端忽略了返回值，误以为自己发完了 10 次。
+
+* **排查方法**：检查客户端的每一处 `writer->Write()`，打印或断点看它是否返回了 `false`。
+* **正确写法**：
+```cpp
+if (!writer->Write(chunk)) {
+    // 说明流已经断开或异常，必须停止发送
+    break;
+}
+```
+
+---
+
+### 2. 客户端在同一个线程中同时进行 `Write()` 和 `Read()` 导致死锁
+
+你使用的是 `ServerReaderWriter`（双向流）。在双向流中，**gRPC 的底层发送和接收队列是共享某些互斥锁的**。
+
+如果你的客户端开启了双向流，并在一个线程里不停地 `Write()`，但**没有及时去 `Read()` 服务端的回应**，底层的 TCP/HTTP2 窗口很快就会被填满（Window Exhaustion）。一旦填满，客户端的后续 `Write()` 就会无限阻塞，或者直接断开流。
+* **结果**：服务端读到了第一个包，处理完后，在底层的 `Read()` 挂起，等待下一个包；而客户端也在等待服务端读取，或者等缓冲区释放，双方形成**应用层死锁**。
+* **解决办法**：如果不需要服务端实时回传进度，建议将接口降级为单向流 `ServerReader`（客户端单向上传）；如果必须用双向流，客户端通常需要**开启一个独立的线程专门负责 `stream->Read()`**。
+
+---
+
+### 3. 服务端在第一次循环里误触发了隐式退出
+
+请仔细检查你省略掉的 `// ... 这里的代码`。在 C++ 中，以下几种隐蔽的操作会导致 `while` 循环在第一次执行完后直接终止，让你误以为只收到了一次：
+
+* **误用了 `return` 或 `break`**：在某些逻辑分支（比如判断文件写入是否成功时）不小心退出了。
+* **抛出了未捕获的异常**：如果在处理第一个 `buffer_chunk` 时，内部的磁盘写入、字符串操作或第三方库抛出了异常，而你没有 `try-catch`，gRPC 会捕获这个异常并直接终止当前 RPC，向客户端返回 `UNKNOWN` 错误。
+* **修改了全局状态或 Context**：在第一次循环中调用了 `context->TryCancel()`。
+
+---
+
+### 4. Protobuf 的 Oneof 字段未正确设置
+
+如果你的 `FileUploadRequest` 采用了 `oneof` 联合体结构（断点续传常用于区分“元数据”和“文件块”），在客户端发送时有一个细节：
+
+如果你在循环发送文件块时，**不小心每一次都顺手设置了元数据字段**，或者在复用同一个 `request` 对象时没有调用 `.Clear()`，那么 Protobuf 在序列化时可能会因为内部状态混乱，导致后面发出的数据包变成了一个“空包”或者“非法包”。服务端收到非法包时，`stream->Read()` 会直接返回 `false` 退出循环。
+
+* **排查实验**：在服务端的循环体第一行，加入字段打印，看看每次读出来的具体内容：
+  ```cpp
+    while(stream->Read(&buffer_chunk)) {
+        std::cout << "收到数据包，内容大小：" << buffer_chunk.file_content().size() << std::endl;
+        // ...
+    }
+    ```
+
+---
+
+### 🛠️ 推荐排查步骤
+
+1. **看日志**：在服务端的 `while` 循环**紧接着的下一行**（即循环外面）加一行日志，看它是**正常退出了循环**（`Read()` 返回了 `false`），还是**直接崩掉了**。
+2. **抓状态码**：看客户端最后收到的 `grpc::Status` 是什么。如果是 `OK`，说明服务端认为传输正常结束了（大概率是客户端自己没发出来）；如果是 `CANCELLED` 或 `UNKNOWN`，说明服务端内部崩溃或死锁了。
+
+## Q14.2: QT 流模式客户端不断 write 没有阻塞，导致服务端只接收到了一次有效数据
+
+> 客户端在读取到服务端返回的文件上传状态信息后直接 while(true) { void QGrpcBidiStream::writeMessage(const QProtobufMessage &message) } 发送完文件内容，没有阻塞，怎么确保发送正常完成
+
+你在这里使用的 `QGrpcBidiStream` 和 `writeMessage`，说明客户端是基于 **Qt gRPC** 框架编写的。
+
+这个问题的根本原因在于你对 Qt 的异步事件驱动机制和 `writeMessage` 的底层行为产生了误解：**`QGrpcBidiStream::writeMessage` 是一个非阻塞的异步函数。**
+
+当你用 `while(true)` 在一个紧密的死循环里疯狂调用它时，你并没有真正把数据发到网络上，而是**在瞬间把大量的本地文件分块塞进了 Qt 的内部内存缓冲区（发送队列）中**。这会导致内存暴涨、引发底层网络拥塞，并且由于你没有给 Qt 事件循环（Event Loop）喘息的机会，数据根本发不出去，甚至可能直接撑爆缓冲区。
+
+要确保发送正常完成，你需要改变这种“强行灌入”的设计。以下是工业级 Qt gRPC 实现断点续传/流式发送的两种核心靠谱方案：
+
+---
+
+### 方案一：借助 Qt 信号槽实现「生产 - 消费」流控（推荐）
+
+Qt 的 `QGrpcBidiStream` 提供了相应的信号来通知你底层的发送队列是否写满了、或者是否准备好接收更多数据。
+
+遗憾的是，原生的 `QGrpcBidiStream` 在某些旧版本中对底层 HTTP/2 窗口可写信号（如 `bytesWritten`）的暴露并不直观。但标准做法是**控制发送速率，或者通过双向流的服务器应答（Ack）信号来驱动发送**。
+
+因为你使用的是双向流（BidiStream），最稳妥、最安全的确保发送完成的做法是：**客户端发一块，等服务端确认（Ack）一块，再发下一块。**
+
+#### 1. 调整你的 Protobuf 回应设计
+
+确保服务端的 `FileUploadReply` 包含一个 `ack_offset` 字段。
+
+#### 2. Qt 客户端改造（伪代码架构）
+
+不要使用 `while(true)`。改用一个成员函数，每次由信号触发只发送一小块：
+
+```cpp
+// 假设这是你的上传管理类中的方法
+void FileUploader::startUpload() {
+    // 1. 连接服务端的读取信号：每当服务端 Read 成功并回传 Ack，我们才发下一块
+    connect(m_stream, &QGrpcBidiStream::messageReceived, this, &FileUploader::onAckReceived);
+    connect(m_stream, &QGrpcBidiStream::finished, this, &FileUploader::onStreamFinished);
+    connect(m_stream, &QGrpcBidiStream::errorOccurred, this, &FileUploader::onUploadError);
+
+    m_currentOffset = m_startOffset; // 断点续传的起点
+    m_file.seek(m_currentOffset);
+
+    // 2. 激发第一次发送
+    sendNextChunk();
+}
+
+void FileUploader::sendNextChunk() {
+    if (m_file.atEnd()) {
+        // 文件读完了，通知服务端发送结束 (相当于 C++ 原生的 WritesDone)
+        m_stream->writesDone();
+        qDebug() << "所有数据已成功塞入发送队列，等待服务端最后确认...";
+        return;
+    }
+
+    // 读取一小块（比如 64KB）
+    QByteArray buffer = m_file.read(64 * 1024);
+
+    FileUploadRequest request;
+    request.set_file_content(buffer);
+    request.set_offset(m_currentOffset); // 带上偏移量，服务端好校验
+
+    // 写入流（非阻塞，立刻返回）
+    m_stream->writeMessage(request);
+
+    // 更新本地预期的偏移，但注意：此时数据还没真正安全到达服务端
+    m_currentOffset += buffer.size();
+}
+
+void FileUploader::onAckReceived(const QProtobufMessage &message) {
+    // 收到服务器的安全送达 Ack
+    auto reply = static_cast<const FileUploadReply&>(message);
+
+    // 只有服务端确认了，我们才放心地把这个进度记录到本地数据库（断点续传凭证）
+    saveProgressToSqlite(reply.ack_offset());
+
+    // 允许发送下一块（这就形成了良性循环，永远不会撑爆内存）
+    sendNextChunk();
+}
+
+void FileUploader::onStreamFinished(QGrpcStatus status) {
+    if (status.code() == QGrpcStatus::Ok) {
+        qDebug() << "整个文件上传安全完成！";
+    } else {
+        qDebug() << "上传失败：" << status.message();
+    }
+}
+```
+
+---
+
+### 方案二：如果不想改双向逻辑，如何强行让异步变同步？
+
+如果你不想做这种信号驱动的重构，非要让代码看起来像一个线性的循环，你必须在 `writeMessage` 后面**强制让出 CPU 和事件循环**，给 Qt 底层网络库发送数据的机会。
+
+你可以利用 `QCoreApplication::processEvents()` 来强行刷新网络事件，但这是一种**治标不治本**的妥协方案（可能会引发流控失效或丢包）：
+
+```cpp
+while (!file.atEnd()) {
+    FileUploadRequest request;
+    request.set_file_content(file.read(64 * 1024));
+
+    m_stream->writeMessage(request);
+
+    // ❌ 极不推荐在高并发 IM 项目中频繁使用：强行让 Qt 此时去跑网络发送事件
+    // 如果不加这句，while 循环会把 UI 线程或者当前线程彻底卡死，导致底层套接字根本没机会发送数据
+    QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+}
+// 必须调用这个来结束发送端
+m_stream->writesDone();
+```
+
+---
+
+### 💡 为什么你的服务端之前“只接收了一次数据”？
+
+现在破案了：因为在你的 `while(true)` 阻塞期间，Qt 的网络线程（通常依赖主事件循环或特定事件循环）**根本被你卡死了**。
+
+1. 你的 `while(true)` 瞬间将 100 个 `writeMessage` 请求放进了内存缓冲区。
+2. 你的客户端函数还没结束，依然在疯狂 `while`。
+3. 此时底层的网络物理层可能只来得及把**第一个写进去的包**发出去了。
+4. 服务端收到这第一个包，进入了它的 `Read()` 循环，然后由于客户端线程被 `while(true)` 卡死，后续网络的 TCP 报文无法正常发送/调度，流可能触发了隐式异常或者直接被服务端判断为连接停滞，导致服务端退出了 `Read`。
+
+#### 总结
+
+在 Qt 的世界里，**绝对不要用死循环去调用异步发送函数**。改用信号槽（Signal-Slot）或者基于服务端的 **Ack 机制**来控制发送节奏，才是确保大文件流式断点续传正常、稳定完成的唯一标准解法。

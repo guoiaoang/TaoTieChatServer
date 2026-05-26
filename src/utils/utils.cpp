@@ -390,19 +390,19 @@ string to_message(SuccessCode code) {
 // 获取错误信息
 string to_message(ErrorCode code) {
     static const std::map<ErrorCode, string> map_codes = {
-        {ErrorCode::UNSET                         , "Unset Error Code"       },
-        {ErrorCode::UNKNOWN                       , "Unknown Error Code"     },
-        {ErrorCode::ERROR_INIT                    , "Error on Init"          },
-        {ErrorCode::ERROR_CONN                    , "Error on connect"       },
-        {ErrorCode::ERROR_RECV                    , "Error on Recv or Parse" },
-        {ErrorCode::ERROR_SEND                    , "Error on Send"          },
+        {ErrorCode::ERROR_UNSET, "Unset Error Code"       },
+        {ErrorCode::UNKNOWN    , "Unknown Error Code"     },
+        {ErrorCode::ERROR_INIT , "Error on Init"          },
+        {ErrorCode::ERROR_CONN , "Error on connect"       },
+        {ErrorCode::ERROR_RECV , "Error on Recv or Parse" },
+        {ErrorCode::ERROR_SEND , "Error on Send"          },
         // 数据库相关错误码
-        {ErrorCode::DB_QUERY                       , "DB Query Failed"  },
-        {ErrorCode::DB_QUERY_EMPTY                 , "DB Query Empty"   },
-        {ErrorCode::DB_EXECUTE                     , "DB Execute Failed"},
-        {ErrorCode::DB_EXECUTE_EMPTY               , "DB Execute Empty" },
-        {ErrorCode::DB_CHECK                       , "DB Check Failed"  },
-        {ErrorCode::DB_CHECK_EMPTY                 , "DB Check Empty"   },
+        {ErrorCode::DB_QUERY        , "DB Query Failed"  },
+        {ErrorCode::DB_QUERY_EMPTY  , "DB Query Empty"   },
+        {ErrorCode::DB_EXECUTE      , "DB Execute Failed"},
+        {ErrorCode::DB_EXECUTE_EMPTY, "DB Execute Empty" },
+        {ErrorCode::DB_CHECK        , "DB Check Failed"  },
+        {ErrorCode::DB_CHECK_EMPTY  , "DB Check Empty"   },
     };
 
     if (map_codes.contains(code)) {
@@ -460,7 +460,7 @@ FileStatusCode file_status_to_file_status_code(int result) {
     static map<int, FileStatusCode> status_code_map = {
         {0, FileStatusCode::FILE_STATUS_NONE      },  // 文件状态未知，或查询失败
         {1, FileStatusCode::FILE_STATUS_UPLOADED  },  // 文件已存在，无需上传
-        {2, FileStatusCode::FILE_STATUS_PENDING   },  // 文件不存在或未完成上传，需要上传
+        {2, FileStatusCode::FILE_STATUS_UPLOADING },  // 文件不存在或未完成上传，需要上传
         {3, FileStatusCode::FILE_STATUS_NOT_FOUND },  // 文件不存在或已删除
     };
     if(status_code_map.find(result) != status_code_map.end()) {
@@ -478,7 +478,7 @@ int to_int(const FileStatusCode  & file_status) {
     static map<FileStatusCode, int> file_status_code_map = {
         {FileStatusCode::FILE_STATUS_NONE     , 0},
         {FileStatusCode::FILE_STATUS_UPLOADED , 1},
-        {FileStatusCode::FILE_STATUS_PENDING  , 2},
+        {FileStatusCode::FILE_STATUS_UPLOADING, 2},
         {FileStatusCode::FILE_STATUS_NOT_FOUND, 3},
     };
     if(file_status_code_map.find(file_status) != file_status_code_map.end()) {

@@ -51,7 +51,7 @@ public:
 
         // 第一个字段必须是 header，用于获取文件的 ID
         // 不进行身份验证，谁都可以进行上传
-        FileUploadRequest buffer_header;
+        Request buffer_header;
         stream->Read(&buffer_header);
         if(!buffer_header.has_header()) {
             return error_status<Reply, Request>(stream, response.get(), ErrorCode::FILE_HEADER_REQUIRED, std::format("Missing header in FileUploadRequest"));
@@ -59,7 +59,7 @@ public:
 
         // 处理文件上传头信息
         const FileUploadHeader& header = buffer_header.header();
-        // response->mutable_request()->mutable_header()->CopyFrom(header);
+        response->mutable_request()->mutable_header()->CopyFrom(header);  // 将 header 信息返回给客户端，方便客户端进行后续处理
         string file_id = header.file_id();
 
         // =========================== 参数校验 =========================== //
@@ -91,61 +91,150 @@ public:
         // 写文件并校验 md5，成功后更新文件状态为已上传
         // 获取文件内容是否已存在
 
-        // 没有异常时需要告诉客户端可以继续上传
-        // response->set_file_status(FileStatusCode::FILE_STATUS_NOT_FOUND);  // 文件不存在，客户端可以继续上传
-        response->set_file_status(file_status);  // 文件不存在，客户端可以继续上传
-        stream->Write(*response);
-
         using std::filesystem::path;
+        // 断点续传可支持暂停继续，此时可将文件保存到固定路径，使用时间戳则需要查找记录
+        // // 以时间戳创建文件夹进行写入，避免并发写入时文件名冲突
+        // // string dir_name = Utils::to_local_string(std::chrono::system_clock::now(), "{:%Y%m%d-%H%M%S}");
+        // // path file_path = Utils::upload_dir() / dir_name / file_md5;
+        path file_path = Utils::upload_dir() / "tmp" / file_md5;
+        int64_t existing_file_size = std::get<1>(Utils::file_size(file_path));
+        existing_file_size = existing_file_size < 0 ? 0 : existing_file_size;  // -1 表示错误，0 表示不存在
+        LOG_TRACE("file_path: {}, existing_file_size: {}", file_path.string(), existing_file_size);
 
-        // 以时间戳创建文件夹进行写入，避免并发写入时文件名冲突
-        string dir_name = Utils::to_local_string(std::chrono::system_clock::now(), "{:%Y%m%d-%H%M%S}");
-        path file_path = Utils::upload_dir() / dir_name / file_md5;
-        std::cout << "file_path: " << file_path << std::endl;
+        // 没有异常时需要告诉客户端可以继续上传
+        response->set_file_status(file_status);  // 文件不存在，客户端可以继续上传
+        response->set_uploaded_bytes(existing_file_size);  // 在临时目录中查找 // -1 表示错误，0 表示不存在
+        success_status<Reply, Request>(stream, response.get(), SuccessCode::SUCCESS, std::format("Ready to receive file chunks for file_id: {}", file_id));
+        // stream->Write(*response);
 
-        Utils::mkdir(file_path.parent_path());  // 创建父目录
-        std::ofstream ofs(file_path, std::ios::binary);
-        if(!ofs) {
-            return error_status<Reply, Request>(stream, response.get(), ErrorCode::FILE_WRITE, std::format("Failed to create file for file_id: {}", file_id));
-        }
         using namespace Utils::Algorithm;
         // 后面的数据实际只包含文件碎片数据
         FileUploadRequest buffer_chunk;
         BytesMd5          bytes_md5;
-        int64_t           bytes_written = 0;
+        int64_t           bytes_written = existing_file_size;  // 实际写入的位置偏移，初始化为已存在的大小
+        //
+        Utils::mkdir(file_path.parent_path());  // 创建父目录
+        std::fstream fs(file_path, std::ios::binary | std::ios::in | std::ios::out);
+        if (!fs) {
+            std::ofstream(file_path, std::ios::binary).close();
+            fs.open(file_path, std::ios::binary | std::ios::in | std::ios::out);
+        }
+        if(!fs) {
+            return error_status<Reply, Request>(stream, response.get(), ErrorCode::FILE_READ_ERROR, std::format("Failed to open file for file_id: {}", file_id));
+        }
+        // fs.seekp(bytes_written);  // 定位到需要写入的位置
+
+        // 断点续传时只有第一块数据的 offset 可以跳跃，后续的数据必须紧跟着已经写入的数据
+        bool is_first_chunk = true;
         while(stream->Read(&buffer_chunk)) {
             // 处理每条消息
-            const FileUploadRequest& req = buffer_chunk;
-            if(req.has_chunk()) {
-                auto&chunk_data = req.chunk().chunk_data();  // 获取文件碎片数据
-                ofs.write(chunk_data.data(), chunk_data.size());
-                bytes_written += chunk_data.size();
-                // 写入失败时要删除已经写入的文件，避免服务器磁盘被占满
-                if(!ofs) {
-                    if(bytes_md5.get_hex_string() != file_md5) { Utils::remove(file_path); }  // 出错时要删除已经写入的文件，避免服务器磁盘被占满
-                    return error_status<Reply, Request>(stream, response.get(), ErrorCode::FILE_WRITE, std::format("Failed to write file chunk for file_id: {}", file_id));
+            // const FileUploadRequest& req = buffer_chunk;
+            if(!buffer_chunk.has_chunk()) {
+                break;  // 没有 chunk 字段，结束上传
+            }
+            int64_t first_chunk_offset = buffer_chunk.chunk().chunk_offset();
+            // 第一块数据时校验写入位置是否合法并计算已经存在数据的 md5
+            if(is_first_chunk) {
+                is_first_chunk = false;
+                // 第一块数据的 offset 超出文件末尾，则文件上传不连续，此时告知客户端重新上传
+                if(first_chunk_offset > existing_file_size) {
+                    fs.close();
+                    return error_status<Reply, Request>(stream, response.get(), ErrorCode::FILE_WRITE_ERROR, std::format("File upload offset error for file_id: {}, please re-upload the file.", file_id));
                 }
-                // 文件与预期大小不符，可能是客户端上传过程中出现问题，直接返回错误状态
-                if(bytes_written > file_size) {
-                    if(bytes_md5.get_hex_string() != file_md5) { Utils::remove(file_path); }  // 出错时要删除已经写入的文件，避免服务器磁盘被占满
-                    return error_status<Reply, Request>(stream, response.get(), ErrorCode::FILE_WRITE, std::format("Written bytes exceed expected file size for file_id: {}", file_id));
+                // 校验本地已经存在文件的 md5
+                if(first_chunk_offset > 0) {
+                    // 更新文件状态为未完成上传，允许继续上传
+                    auto [success_update_file_status, result_update_file_status] = db_sqlcipher.update_file_status_interface(file_id, FileStatusCode::FILE_STATUS_UPLOADING);
+                    if(!success_update_file_status || !result_update_file_status) {
+                        fs.close();
+                        return error_status<Reply, Request>(stream, response.get(), ErrorCode::DB_EXECUTE, std::format("Failed to update file status to uploaded for file_id: {}", file_id));
+                    }
+                    // 计算已经存在数据的 md5
+                    constexpr int64_t read_chunk_size = 128 * 1024;  // 128KB
+                    char buffer[read_chunk_size] = {};
+                    int64_t unread_bytes = first_chunk_offset;  // 如果不是在最后追加写入，那么不应该读取到文件末尾
+                    int64_t read_total = 0; // 临时计数，避免修改 bytes_written
+                    // 获取当前时间，如果间隔时间大于 5 秒则发送一次空数据以便客户端知道服务器还在处理，避免客户端超时
+                    auto last_log_time = std::chrono::steady_clock::now();
+                    while(fs.read(buffer, std::min(read_chunk_size, unread_bytes)) && unread_bytes > 0) {
+                        int64_t bytes_read = fs.gcount();
+                        if(bytes_read > 0) {
+                            bytes_md5.update(buffer, bytes_read);
+                            read_total += bytes_read;
+                            unread_bytes  -= bytes_read;
+                        }
+                        // 每隔 20 秒记录一次日志，避免长时间没有日志输出导致客户端超时
+                        auto current_time = std::chrono::steady_clock::now();
+                        int64_t heartbeat_interval = 20;  // 20 秒发送一次心跳
+                        if(std::chrono::duration_cast<std::chrono::seconds>(current_time - last_log_time).count() >= heartbeat_interval) {
+                            last_log_time = current_time;
+                            response->set_file_status(FileStatusCode::FILE_STATUS_UPLOADING);
+                            success_status<Reply, Request>(stream, response.get(), SuccessCode::SUCCESS, std::format("File hash calculating for file_id: {}", file_id));
+                        }
+                    }
                 }
-                // 更新 md5
-                bytes_md5.update(chunk_data.data(), chunk_data.size());
-                // 大小一致时认为接收完毕，退出循环
-                if(bytes_written == file_size) {
-                    ofs.flush();  // 确保所有数据已经写入到磁盘，否则会导致文件大小与实际接收到的大小不一致
-                    break;
+                fs.seekp(bytes_written);  // 定位到需要写入的位置
+                fs.clear();  // 清除 eofbit 和 failbit 状态，继续进行写入操作
+            }
+            const string& chunk_data = buffer_chunk.chunk().chunk_data();
+            int64_t chunk_size = static_cast<int64_t>(chunk_data.size());
+            int64_t chunk_offset = buffer_chunk.chunk().chunk_offset();
+            // 校验 chunk 偏移，保证断点续传时数据连续
+            if(chunk_offset != bytes_written) {
+                fs.close();
+                LOG_TRACE("chunk offset mismatch: expected {}, got {}", bytes_written, chunk_offset);
+                return error_status<Reply, Request>(stream, response.get(), ErrorCode::FILE_WRITE_ERROR, std::format("Chunk offset mismatch for file_id: {}, expected: {}, got: {}", file_id, bytes_written, chunk_offset));
+            }
+            fs.seekp(chunk_offset);  // 定位到当前写入位置
+            fs.write(chunk_data.data(), chunk_data.size());
+            // 写入失败时返回错误状态
+            if(!fs) {
+                // if(bytes_md5.get_hex_string() != file_md5) { Utils::remove(file_path); }  // 出错时要删除已经写入的文件，避免服务器磁盘被占满
+                return error_status<Reply, Request>(stream, response.get(), ErrorCode::FILE_WRITE_ERROR, std::format("Failed to write file chunk for file_id: {}", file_id));
+            }
+            bytes_written += chunk_size;
+            // LOG_TRACE("Received chunk for file_id: {}, chunk_offset: {}, chunk_size: {}, bytes_written: {}", file_id, chunk_offset, chunk_size, bytes_written);
+            // 文件与预期大小不符，可能是客户端上传过程中出现问题，直接返回错误状态
+            if(bytes_written > file_size) {
+                // if(bytes_md5.get_hex_string() != file_md5) { Utils::remove(file_path); }  // 出错时要删除已经写入的文件，避免服务器磁盘被占满
+                Utils::remove(file_path);  // 出错时要删除已经写入的文件
+                // 更新文件状态为不存在
+                auto [success_update_file_status, result_update_file_status] = db_sqlcipher.update_file_status_interface(file_id, FileStatusCode::FILE_STATUS_NOT_FOUND);
+                if(!success_update_file_status || !result_update_file_status) {
+                    return error_status<Reply, Request>(stream, response.get(), ErrorCode::DB_EXECUTE, std::format("Failed to update file status to uploaded for file_id: {}", file_id));
                 }
+                return error_status<Reply, Request>(stream, response.get(), ErrorCode::FILE_WRITE_ERROR, std::format("Written bytes exceed expected file size for file_id: {}", file_id));
+            }
+            // 更新 md5
+            bytes_md5.update(chunk_data.data(), chunk_data.size());
+            // 大小一致时认为接收完毕，退出循环
+            if(bytes_written == file_size) {
+                fs.flush();  // 确保所有数据已经写入到磁盘，否则会导致文件大小与实际接收到的大小不一致
+                break;
             }
         }
-        ofs.close();  // 调用 close() 也可以触发 flush() 操作
+        fs.close();  // 调用 close() 也可以触发 flush() 操作
+
+        // 如果文件没有上传完成，那么就没必要进行后续的操作，设置为未上传完成即可
+        if(bytes_written < file_size) {
+            // 更新文件状态为未完成上传，允许继续上传  // 其实上传时就已经设置了这个状态
+            auto [success_update_file_status, result_update_file_status] = db_sqlcipher.update_file_status_interface(file_id, FileStatusCode::FILE_STATUS_UPLOADING);
+            if(!success_update_file_status || !result_update_file_status) {
+                return error_status<Reply, Request>(stream, response.get(), ErrorCode::DB_EXECUTE, std::format("Failed to update file status to uploading for file_id: {}", file_id));
+            }
+            return error_status<Reply, Request>(stream, response.get(), ErrorCode::FILE_WRITE_ERROR, std::format("File upload incomplete for file_id: {}, written bytes: {}, expected bytes: {}", file_id, bytes_written, file_size));
+        }
 
         // 校验 md5
         string md5_calculated = bytes_md5.get_hex_string();
         if(md5_calculated != file_md5) {
             // 删除上传的文件
-            Utils::remove(file_path);  // 出错时要删除已经写入的文件，避免服务器磁盘被占满
+            Utils::remove(file_path);  // 出错时要删除已经写入的文件
+            // 更新文件状态为不存在
+            auto [success_update_file_status, result_update_file_status] = db_sqlcipher.update_file_status_interface(file_id, FileStatusCode::FILE_STATUS_NOT_FOUND);
+            if(!success_update_file_status || !result_update_file_status) {
+                return error_status<Reply, Request>(stream, response.get(), ErrorCode::DB_EXECUTE, std::format("Failed to update file status to uploaded for file_id: {}", file_id));
+            }
             return error_status<Reply, Request>(stream, response.get(), ErrorCode::FILE_MD5_MISMATCH, std::format("MD5 mismatch for file_id: {}, calculated md5: {}, expected md5: {}", file_id, md5_calculated, file_md5));
         }
 
@@ -154,10 +243,10 @@ public:
         Utils::mkdir(storage_path.parent_path());
         // 将文件移动到存储目录
         if(!Utils::rename(file_path, storage_path)) {
-            return error_status<Reply, Request>(stream, response.get(), ErrorCode::FILE_WRITE, std::format("Failed to move file to storage for file_id: {}", file_id));
+            return error_status<Reply, Request>(stream, response.get(), ErrorCode::FILE_WRITE_ERROR, std::format("Failed to move file to storage for file_id: {}", file_id));
         }
-        // 重命名成功后删除上传目录
-        Utils::remove(file_path.parent_path());
+        // // 重命名成功后删除上传目录
+        // Utils::remove(file_path.parent_path());
 
         // // 记录文件路径
         // auto [success_record_file_path, result_record_file_path] = db_sqlcipher.record_file_path_interface(file_md5, file_path.string());
@@ -244,30 +333,34 @@ public:
         // 6. 发送文件内容
         std::ifstream ifs(file_path, std::ios::binary);
         if(!ifs) {
-            return error_status<Reply, FileDownloadHeader>(response, header_reply.get(), header_reply->mutable_header(), ErrorCode::FILE_READER_ERROR, std::format("Failed to open file for file_id: {}", file_id));
+            return error_status<Reply, FileDownloadHeader>(response, header_reply.get(), header_reply->mutable_header(), ErrorCode::FILE_READ_ERROR, std::format("Failed to open file for file_id: {}", file_id));
+        }
+        // 断点续传时根据客户端已接收的字节数定位到文件中对应的位置开始发送
+        int64_t bytes_read_offset = 0;
+        int64_t downloaded_bytes = request->downloaded_bytes();
+        if(downloaded_bytes >= 0) {
+            if(downloaded_bytes > file_size) {
+                return error_status<Reply, FileDownloadHeader>(response, header_reply.get(), header_reply->mutable_header(), ErrorCode::FILE_READ_ERROR, std::format("Downloaded bytes exceed or equal file size for file_id: {}", file_id));
+            }
+            ifs.seekg(downloaded_bytes);
+            bytes_read_offset = downloaded_bytes;
         }
         // 服务端一次发送数据过小会增加系统调用的开销，过大会导致内存占用过高。
         // 基于服务端内存、grpc 默认设置及网络设备支持的数据包默认大小，建议 64KB 到 1MB 之间，128KB 是一个相对合理的值。
-        const size_t buffer_size = 128 * 1024;  // 128KB
-        char buffer[buffer_size] = {};
-        int64_t bytes_sent = 0;
-        while(ifs) {
-            bool is_empty_file = ifs.peek() == std::ifstream::traits_type::eof();
-            ifs.read(buffer, buffer_size);
-            std::streamsize bytes_read = ifs.gcount();
-            if(bytes_read > 0 || is_empty_file) {
-                bytes_sent += bytes_read;
-                // 防止服务器错误发送数据
-                if(bytes_sent > file_size) {
-                    return error_status<Reply, FileDownloadHeader>(response, header_reply.get(), header_reply->mutable_header(), ErrorCode::FILE_READER_ERROR, std::format("Read more bytes than expected for file_id: {}", file_id));
-                }
-                FileDownloadReply chunk_reply;
-                chunk_reply.mutable_chunk()->set_chunk_data(buffer, bytes_read);
-                response->Write(chunk_reply);
-            }
+        const size_t chunk_size = 128 * 1024;  // 128KB
+        char buffer[chunk_size] = {};
+        // 空文件或有有效数据都要发送至少一次
+        // 读取到文件末尾时由 while 内的判断条件检测退出
+        bool is_end_of_file = ifs.peek() == std::ifstream::traits_type::eof(); // 空文件也要进入循环
+        while (ifs.read(buffer, chunk_size) || ifs.gcount() > 0 || is_end_of_file) {
+            FileDownloadReply chunk_reply;
+            chunk_reply.mutable_chunk()->set_chunk_data(buffer, ifs.gcount());
+            chunk_reply.mutable_chunk()->set_chunk_offset(bytes_read_offset);
+            response->Write(chunk_reply);
+            bytes_read_offset += ifs.gcount();
+            // 对于空文件，第一次读取就会返回 EOF，
+            // 但我们仍然需要发送一个空的 chunk 来让客户端知道这是一个空文件。
             // 读取到文件末尾
-            // 空文件也要发送一次数据，因此该判断不能放在循环开始的位置，
-            // 否则会导致客户端跳过步骤一直等待数据，最终导致超时
             if(ifs.peek() == std::ifstream::traits_type::eof()) {
                 break;
             }

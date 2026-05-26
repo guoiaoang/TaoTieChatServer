@@ -87,9 +87,14 @@ std::tuple<grpc::Status, SearchUserReply> SearchUser(
 
     // 构造测试请求
     SearchUserRequest request;
+    if(!request_user_id.empty() && !request_password.empty()) {
+        request.mutable_request_user_auth()->set_user_id (request_user_id );    // 搜索请求用户 ID
+        request.mutable_request_user_auth()->set_password(request_password);  // 搜索请求用户密码
+    }
+    else {
+        request.clear_request_user_auth();  // 不提供请求用户信息
+    }
     request.set_user_id(target_user_id);  // 搜索目标用户 ID
-    request.mutable_request_user_auth()->set_user_id(request_user_id);    // 搜索请求用户 ID
-    request.mutable_request_user_auth()->set_password(request_password);  // 搜索请求用户密码
 
     // 构造响应对象
     SearchUserReply response;

@@ -145,8 +145,8 @@ std::tuple<grpc::Status, std::unique_ptr<FileUploadReply>, bool> FileUpload(cons
         std::vector<char> buffer(chunk_size);
         std::ifstream ifs(file_path, std::ios::binary);
         // 空文件特殊处理
-        bool is_empty_file = ifs.peek() == std::ifstream::traits_type::eof();
-        while (ifs.read(buffer.data(), buffer.size()) || ifs.gcount() > 0 || is_empty_file) {
+        bool is_end_of_file = ifs.peek() == std::ifstream::traits_type::eof();
+        while (ifs.read(buffer.data(), buffer.size()) || ifs.gcount() > 0 || is_end_of_file) {
             FileUploadRequest chunk_request;
             chunk_request.mutable_chunk()->set_chunk_data(buffer.data(), ifs.gcount());
             stream->Write(chunk_request);

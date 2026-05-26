@@ -68,8 +68,8 @@
                 "rhs": "Windows"
             },
             "inherits": "base-msvs2022-vcpkg",
-            "displayName": "Microsoft Visual Studio 2022 x64 + vcpkg for debug config",
-            "description": "Microsoft Visual Studio 2022 x64 + vcpkg for debug",
+            "displayName": "msvs2022debug-config",
+            "description": "msvs2022debug",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Debug",
                 "CPACK_PACKAGE_FILE_NAME": "TaoTieChatServer"
@@ -84,8 +84,8 @@
                 "rhs": "Windows"
             },
             "inherits": "base-msvs2022-vcpkg",
-            "displayName": "Microsoft Visual Studio 2022 x64 + vcpkg for release config",
-            "description": "Microsoft Visual Studio 2022 x64 + vcpkg for release",
+            "displayName": "msvs2022release-config",
+            "description": "msvs2022release",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Release",
                 "CPACK_PACKAGE_FILE_NAME": "TaoTieChatServer"
@@ -133,8 +133,8 @@
                 "lhs": "${hostSystemName}",
                 "rhs": "Windows"
             },
-            "description": "Microsoft Visual Studio 2022 x64 + vcpkg for debug build",
-            "displayName": "Microsoft Visual Studio 2022 x64 + vcpkg for debug",
+            "description": "msvs2022debug-build",
+            "displayName": "msvs2022debug",
             "configurePreset": "msvs2022x64_vcpkg_debug",
             "configuration": "Debug"
         },
@@ -146,8 +146,8 @@
                 "lhs": "${hostSystemName}",
                 "rhs": "Windows"
             },
-            "description": "Microsoft Visual Studio 2022 x64 + vcpkg for release build",
-            "displayName": "Microsoft Visual Studio 2022 x64 + vcpkg for release",
+            "description": "msvs2022release-build",
+            "displayName": "msvs2022release",
             "configurePreset": "msvs2022x64_vcpkg_release",
             "configuration": "Release"
         },
@@ -321,8 +321,8 @@
                 "lhs": "${hostSystemName}",
                 "rhs": "Windows"
             },
-            "description": "Microsoft Visual Studio 2022 x64 + vcpkg for debug package",
-            "displayName": "Microsoft Visual Studio 2022 x64 + vcpkg for debug",
+            "description": "msvs2022debug-package",
+            "displayName": "msvs2022debug",
             "configurePreset": "msvs2022x64_vcpkg_debug",
             "configurations": [
                 "Debug"
@@ -339,8 +339,8 @@
                 "lhs": "${hostSystemName}",
                 "rhs": "Windows"
             },
-            "description": "Microsoft Visual Studio 2022 x64 + vcpkg for release package",
-            "displayName": "Microsoft Visual Studio 2022 x64 + vcpkg for release",
+            "description": "msvs2022release-package",
+            "displayName": "msvs2022release",
             "configurePreset": "msvs2022x64_vcpkg_release",
             "configurations": [
                 "Release"
@@ -397,8 +397,8 @@
     "workflowPresets": [
         {
             "name": "msvs2022x64_vcpkg_debug",
-            "description": "Microsoft Visual Studio 2022 x64 + vcpkg for debug workflow",
-            "displayName": "Microsoft Visual Studio 2022 x64 + vcpkg for debug",
+            "description": "msvs2022debug-workflow",
+            "displayName": "msvs2022debug",
             "steps": [
                 {
                     "type": "configure",
@@ -424,8 +424,8 @@
         },
         {
             "name": "msvs2022x64_vcpkg_release",
-            "description": "Microsoft Visual Studio 2022 x64 + vcpkg for release workflow",
-            "displayName": "Microsoft Visual Studio 2022 x64 + vcpkg for release",
+            "description": "msvs2022release-workflow",
+            "displayName": "msvs2022release",
             "steps": [
                 {
                     "type": "configure",

@@ -75,7 +75,7 @@ endif()
 if(ENABLE_CLIENT)
     # QT 文件自动编译
     # AUTOGEN: No valid Qt version found for target lib_proto_taotie_chat. AUTOMOC, AUTOUIC and AUTORCC disabled.
-    set(CMAKE_AUTOMOC   ON)
+    set(CMAKE_AUTOMOC   ON) # 纯 C++ 头文件会提示 `Discarding unconsumed meta data`
     set(CMAKE_AUTOUIC   ON)
     set(CMAKE_AUTORCC   ON)
 endif()
@@ -86,6 +86,8 @@ endif()
 set(CMAKE_CXX_STANDARD            20)
 # 要求使用指定的 C++ 标准
 set(CMAKE_CXX_STANDARD_REQUIRED   ON)
+# 输出 compile_commands.json 编译数据库文件
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # ----------------------------   定义预处理器宏   ---------------------------- #
 
@@ -339,6 +341,11 @@ if(ENABLE_CLIENT)
     # find_package(reflectcpp    CONFIG   REQUIRED)
 
     find_package(bitserializer             CONFIG   REQUIRED)
+
+    # Qt 安装中私有头通常位于 include/<Module>/<version>/<Module>/private。
+    # 某些生成代码会以 <QtProtobufWellKnownTypes/private/...> 形式包含该头。
+    get_filename_component(QT_INSTALL_INCLUDE_DIR "${Qt6_DIR}/../../../include" ABSOLUTE)
+    set(QT_PB_WKT_PRIVATE_INCLUDE_ROOT "${QT_INSTALL_INCLUDE_DIR}/QtProtobufWellKnownTypes/${Qt6_VERSION}")
 endif()
 
 if(ENABLE_TEST)
@@ -500,9 +507,23 @@ if(ENABLE_CLIENT)
     )
     if(TARGET   Qt::ProtobufPrivate)
         target_link_libraries(${PROJECT_LIB_PROTO_NAME}   PUBLIC   Qt::ProtobufPrivate)
+        target_include_directories(${PROJECT_LIB_PROTO_NAME}
+            PRIVATE
+                $<TARGET_PROPERTY:Qt::ProtobufPrivate,INTERFACE_INCLUDE_DIRECTORIES>
+        )
     endif()
     if(TARGET   Qt::ProtobufWellKnownTypesPrivate)
         target_link_libraries(${PROJECT_LIB_PROTO_NAME}   PUBLIC   Qt::ProtobufWellKnownTypesPrivate)
+        target_include_directories(${PROJECT_LIB_PROTO_NAME}
+            PRIVATE
+                $<TARGET_PROPERTY:Qt::ProtobufWellKnownTypesPrivate,INTERFACE_INCLUDE_DIRECTORIES>
+        )
+    endif()
+    if(EXISTS "${QT_PB_WKT_PRIVATE_INCLUDE_ROOT}")
+        target_include_directories(${PROJECT_LIB_PROTO_NAME}
+            PRIVATE
+                "${QT_PB_WKT_PRIVATE_INCLUDE_ROOT}"
+        )
     endif()
     install(TARGETS   ${PROJECT_LIB_PROTO_NAME})
 
@@ -523,12 +544,27 @@ if(ENABLE_CLIENT)
             Qt::Grpc
             Qt::Protobuf
             Qt::ProtobufWellKnownTypes
+            ${PROJECT_LIB_PROTO_NAME}
     )
     if(TARGET   Qt::ProtobufPrivate)
         target_link_libraries(${PROJECT_LIB_QT_GRPC_NAME}   PUBLIC   Qt::ProtobufPrivate)
+        target_include_directories(${PROJECT_LIB_QT_GRPC_NAME}
+            PRIVATE
+                $<TARGET_PROPERTY:Qt::ProtobufPrivate,INTERFACE_INCLUDE_DIRECTORIES>
+        )
     endif()
     if(TARGET   Qt::ProtobufWellKnownTypesPrivate)
         target_link_libraries(${PROJECT_LIB_QT_GRPC_NAME}   PUBLIC   Qt::ProtobufWellKnownTypesPrivate)
+        target_include_directories(${PROJECT_LIB_QT_GRPC_NAME}
+            PRIVATE
+                $<TARGET_PROPERTY:Qt::ProtobufWellKnownTypesPrivate,INTERFACE_INCLUDE_DIRECTORIES>
+        )
+    endif()
+    if(EXISTS "${QT_PB_WKT_PRIVATE_INCLUDE_ROOT}")
+        target_include_directories(${PROJECT_LIB_QT_GRPC_NAME}
+            PRIVATE
+                "${QT_PB_WKT_PRIVATE_INCLUDE_ROOT}"
+        )
     endif()
     install(TARGETS   ${PROJECT_LIB_QT_GRPC_NAME})
 
