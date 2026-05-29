@@ -27,26 +27,26 @@ using std::get_if;
 
 using namespace SQL::COMMANDS::PRAGMA;
 using namespace SQL::COMMANDS::CREATE;
-using namespace SQL::COMMANDS::QUERY;
+using namespace SQL::COMMANDS::QUERY ;
 using namespace SQL::COMMANDS::INSERT;
 using namespace SQL::COMMANDS::UPDATE;
 using namespace Utils::Transform;
 
-using Utils::set_success;
-using Utils::set_error;
-using Utils::hash_token;
-using Utils::hash_password;
+using Utils::set_success         ;
+using Utils::set_error           ;
+using Utils::hash_token          ;
+using Utils::hash_password       ;
 using Utils::hash_security_answer;
-using Utils::generate_uuid;
-using Utils::generate_account_id;
-using Utils::generate_token;
-using Utils::generate_message_id;
-using Utils::generate_file_id;
-using Utils::current_time_point;
-using Utils::to_utc_string;
-using Utils::split;
-using Utils::success_reply;
-using Utils::error_reply;
+using Utils::generate_uuid       ;
+using Utils::generate_account_id ;
+using Utils::generate_token      ;
+using Utils::generate_message_id ;
+using Utils::generate_file_id    ;
+using Utils::current_time_point  ;
+using Utils::to_utc_string       ;
+using Utils::split               ;
+using Utils::success_reply       ;
+using Utils::error_reply         ;
 using Utils::Transform::to_string;
 
 // =========================================================================== //
@@ -62,20 +62,13 @@ static std::string to_string(const SqlValue& v) {
     // 1. 转换
     return std::visit([](auto&& arg) -> std::string {
         using T = std::decay_t<decltype(arg)>;
-        if constexpr (std::is_same_v<T, int>)
-            return std::to_string(arg);
-        if constexpr (std::is_same_v<T, int>)
-            return std::to_string(arg);
-        else if constexpr (std::is_same_v<T, int64_t>)
-            return std::to_string(arg);
-        else if constexpr (std::is_same_v<T, double>)
-            return std::to_string(arg);
-        else if constexpr (std::is_same_v<T, std::string>)
-            return arg;
-        else if constexpr (std::is_same_v<T, std::nullptr_t>)
-            return "null"; // 或者返回空字符串 ""
-        else
-            return "";
+        ;    if constexpr (std::is_same_v<T, int           >)  { return std::to_string(arg); }
+        else if constexpr (std::is_same_v<T, int           >)  { return std::to_string(arg); }
+        else if constexpr (std::is_same_v<T, int64_t       >)  { return std::to_string(arg); }
+        else if constexpr (std::is_same_v<T, double        >)  { return std::to_string(arg); }
+        else if constexpr (std::is_same_v<T, std::string   >)  { return arg   ; }
+        else if constexpr (std::is_same_v<T, std::nullptr_t>)  { return "null"; } // 或者返回空字符串 ""
+        else { return ""; }
     }, v);
     // 2. 需确保所有类型都支持 format，或者在 visit 里包装  // C++ 20
     return std::visit([](auto&& arg) {
@@ -83,33 +76,10 @@ static std::string to_string(const SqlValue& v) {
     }, v);
 }
 
-static string get_string(const SqlValue& v, const string&default_value = string()) {
-    if (auto pVal = std::get_if<std::string>(&v)) {
-        return *pVal; // 提取成功
-    }
-    return default_value;
-}
-
-static int get_int(const SqlValue& v, const int default_value = -1) {
-    if (auto pVal = std::get_if<int>(&v)) {
-        return *pVal; // 提取成功
-    }
-    return default_value;
-}
-
-static int64_t get_int64(const SqlValue& v, const int64_t default_value = -1) {
-    if (auto pVal = std::get_if<int64_t>(&v)) {
-        return *pVal; // 提取成功
-    }
-    return default_value;
-}
-
-static double get_double(const SqlValue& v, const double default_value = -1.0) {
-    if (auto pVal = std::get_if<double>(&v)) {
-        return *pVal; // 提取成功
-    }
-    return default_value;
-}
+static string  get_string(const SqlValue& v, const string& default_value = string()) { if (auto pVal = std::get_if<string >(&v)) { return *pVal; } return default_value; }
+static int     get_int   (const SqlValue& v, const int     default_value = -1      ) { if (auto pVal = std::get_if<int    >(&v)) { return *pVal; } return default_value; }
+static int64_t get_int64 (const SqlValue& v, const int64_t default_value = -1      ) { if (auto pVal = std::get_if<int64_t>(&v)) { return *pVal; } return default_value; }
+static double  get_double(const SqlValue& v, const double  default_value = -1.0    ) { if (auto pVal = std::get_if<double >(&v)) { return *pVal; } return default_value; }
 
 struct SQLResult{
     bool    done = false;  // 仅表示是否执行完成，不代表是否成功
@@ -120,12 +90,12 @@ struct SQLResult{
 };
 
 struct MessageRecord {
-    string server_message_id;
-    string client_message_id;
-    string sender_account_id;
+    string server_message_id  ;
+    string client_message_id  ;
+    string sender_account_id  ;
     string receiver_account_id;
-    string short_text;
-    string timestamp;
+    string short_text         ;
+    string timestamp          ;
 };
 
 class DBSQLCipher {
@@ -133,6 +103,7 @@ private:
     DBSQLCipher() = default;
     DBSQLCipher(const DBSQLCipher&) = default;
     DBSQLCipher& operator=(const DBSQLCipher&) = default;
+
 public:
     static DBSQLCipher& instance() {
         static DBSQLCipher instance;
@@ -571,17 +542,9 @@ public:
         return results;
     }
 
-    int get_last_error_code() {
-        return sqlite3_errcode(m_db_sqlcipher);
-    }
-
-    int get_extended_error_code() {
-        return sqlite3_extended_errcode(m_db_sqlcipher);
-    }
-
-    const char* get_error_message() {
-        return sqlite3_errmsg(m_db_sqlcipher);
-    }
+    int         get_last_error_code    () { return sqlite3_errcode         (m_db_sqlcipher); }
+    int         get_extended_error_code() { return sqlite3_extended_errcode(m_db_sqlcipher); }
+    const char* get_error_message      () { return sqlite3_errmsg          (m_db_sqlcipher); }
 
 public:
     // ================== 业务层不要包含 SQL 语句与参数构造 ================== //
@@ -1825,30 +1788,16 @@ public:
     //    2. 文件状态判断用户是否需要上传；
     //    3. 文件大小用来防止用户上传文件异常，便于截断，防止撑爆服务器；
     //    4. 文件 md5 用来判断上传的文件是否正确。
-    std::tuple<bool, FileMetadata, FileStatusCode> get_file_info_interface(const string&file_id) {
-        return get_file_info(file_id);
-    }
-    // std::tuple<bool, bool> record_file_path_interface(const string&file_md5, const string&file_path) {
-    //     return write_file_path(file_md5, file_path);
-    // }
-    std::tuple<bool, bool> update_file_status_interface(const string&file_id, FileStatusCode file_status) {
-        return update_file_status(file_id, file_status);
-    }
-    std::tuple<bool, int> get_file_permission_interface(const string&account_id, const string&file_id) {
-        return get_file_permission(account_id, file_id);
-    }
-    std::tuple<bool, MessageRecord> get_message_record_interface(const string& server_message_id) {
-        return get_message_record(server_message_id);
-    }
-    std::tuple<bool, ContactInfo> get_active_account_info_interface(const string&account_id) {
-        return get_active_account_info(account_id);
-    }
+    std::tuple<bool, bool         > update_file_status_interface     (const string&file_id           , FileStatusCode file_status) { return update_file_status     (file_id          , file_status); }
+    std::tuple<bool, int          > get_file_permission_interface    (const string&account_id        , const string  &file_id    ) { return get_file_permission    (account_id       , file_id    ); }
+    std::tuple<bool, MessageRecord> get_message_record_interface     (const string& server_message_id                            ) { return get_message_record     (server_message_id             ); }
+    std::tuple<bool, ContactInfo  > get_active_account_info_interface(const string&account_id                                    ) { return get_active_account_info(account_id                    ); }
+    std::tuple<bool, FileMetadata , FileStatusCode     > get_file_info_interface  (const string&file_id                          ) { return get_file_info          (file_id                       ); }
     std::tuple<bool, std::shared_ptr<ContactInfoFriend>> get_friend_info_interface(const string&self_account_id, const string&friend_account_id) {
         return get_friend_info(self_account_id, friend_account_id);
     }
-    // std::tuple<bool, string> get_file_path_interface(const string&file_md5) {
-    //     return get_file_path(file_md5);
-    // }
+    // std::tuple<bool, bool      > record_file_path_interface       (const string&file_md5          , const string  &file_path  ) { return write_file_path        (file_md5         , file_path  ); }
+    // std::tuple<bool, string    > get_file_path_interface          (const string&file_md5                                      ) { return get_file_path          (file_md5                      ); }
 
     // 获取指定账号各事件类型的最新 PTS 值（用于客户端同步）
     shared_ptr<GetLastIDReply> get_last_id(const shared_ptr<AuthRequest>& request) {
@@ -1938,6 +1887,7 @@ private:
         // 没有存用户 ID 也没有存账号 ID 就返回空字符串
         return string{};
     }
+
 private:
     // ========================= 包含 SQL 语句的函数 ========================= //
     // 执行失败、执行成功但无匹配均返回{false, {}}，执行成功且匹配才返回 {true,xx}
@@ -3008,9 +2958,10 @@ private:
         }
         return {false, false};
     }
+
 private:
-    path          m_db_path;
-    sqlite3*      m_db_sqlcipher = nullptr;
-    string        m_encryption_key;
-    int           SQL_RESULTS_MAX_LINES = 1000;  // 每次查询最多获取多少条数据
+    path     m_db_path;
+    sqlite3* m_db_sqlcipher = nullptr;
+    string   m_encryption_key;
+    int      SQL_RESULTS_MAX_LINES = 1000;  // 每次查询最多获取多少条数据
 };

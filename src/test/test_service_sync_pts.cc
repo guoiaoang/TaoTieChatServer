@@ -45,8 +45,8 @@ protected:
 
         DBSQLCipher& db_sqlcipher = DBSQLCipher::instance();
         db_sqlcipher.set_init_params(db_path, encryption_key);
-        ASSERT_FALSE(!db_sqlcipher.database_open()) << std::format("Failed to open database with encryption key.") << std::endl;
-        ASSERT_FALSE(!db_sqlcipher.database_initialize()) << std::format("Failed to initialize database schema.") << std::endl;
+        ASSERT_FALSE(!db_sqlcipher.database_open      ()) << std::format("Failed to open database with encryption key.") << std::endl;
+        ASSERT_FALSE(!db_sqlcipher.database_initialize()) << std::format("Failed to initialize database schema."       ) << std::endl;
     }
 
     // 每个 TEST_F 运行后都会执行
@@ -57,18 +57,23 @@ protected:
 };
 
 // 部分测试需要有已经注册的用户
-std::tuple<grpc::Status, SignUpReply> SignUp(
+std::tuple<Status, SignUpReply> SignUp(
     const string& user_id          ,
     const string& password         ,
     const string& confirm          ,
     const string& security_question,
     const string& security_answer
 ) {
+    using Service = AccountServiceImpl;
+    using Request = SignUpRequest     ;
+    using Reply   = SignUpReply       ;
+    using Context = ServerContext     ;
+    // ======================================================================= //
     // 创建 AccountServiceImpl 实例
-    AccountServiceImpl service;
+    Service service;
 
     // 构造测试请求
-    SignUpRequest request;
+    Request request;
     if(user_id          .empty()) { request.clear_user_id          (); } else { request.set_user_id          (user_id          ); }
     if(password         .empty()) { request.clear_password         (); } else { request.set_password         (password         ); }
     if(confirm          .empty()) { request.clear_confirm          (); } else { request.set_confirm          (confirm          ); }
@@ -76,54 +81,63 @@ std::tuple<grpc::Status, SignUpReply> SignUp(
     if(security_answer  .empty()) { request.clear_security_answer  (); } else { request.set_security_answer  (security_answer  ); }
 
     // 构造响应对象
-    SignUpReply response;
+    Reply response;
 
     // 调用 SignUp 方法
-    grpc::ServerContext context;  // 模拟 gRPC 上下文
-    grpc::Status status = service.SignUp(&context, &request, &response);
+    Context context;  // 模拟 gRPC 上下文
+    Status  status = service.SignUp(&context, &request, &response);
     return {status, response};
 }
 
 // 1. 获取文件上传 ID
-std::tuple<grpc::Status, GetFileIDReply> GetFileID(
-    const string& user_id, const string& password,
-    const string& file_name, int64_t file_size, const string& file_md5
+std::tuple<Status, GetFileIDReply> GetFileID(
+    const string& user_id  , const string & password ,
+    const string& file_name,       int64_t  file_size, const string& file_md5
 ) {
-    FileServiceImpl service;
+    using Service = FileServiceImpl ;
+    using Request = GetFileIDRequest;
+    using Reply   = GetFileIDReply  ;
+    using Context = ServerContext   ;
+    // ======================================================================= //
+    Service service;
 
-    GetFileIDRequest request;
-    request.mutable_request_user_auth()->set_user_id(user_id);
-    request.mutable_request_user_auth()->set_password(password);
-    request.mutable_file_metadata()->set_file_name(file_name);
-    request.mutable_file_metadata()->set_file_size(file_size);
-    request.mutable_file_metadata()->set_file_md5 (file_md5 );
+    Request request;
+    request.mutable_request_user_auth()->set_user_id  (user_id  );
+    request.mutable_request_user_auth()->set_password (password );
+    request.mutable_file_metadata    ()->set_file_name(file_name);
+    request.mutable_file_metadata    ()->set_file_size(file_size);
+    request.mutable_file_metadata    ()->set_file_md5 (file_md5 );
 
-    GetFileIDReply response;
-    grpc::ServerContext context;
-    grpc::Status status = service.GetFileID(&context, &request, &response);
+    Reply   response;
+    Context context ;
+    Status  status = service.GetFileID(&context, &request, &response);
     return {status, response};
 }
 
 // 2. 双向流式的上传文件建议使用 gRPC 的集成测试框架进行测试，单元测试中无法模拟流式上传的场景
 std::tuple<grpc::Status, std::unique_ptr<FileUploadReply>, bool> FileUpload(const string& file_id, const string& file_path) {
+    using Builder = ServerBuilder    ;
+    using Service = FileServiceImpl  ;
+    using Context = ClientContext    ;
     using Request = FileUploadRequest;
-    using Reply   = FileUploadReply;
+    using Reply   = FileUploadReply  ;
+    // ======================================================================= //
     // =========== 准备服务器
     // 创建服务器并在内存中启动
-    auto builder = std::make_unique<ServerBuilder  >();;
-    auto service = std::make_unique<FileServiceImpl>();;
+    auto builder = std::make_unique<Builder>();;
+    auto service = std::make_unique<Service>();;
     builder->RegisterService(service.get());
-    auto server  = builder->BuildAndStart();
-    auto channel = server->InProcessChannel(grpc::ChannelArguments());
+    auto server  = builder->BuildAndStart   ();
+    auto channel = server ->InProcessChannel(grpc::ChannelArguments());
     auto stub    = FileService::NewStub(channel);
-    auto context = std::make_unique<ClientContext>();
-    auto request = std::make_unique<Request      >();
-    auto reply   = std::make_unique<Reply        >();
+    auto context = std::make_unique<Context>();
+    auto request = std::make_unique<Request>();
+    auto reply   = std::make_unique<Reply  >();
     // =========== 开始测试代码
     // 由于 FileUpload 是一个双向流式 RPC，无法直接调用服务端方法进行测试，需要通过客户端 Stub 来模拟上传过程
     auto stream  = stub->FileUpload(context.get());
-    request->mutable_header()->set_file_id(file_id);
-    request->mutable_header()->set_reason("value_reason");
+    request->mutable_header()->set_file_id(file_id       );
+    request->mutable_header()->set_reason ("value_reason");
 
     // 写文件元数据，模拟上传文件的第一步
     stream->Write(*request);
@@ -137,19 +151,35 @@ std::tuple<grpc::Status, std::unique_ptr<FileUploadReply>, bool> FileUpload(cons
     // 判断是否是秒传
     bool is_fast_upload = file_status == FileStatusCode::FILE_STATUS_UPLOADED ? true : false;
 
-    if(file_status == FileStatusCode::FILE_STATUS_NOT_FOUND) {
+    if(file_status == FileStatusCode::FILE_STATUS_NOT_FOUND || file_status == FileStatusCode::FILE_STATUS_UPLOADING) {
         std::cout << "File does not exist on server, need to upload." << std::endl;
+
+        // 获取已经上传文件的大小
+        int64_t uploaded_bytes = reply->uploaded_bytes();  // 已上传文件的大小，可用于断点续传
+        int64_t file_size = std::get<1>(Utils::file_size(file_path));
+        // 如果服务器返回的已上传字节数超过了实际文件大小，
+        // 说明服务器可能没有正确处理断点续传的逻辑，
+        // 此时重置为 0 以进行重新上传。
+        if(uploaded_bytes > file_size) {
+            uploaded_bytes = 0;
+        }
 
         // 继续上传文件内容，模拟上传文件的后续步骤
         const size_t chunk_size = 128 * 1024; // 每次上传 128KB
         std::vector<char> buffer(chunk_size);
         std::ifstream ifs(file_path, std::ios::binary);
-        // 空文件特殊处理
-        bool is_end_of_file = ifs.peek() == std::ifstream::traits_type::eof();
+        if(uploaded_bytes >= 0) {
+            ifs.seekg(uploaded_bytes);
+        }
+        // 空文件或有有效数据都要发送至少一次
+        // 读取到文件末尾时由 while 内的判断条件检测退出
+        bool is_end_of_file = ifs.peek() == std::ifstream::traits_type::eof(); // 空文件也要进入循环
         while (ifs.read(buffer.data(), buffer.size()) || ifs.gcount() > 0 || is_end_of_file) {
-            FileUploadRequest chunk_request;
-            chunk_request.mutable_chunk()->set_chunk_data(buffer.data(), ifs.gcount());
+            Request chunk_request;
+            chunk_request.mutable_chunk()->set_chunk_data  (buffer.data(), ifs.gcount());
+            chunk_request.mutable_chunk()->set_chunk_offset(uploaded_bytes             );
             stream->Write(chunk_request);
+            uploaded_bytes += ifs.gcount();
             // 对于空文件，第一次读取就会返回 EOF，
             // 但我们仍然需要发送一个空的 chunk 来让服务器知道这是一个空文件。
             // 读取到文件末尾
@@ -182,24 +212,29 @@ std::tuple<grpc::Status, std::unique_ptr<FileUploadReply>, bool> FileUpload(cons
 
 // 3. 下载文件
 std::tuple<grpc::Status, std::unique_ptr<FileDownloadReply>> FileDownload(const string& user_id, const string& password, const string& file_id) {
+    using Builder = ServerBuilder      ;
+    using Service = FileServiceImpl    ;
+    using Context = ClientContext      ;
     using Request = FileDownloadRequest;
-    using Reply   = FileDownloadReply;
+    using Reply   = FileDownloadReply  ;
+    // ======================================================================= //
     // =========== 准备服务器
     // 创建服务器并在内存中启动
-    auto builder = std::make_unique<ServerBuilder  >();;
-    auto service = std::make_unique<FileServiceImpl>();;
+    auto builder = std::make_unique<Builder>();;
+    auto service = std::make_unique<Service>();;
     builder->RegisterService(service.get());
     auto server  = builder->BuildAndStart();
     auto channel = server->InProcessChannel(grpc::ChannelArguments());
     auto stub    = FileService::NewStub(channel);
-    auto context = std::make_unique<ClientContext>();
-    auto request = std::make_unique<Request      >();
-    auto reply   = std::make_unique<Reply        >();
+    auto context = std::make_unique<Context>();
+    auto request = std::make_unique<Request>();
+    auto reply   = std::make_unique<Reply  >();
     // =========== 开始测试代码
     // 由于 FileDownload 是一个服务器流式 RPC，无法直接调用服务端方法进行测试，需要通过客户端 Stub 来模拟下载过程
     request->mutable_request_user_auth()->set_user_id (user_id );
     request->mutable_request_user_auth()->set_password(password);
     request->set_file_id(file_id);
+    request->set_downloaded_bytes(0);  // 从文件开头开始下载
 
     auto stream  = stub->FileDownload(context.get(), *request);
 
@@ -207,13 +242,13 @@ std::tuple<grpc::Status, std::unique_ptr<FileDownloadReply>> FileDownload(const 
     bool read_header = stream->Read(reply.get());
     if(!read_header) {
         std::cout << "Failed to receive file download header." << std::endl;
-        return {Status(grpc::StatusCode::UNKNOWN, "Failed to receive file download header"), std::move(reply)};
+        return {Status(StatusCode::UNKNOWN, "Failed to receive file download header"), std::move(reply)};
     }
     // 获取身份验证结果，判断是否有权限下载文件
     auto header = reply->header();
     if(!header.result().has_success_code()) {
         std::cout << "Authentication failed for file download." << std::endl;
-        return {Status(grpc::StatusCode::UNAUTHENTICATED, "Authentication failed for file download"), std::move(reply)};
+        return {Status(StatusCode::UNAUTHENTICATED, "Authentication failed for file download"), std::move(reply)};
     }
     // 返回成功码即认为有读取权限
     auto file_name = header.file_metadata().file_name();
@@ -223,13 +258,13 @@ std::tuple<grpc::Status, std::unique_ptr<FileDownloadReply>> FileDownload(const 
     path download_path = Utils::downloaded_dir() / file_name;
     Utils::mkdir(download_path.parent_path());
     std::ofstream ofs(download_path, std::ios::binary);
+    // 文件下载是从头开始下的，且为本地通知客户端进行跳转偏移，客户端不需要自己跳转
     while (stream->Read(reply.get())) {
         auto&chunk_data = reply->chunk().chunk_data();
         ofs.write(chunk_data.data(), chunk_data.size());
     }
     ofs.close();
     Status status = stream->Finish();
-    EXPECT_TRUE(status.ok());
 
     // =========== 关闭服务器
     server->Shutdown();
@@ -238,13 +273,13 @@ std::tuple<grpc::Status, std::unique_ptr<FileDownloadReply>> FileDownload(const 
     auto [file_size_success, file_size_actual] = Utils::file_size(download_path);
     if(!file_size_success || file_size_actual != file_size) {
         std::cout << "File size mismatch." << std::endl;
-        return {Status(grpc::StatusCode::UNKNOWN, "File size mismatch"), std::move(reply)};
+        return {Status(StatusCode::UNKNOWN, "File size mismatch"), std::move(reply)};
     }
     using namespace Utils::Algorithm;
     auto file_md5_calculated = calculate_file_md5(download_path);
     if(file_md5_calculated != file_md5) {
         std::cout << "File md5 mismatch." << std::endl;
-        return {Status(grpc::StatusCode::UNKNOWN, "File md5 mismatch"), std::move(reply)};
+        return {Status(StatusCode::UNKNOWN, "File md5 mismatch"), std::move(reply)};
     }
 
     return {status, std::move(reply)};

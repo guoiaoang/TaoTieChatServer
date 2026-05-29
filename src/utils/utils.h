@@ -125,7 +125,8 @@ string to_message(SuccessCode code);
 // 获取错误信息
 string to_message(ErrorCode   code);
 // ====================================================================== //
-string to_string(const Result&result);
+string to_string(const Result  & result);
+string to_string(const SyncType& type  );
 // ====================================================================== //
 // int to enum code
 ErrorCode      contact_status_to_error_code        (int result);

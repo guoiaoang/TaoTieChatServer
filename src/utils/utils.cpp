@@ -413,7 +413,7 @@ string to_message(ErrorCode code) {
 
 // ====================================================================== //
 
-string to_string(const TaoTieChat::Result&result) {
+string to_string(const TaoTieChat::Result& result) {
     if(result.has_success_code()) {
         const auto&code = result.success_code();
         const auto&msg  = result.message     ();
@@ -425,6 +425,13 @@ string to_string(const TaoTieChat::Result&result) {
         return std::format("error, code: 0x{:010x}, message: {}", int{code}, msg);
     }
     return "[UNDEFINED]";
+}
+
+string to_string(const SyncType& type) {
+    if(type == SyncType::CONTACTS) { return "CONTACTS"; }
+    if(type == SyncType::GROUPS  ) { return "GROUPS"  ; }
+    if(type == SyncType::MESSAGES) { return "MESSAGES"; }
+    return string{};
 }
 
 // ====================================================================== //

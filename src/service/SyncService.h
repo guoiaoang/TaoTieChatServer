@@ -38,7 +38,7 @@ public:
     // Sync 双向流式 RPC，客户端发送 SyncRequest，服务器按每个 SyncRequestTag 返回增量 body
     Status Sync(ServerContext* context, ServerReaderWriter<SyncReply, SyncRequest>* stream) override {
         using Request = SyncRequest;
-        using Reply = SyncReply;
+        using Reply   = SyncReply  ;
         // =========================== 初始化操作 =========================== //
         log_grpc_context(context);
         if(!context || !stream) {
@@ -47,45 +47,44 @@ public:
         // =========================== 执行操作 =========================== //
         DBSQLCipher& db_sqlcipher = DBSQLCipher::instance();
 
-        auto type_to_string = [](SyncType type) -> string {
-            if(type == SyncType::CONTACTS) { return "CONTACTS"; }
-            if(type == SyncType::GROUPS  ) { return "GROUPS";   }
-            if(type == SyncType::MESSAGES) { return "MESSAGES"; }
-            return string{};
-        };
-
-        SyncRequest sync_request;
-        while(stream->Read(&sync_request)) {
+        Request request;
+        while(stream->Read(&request)) {
             // 发送鉴权结果 header
             SyncReply header_reply;
             auto* header = header_reply.mutable_header();
-            header->mutable_request()->CopyFrom(sync_request);
+            header->mutable_request()->CopyFrom(request);
 
-            if(!sync_request.has_request_user_auth()) {
+            // 获取身份校验信息
+            if(!request.has_request_user_auth()) {
                 set_error(header->mutable_result(), ErrorCode::AUTH_INFO_NONE);
                 stream->Write(header_reply);
                 continue;
             }
-            auto auth_request = make_shared<AuthRequest>(sync_request.request_user_auth());
+
+            // 身份校验
+            auto auth_request = make_shared<AuthRequest>(request.request_user_auth());
             auto auth_reply = db_sqlcipher.auth_check(auth_request);
             if(!auth_reply || !auth_reply->result().has_success_code()) {
                 set_error(header->mutable_result(), ErrorCode::AUTH_FAILED);
                 stream->Write(header_reply);
                 continue;
             }
+
+            // 获取账号 ID
             auto self_account_id = auth_reply->account_id();
             if(self_account_id.empty()) {
                 set_error(header->mutable_result(), ErrorCode::AUTH_FAILED);
                 stream->Write(header_reply);
                 continue;
             }
+
             set_success(header->mutable_result(), SuccessCode::SUCCESS);
             stream->Write(header_reply);
 
             // 逐个 SyncRequestTag 返回 body
-            for(int i = 0; i < sync_request.sync_tag_size(); ++i) {
-                const auto& request_tag = sync_request.sync_tag(i);
-                auto pts_type = type_to_string(request_tag.type());
+            for(int i = 0; i < request.sync_tag_size(); ++i) {
+                const auto& request_tag = request.sync_tag(i);
+                auto pts_type = Utils::Transform::to_string(request_tag.type());
                 if(pts_type.empty()) {
                     continue;
                 }
@@ -100,14 +99,15 @@ public:
                     continue;
                 }
 
-                Reply body_reply;
-                auto* body = body_reply.mutable_body();
+                Reply reply;
+                auto* body = reply.mutable_body();
                 body->mutable_tag()->CopyFrom(request_tag);
                 body->set_count(static_cast<int64_t>(records.size()));
 
                 // CONTACTS：返回联系人增量
                 if(request_tag.type() == SyncType::CONTACTS) {
                     std::set<string> unique_account_ids;
+                    // 获取事件 ID
                     for(auto& row : records) {
                         auto ite_event_id = row.find("pts_event_id");
                         if(ite_event_id == row.end()) {
@@ -155,13 +155,13 @@ public:
                                 continue;
                             }
                             auto* msg = messages->add_messages();
-                            msg->set_server_message_id(record.server_message_id);
-                            msg->set_client_message_id(record.client_message_id);
-                            msg->set_sender_account_id(record.sender_account_id);
+                            msg->set_server_message_id  (record.server_message_id  );
+                            msg->set_client_message_id  (record.client_message_id  );
+                            msg->set_sender_account_id  (record.sender_account_id  );
                             msg->set_receiver_account_id(record.receiver_account_id);
-                            msg->set_short_text(record.short_text);
-                            msg->set_timestamp(record.timestamp);
-                            msg->set_event_sub_type(sub_type);
+                            msg->set_short_text         (record.short_text         );
+                            msg->set_timestamp          (record.timestamp          );
+                            msg->set_event_sub_type     (sub_type                  );
                             continue;
                         }
 
@@ -171,10 +171,10 @@ public:
                                 continue;
                             }
                             auto* file_event = file_events->add_file_events();
-                            file_event->set_file_id(event_id);
                             file_event->mutable_file_metadata()->CopyFrom(file_metadata);
-                            file_event->set_file_status(file_status);
-                            file_event->set_event_sub_type(sub_type);
+                            file_event->set_file_id       (event_id   );
+                            file_event->set_file_status   (file_status);
+                            file_event->set_event_sub_type(sub_type   );
                             continue;
                         }
                     }
@@ -182,7 +182,7 @@ public:
 
                 // GROUPS 暂无数据库落地与事件明细，保持空列表，仅通过 count 反馈增量数量
 
-                stream->Write(body_reply);
+                stream->Write(reply);
             }
         }
         return Status::OK;
