@@ -1,17 +1,6 @@
 #include "headers.h"
 #include "utils.h"
 
-using std::string;
-using std::map;
-using std::set;
-
-using ::grpc::StatusCode;
-
-using ::TaoTieChat::StatusRequest;
-using ::TaoTieChat::StatusReply;
-using ::TaoTieChat::SuccessCode;
-using ::TaoTieChat::ErrorCode;
-
 using Utils::success_status;
 using Utils::error_status;
 using Utils::log_grpc_context;

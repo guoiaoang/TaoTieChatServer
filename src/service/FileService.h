@@ -1,10 +1,6 @@
 #include "headers.h"
 #include "utils.h"
 
-using std::string;
-using std::map;
-using std::set;
-
 using Utils::success_status;
 using Utils::error_status;
 using Utils::log_grpc_context;
@@ -91,7 +87,6 @@ public:
         // 写文件并校验 md5，成功后更新文件状态为已上传
         // 获取文件内容是否已存在
 
-        using std::filesystem::path;
         // 断点续传可支持暂停继续，此时可将文件保存到固定路径，使用时间戳则需要查找记录
         // // 以时间戳创建文件夹进行写入，避免并发写入时文件名冲突
         // // string dir_name = Utils::to_local_string(std::chrono::system_clock::now(), "{:%Y%m%d-%H%M%S}");
@@ -369,3 +364,250 @@ public:
         return success_status<Reply, FileDownloadHeader>(response, header_reply.get(), header_reply->mutable_header(), SuccessCode::SUCCESS, std::format("File download for file_id: {} succeeded.", file_id));
     }
 };
+
+namespace Chat::Service::File::Rpc::AsyncCall {
+
+// GetFileID 获取文件 ID。
+class GetFileID : public AsyncUnaryCall<FileService::AsyncService, GetFileIDRequest, GetFileIDReply> {
+public:
+    // 构造函数：同时接收服务、完成队列和线程池
+    GetFileID(FileService::AsyncService* service, grpc::ServerCompletionQueue* cq, ThreadPool* thread_pool)
+        : AsyncUnaryCall<FileService::AsyncService, GetFileIDRequest, GetFileIDReply>(service, cq, &FileService::AsyncService::RequestGetFileID), m_thread_pool(thread_pool) {
+        // 不要捕获 this，直接显式捕获局部变量 thread_pool 确保线程安全
+        SetBusinessHandler([thread_pool](auto* call, auto* context, const auto& request, auto* response) {
+            // 1. 无缝扔进你手写的任意参数线程池，绝不卡死 gRPC 核心网络流
+            thread_pool->enqueue([call, request]() {
+                // 执行耗时的 DBSQLCipher 操作
+                std::shared_ptr<GetFileIDReply> result = DBSQLCipher::instance().get_upload_file_id(std::make_shared<GetFileIDRequest>(request));
+
+                if (!result) {
+                    call->Error(grpc::StatusCode::INTERNAL, "GetFileID Database Failed");
+                } else {
+                    call->Success(*result); // 模板内自动调用 Finish 销毁自己
+                }
+            });
+        });
+    }
+
+protected:
+    // 重写孵化虚函数，确保高并发时，基类自动 new 出来的下一个监听器依然是 GetFileIDCall 子类，而不是空壳基类
+    void CloneNext(FileService::AsyncService* service, grpc::ServerCompletionQueue* cq) override {
+        new GetFileID(service, cq, m_thread_pool);
+    }
+
+private:
+    ThreadPool* m_thread_pool;
+};
+
+// FileUpload 上传文件。
+class FileUpload : public AsyncBidiStreamingCall<FileService::AsyncService, FileUploadRequest, FileUploadReply> {
+public:
+    FileUpload(FileService::AsyncService* service, grpc::ServerCompletionQueue* cq, ThreadPool* thread_pool)
+        : AsyncBidiStreamingCall<FileService::AsyncService, FileUploadRequest, FileUploadReply>(
+            service, cq, &FileService::AsyncService::RequestFileUpload), m_thread_pool(thread_pool)
+    {
+        SetOnConnectHandler([this](auto* call, auto* context) {
+            Utils::log_grpc_context(context);
+            m_is_header_processed = false;
+            m_bytes_written = 0;
+        });
+
+        SetOnMsgHandler([this](auto* call, const FileUploadRequest& request) {
+            // 1. 在主线程立刻深度拷贝当前的 request，防止它被 gRPC 引擎后续覆盖清空
+            auto request_ptr = std::make_shared<FileUploadRequest>(request);
+
+            // 2. 扔进线程池异步处理磁盘 I/O
+            m_thread_pool->enqueue([this, call, request_ptr]() {
+                FileUploadReply reply;
+
+                // ---------------- 阶段 A：解析文件头 ----------------
+                if (!m_is_header_processed) {
+                    if (!request_ptr->has_header()) {
+                        BuildAndPushError(call, ErrorCode::FILE_HEADER_REQUIRED, "Missing header");
+                        return;
+                    }
+
+                    const auto& header = request_ptr->header();
+                    reply.mutable_request()->mutable_header()->CopyFrom(header);
+                    m_file_id = header.file_id();
+
+                    DBSQLCipher& db_sqlcipher = DBSQLCipher::instance();
+                    auto [success, file_metadata, file_status] = db_sqlcipher.get_file_info_interface(m_file_id);
+                    if (!success) {
+                        BuildAndPushError(call, ErrorCode::DB_QUERY, "Query db error");
+                        return;
+                    }
+
+                    if (file_status == FileStatusCode::FILE_STATUS_UPLOADED) {
+                        reply.set_file_status(FileStatusCode::FILE_STATUS_UPLOADED);
+                        call->Push(reply);
+                        return; // 秒传成功，不需要调 FetchNextMsg 读下一包了
+                    }
+
+                    m_file_path = Utils::upload_dir() / "tmp" / file_metadata.file_md5();
+                    int64_t existing_size = std::get<1>(Utils::file_size(m_file_path));
+                    m_bytes_written = existing_size < 0 ? 0 : existing_size;
+
+                    Utils::mkdir(m_file_path.parent_path());
+
+                    // 根据断点状态打开文件
+                    if (m_bytes_written == 0) {
+                        m_fs.open(m_file_path, std::ios::binary | std::ios::out | std::ios::trunc);
+                    } else {
+                        m_fs.open(m_file_path, std::ios::binary | std::ios::in | std::ios::out);
+                        m_fs.seekp(m_bytes_written);
+                    }
+
+                    if (!m_fs.is_open()) {
+                        BuildAndPushError(call, ErrorCode::FILE_WRITE_ERROR, "Cannot open disk file");
+                        return;
+                    }
+
+                    m_is_header_processed = true;
+
+                    reply.set_file_status(file_status);
+                    reply.set_uploaded_bytes(m_bytes_written);
+                    call->Push(reply);
+
+                    // 本包（Header 包）在磁盘及业务层面安全处理完毕，驱动读取下一个客户端包
+                    call->FetchNextMsg();
+                    return;
+                }
+
+                // ---------------- 阶段 B：接收数据块 (Chunk) ----------------
+                if (!request_ptr->has_chunk()) {
+                    call->FetchNextMsg(); // 即使是空包，也放行去读下一包
+                    return;
+                }
+
+                const auto& chunk = request_ptr->chunk();
+                int64_t chunk_offset = chunk.chunk_offset();
+                const std::string& chunk_data = chunk.chunk_data();
+
+                if (chunk_offset != m_bytes_written) {
+                    BuildAndPushError(call, ErrorCode::FILE_WRITE_ERROR, "Offset mismatch");
+                    return;
+                }
+
+                if (!chunk_data.empty()) {
+                    m_fs.write(chunk_data.data(), chunk_data.size());
+                    m_fs.flush(); // 强行刷新缓冲区入盘
+
+                    if (!m_fs) {
+                        BuildAndPushError(call, ErrorCode::FILE_WRITE_ERROR, "Write disk failed");
+                        return;
+                    }
+                    m_bytes_written += chunk_data.size();
+                }
+
+                reply.set_uploaded_bytes(m_bytes_written);
+                reply.set_file_status(FileStatusCode::FILE_STATUS_UPLOADING);
+                call->Push(reply);
+
+                // 磁盘写入落盘完全成功，通知底层安全接收下一个分块数据包！
+                call->FetchNextMsg();
+            });
+        });
+    }
+
+    ~FileUpload() {
+        if (m_fs.is_open()) {
+            m_fs.flush();
+            m_fs.close();
+        }
+    }
+
+private:
+    void BuildAndPushError(AsyncBidiStreamingCall<FileService::AsyncService, FileUploadRequest, FileUploadReply>* call, ErrorCode code, const std::string& msg) {
+        FileUploadReply reply;
+        Utils::error_status(&reply, code, msg);
+        call->Push(reply);
+        if (m_fs.is_open()) m_fs.close();
+    }
+
+private:
+    ThreadPool* m_thread_pool;
+    bool m_is_header_processed = false;
+    std::string m_file_id;
+    std::filesystem::path m_file_path;
+    std::ofstream m_fs;
+    int64_t m_bytes_written = 0;
+};
+
+// FileDownload 下载文件 (Server Streaming: 一问多答)
+class FileDownload : public AsyncServerStreamingCall<FileService::AsyncService, FileDownloadRequest, FileDownloadReply> {
+public:
+    FileDownload(FileService::AsyncService* service, grpc::ServerCompletionQueue* cq, ThreadPool* thread_pool)
+        : AsyncServerStreamingCall<FileService::AsyncService, FileDownloadRequest, FileDownloadReply>(service, cq, &FileService::AsyncService::RequestFileDownload), m_thread_pool(thread_pool)
+    {
+        // 1. 流启动时触发：初始化文件并发送第一块
+        SetOnStartHandler([this](auto* call, auto* context, const auto& request) {
+            m_thread_pool->enqueue([this, call, request]() {
+                auto dlCtx = std::make_shared<DownloadContext>();
+
+                std::string file_id = request.file_id();
+                // 调用数据库获取文件 MD5/真实路径（示例逻辑，根据你的业务匹配）
+                DBSQLCipher& db_sqlcipher = DBSQLCipher::instance();
+                auto [success, file_metadata, file_status] = db_sqlcipher.get_file_info_interface(file_id);
+
+                if (!success) {
+                    call->Finish(grpc::Status(grpc::StatusCode::NOT_FOUND, "Get file metadata failed"));
+                    return;
+                }
+
+                std::filesystem::path file_path = Utils::upload_dir() / "tmp" / file_metadata.file_md5();
+                dlCtx->file.open(file_path, std::ios::binary | std::ios::in);
+                if (!dlCtx->file.is_open()) {
+                    call->Finish(grpc::Status(grpc::StatusCode::NOT_FOUND, "File bytes not found on disk"));
+                    return;
+                }
+
+                this->m_dlCtx = dlCtx;
+                // 发送首个块
+                SendNextChunk(call);
+            });
+        });
+
+        // 2. 前一个块写完网络（网卡闲置）触发：续读发下一块，实现平滑流控
+        SetOnWriteDoneHandler([this](auto* call) {
+            m_thread_pool->enqueue([this, call]() {
+                if (m_dlCtx && m_dlCtx->file.good()) {
+                    SendNextChunk(call);
+                } else {
+                    call->Finish(grpc::Status::OK); // 文件读完，优雅结束
+                }
+            });
+        });
+    }
+
+private:
+    struct DownloadContext {
+        std::ifstream file;
+        int64_t offset = 0;
+    };
+
+    void SendNextChunk(AsyncServerStreamingCall<FileService::AsyncService, FileDownloadRequest, FileDownloadReply>* call) {
+        constexpr size_t CHUNK_SIZE = 64 * 1024; // 64KB
+        char buffer[CHUNK_SIZE];
+
+        m_dlCtx->file.read(buffer, CHUNK_SIZE);
+        std::streamsize bytes_read = m_dlCtx->file.gcount();
+
+        if (bytes_read > 0) {
+            FileDownloadReply reply;
+            reply.mutable_chunk()->set_chunk_data(buffer, bytes_read);
+            reply.mutable_chunk()->set_chunk_offset(m_dlCtx->offset);
+
+            m_dlCtx->offset += bytes_read;
+            call->Write(reply); // 写入网络
+        } else {
+            call->Finish(grpc::Status::OK); // 宣告流结束
+        }
+    }
+
+private:
+    ThreadPool* m_thread_pool;
+    std::shared_ptr<DownloadContext> m_dlCtx;
+};
+
+};  // namespace Chat::Service::File::Rpc::AsyncCall

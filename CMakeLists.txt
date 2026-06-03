@@ -175,6 +175,10 @@ if(ENABLE_CLIENT)
         ${PROJECT_DIR_SOURCE}/ui/ChatWindow/ContactWindow.h
         ${PROJECT_DIR_SOURCE}/ui/ChatWindow/ContactWindow.cpp
         ${PROJECT_DIR_SOURCE}/ui/ChatWindow/ContactWindow.ui
+        # 样式模板
+        ${PROJECT_DIR_SOURCE}/ui/Demo/DemoContactDelegateItem.h
+        ${PROJECT_DIR_SOURCE}/ui/Demo/DemoContactDelegateItem.cpp
+        ${PROJECT_DIR_SOURCE}/ui/Demo/DemoContactDelegateItem.ui
         # PluginsWindow
         ${PROJECT_DIR_SOURCE}/ui/PluginsWindow/MediaWindow.h
         ${PROJECT_DIR_SOURCE}/ui/PluginsWindow/MediaWindow.cpp
@@ -215,8 +219,10 @@ elseif(ENABLE_SERVER)
         ${PROJECT_DIR_SOURCE}/utils/headers.h
         ${PROJECT_DIR_SOURCE}/utils/utils.h
         ${PROJECT_DIR_SOURCE}/utils/utils.cpp
+        ${PROJECT_DIR_SOURCE}/utils/ThreadPool.h
         ${PROJECT_DIR_SOURCE}/data/DBSQLCipherCmds.h
         ${PROJECT_DIR_SOURCE}/data/DBSQLCipher.h
+        ${PROJECT_DIR_SOURCE}/service/AsyncCall.h
         ${PROJECT_DIR_SOURCE}/service/AccountService.h
         ${PROJECT_DIR_SOURCE}/service/SearchService.h
         ${PROJECT_DIR_SOURCE}/service/StatusService.h
@@ -242,11 +248,11 @@ if(ENABLE_CLIENT)
     include_directories(${PROJECT_DIR_SOURCE}/data)
     include_directories(${PROJECT_DIR_SOURCE}/utils)
     include_directories(${PROJECT_DIR_SOURCE}/network)
-    include_directories(${PROJECT_DIR_SOURCE}/ui/MainWindow)
     include_directories(${PROJECT_DIR_SOURCE}/ui/AuthWindow)
     include_directories(${PROJECT_DIR_SOURCE}/ui/ChatWindow)
     include_directories(${PROJECT_DIR_SOURCE}/ui/PluginsWindow)
     include_directories(${PROJECT_DIR_SOURCE}/ui/SearchWindow)
+    include_directories(${PROJECT_DIR_SOURCE}/ui/Demo)
     # 将生成的头文件目录添加到 include 路径中，以便在代码中引用生成的 .pb.h 文件
     include_directories(${PROJECT_DIR_PROTO_HEADERS})
 elseif(ENABLE_SERVER)

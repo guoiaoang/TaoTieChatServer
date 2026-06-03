@@ -243,9 +243,9 @@ message ContactInfoBase {
             string nickname     = 4;  // 昵称
             int32  gender       = 5;  // 性别  // 0: 未知 1: 男 2: 女
             string birthday     = 6;  // 生日
-            string sign         = 7;  // 签名
+            string signature    = 7;  // 签名
             string region       = 8;  // 地区
-            string desc         = 9;  // 个人简介
+            string description  = 9;  // 个人简介
   repeated  string phones       = 10;  // 手机号
   repeated  string emails       = 11;  // 邮箱
   repeated  string social_links = 12;  // 社交链接，逗号分隔
@@ -496,7 +496,7 @@ message Group{
   string id        = 1;  // 群组 ID
   string name      = 2;  // 群组名称
   string avatar_id = 3;  // 头像 ID
-  string sign      = 4;  // 简介
+  string signature = 4;  // 简介
   string region    = 5;  // 地区
 }
 

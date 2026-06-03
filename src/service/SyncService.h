@@ -2,10 +2,6 @@
 #include "utils.h"
 #include "DBSQLCipher.h"
 
-using std::string;
-using std::map;
-using std::set;
-
 using Utils::success_status;
 using Utils::error_status;
 using Utils::log_grpc_context;

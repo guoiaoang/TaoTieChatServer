@@ -3,24 +3,6 @@
 
 namespace Utils {
 
-using std::string;
-using std::string_view;
-using std::vector;
-using std::tuple;
-using boost::uuids::random_generator;
-using boost::uuids::uuid;
-using std::filesystem::path;
-using std::filesystem::filesystem_error;
-using std::filesystem::create_directory;
-using std::filesystem::create_directories;
-using time_point = std::chrono::system_clock::time_point;
-// auto now = std::chrono::system_clock::now;
-
-using std::multimap;
-using std::shared_ptr;
-using string_ref = ::grpc::string_ref;
-using ::grpc::AuthContext;
-
 namespace {
     // static vector<string>     s_args{};
     static string             s_product_name{"TaoTieChatServer"};
@@ -116,9 +98,6 @@ void log_grpc_context(::grpc::ServerContext* context);
 
 // 不涉及计算或函数的类型转换
 namespace Utils::Transform {
-using std::map;
-using ::TaoTieChat::ErrorCode;
-using ::TaoTieChat::FileStatusCode;
 // ====================================================================== //
 // 获取错误信息
 string to_message(SuccessCode code);
@@ -146,60 +125,60 @@ void set_success(Result *result, const SuccessCode&code = SuccessCode::SUCCESS_I
 void set_error  (Result *result, const ErrorCode  &code = ErrorCode::ERROR_INIT    );
 // for service
 template<class T>
-static Status success_status(T*response, const SuccessCode&code, const string&desc) {
+static Status success_status(T*response, const SuccessCode&code, const string&description) {
     set_success(response->mutable_result(), code);
-    LOG_INFO("{} {}", desc, Utils::Transform::to_string(response->result()));
+    LOG_INFO("{} {}", description, Utils::Transform::to_string(response->result()));
     return Status::OK;
 };
 template<class T>
-static Status error_status(T*response, const ErrorCode&code, const string&desc) {
+static Status error_status(T*response, const ErrorCode&code, const string&description) {
     set_error(response->mutable_result(), code);
-    LOG_INFO("{} {}", desc, Utils::Transform::to_string(response->result()));
+    LOG_INFO("{} {}", description, Utils::Transform::to_string(response->result()));
     return Status::OK;
 };
 // 服务端流式的成功和错误状态
 template<class Reply, class Header>
-static Status success_status(ServerWriter<Reply>*stream, Reply* reply, Header*header, const SuccessCode&code, const string&desc) {
+static Status success_status(ServerWriter<Reply>*stream, Reply* reply, Header*header, const SuccessCode&code, const string&description) {
     set_success(header->mutable_result(), code);
-    LOG_INFO("{} {}", desc, Utils::Transform::to_string(header->result()));
+    LOG_INFO("{} {}", description, Utils::Transform::to_string(header->result()));
     reply->mutable_header()->CopyFrom(*header);
     stream->Write(*reply);
     return Status::OK;
 };
 template<class Reply, class Header>
-static Status error_status(ServerWriter<Reply>*stream, Reply* reply, Header*header, const ErrorCode&code, const string&desc) {
+static Status error_status(ServerWriter<Reply>*stream, Reply* reply, Header*header, const ErrorCode&code, const string&description) {
     set_error(header->mutable_result(), code);
-    LOG_INFO("{} {}", desc, Utils::Transform::to_string(header->result()));
+    LOG_INFO("{} {}", description, Utils::Transform::to_string(header->result()));
     reply->mutable_header()->CopyFrom(*header);
     stream->Write(*reply);
     return Status::OK;
 };
 // 双向流式服务的成功和错误状态
 template<class Reply, class Request>
-static Status success_status(ServerReaderWriter<Reply, Request>* stream, Reply*reply, const SuccessCode&code, const string&desc) {
+static Status success_status(ServerReaderWriter<Reply, Request>* stream, Reply*reply, const SuccessCode&code, const string&description) {
     set_success(reply->mutable_result(), code);
-    LOG_INFO("{} {}", desc, Utils::Transform::to_string(reply->result()));
+    LOG_INFO("{} {}", description, Utils::Transform::to_string(reply->result()));
     stream->Write(*reply);
     return Status::OK;
 };
 template<class Reply, class Request>
-static Status error_status(ServerReaderWriter<Reply, Request>* stream, Reply*reply, const ErrorCode&code, const string&desc) {
+static Status error_status(ServerReaderWriter<Reply, Request>* stream, Reply*reply, const ErrorCode&code, const string&description) {
     set_error(reply->mutable_result(), code);
-    LOG_INFO("{} {}", desc, Utils::Transform::to_string(reply->result()));
+    LOG_INFO("{} {}", description, Utils::Transform::to_string(reply->result()));
     stream->Write(*reply);
     return Status::OK;
 };
 // for db
 template<class T>
-static shared_ptr<T> success_reply(shared_ptr<T> reply, const SuccessCode&code, const string&desc) {
+static shared_ptr<T> success_reply(shared_ptr<T> reply, const SuccessCode&code, const string&description) {
     set_success(reply->mutable_result(), code);
-    LOG_INFO("{} {}", desc, Utils::Transform::to_string(reply->result()));
+    LOG_INFO("{} {}", description, Utils::Transform::to_string(reply->result()));
     return reply;
 };
 template<class T>
-static shared_ptr<T> error_reply(shared_ptr<T> reply, const ErrorCode&code, const string&desc) {
+static shared_ptr<T> error_reply(shared_ptr<T> reply, const ErrorCode&code, const string&description) {
     set_error(reply->mutable_result(), code);
-    LOG_INFO("{} {}", desc, Utils::Transform::to_string(reply->result()));
+    LOG_INFO("{} {}", description, Utils::Transform::to_string(reply->result()));
     return reply;
 };
 

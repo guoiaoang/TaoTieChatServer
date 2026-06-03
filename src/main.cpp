@@ -10,13 +10,216 @@
 #include "FileService.h"
 #include "SyncService.h"
 
-using std::filesystem::path;
-using std::string;
-
 bool initialize_spdlog();
 
 // absl flag
-ABSL_FLAG(uint16_t, port, 50051, "Server port for the service");
+ABSL_FLAG(uint16_t, http_port , 50051, "Server port for the http service");
+// ABSL_FLAG(uint16_t, https_port, 50052, "Server port for the https service");
+
+class ServerImpl {
+public:
+    // 在析构函数中安全释放资源，防止内存和线程泄漏
+    ~ServerImpl() {
+        Shutdown();
+    }
+
+    int Run() {
+        // 构建服务器地址
+        std::string server_address_http  = absl::StrFormat("0.0.0.0:%d", absl::GetFlag(FLAGS_http_port));
+        // std::string server_address_https = absl::StrFormat("0.0.0.0:%d", absl::GetFlag(FLAGS_https_port));
+
+        // 启用 gRPC 服务器的默认健康检查服务和反射服务
+        grpc::EnableDefaultHealthCheckService(true);
+        // 反射服务允许客户端在运行时查询服务器支持的服务和方法，这对于调试和开发非常有用。
+        grpc::reflection::InitProtoReflectionServerBuilderPlugin();
+
+        // 构建并启动 gRPC 服务器
+        grpc::ServerBuilder builder;
+        // http 端口
+        builder.AddListeningPort(server_address_http, grpc::InsecureServerCredentials());
+        // https 端口
+        // grpc::SslServerCredentialsOptions sslOpts;
+        // sslOpts.pem_key_cert_pairs.emplace_back(grpc::SslServerCredentialsOptions::PemKeyCertPair{
+        //     LocalhostKey,
+        //     LocalhostCert,
+        // });
+        // builder.AddListeningPort(server_address_https, grpc::SslServerCredentials(sslOpts));
+
+        // 注册非异步服务
+        StatusServiceImpl           service_status_checker ;
+        builder.RegisterService   (&service_status_checker);
+        // AccountServiceImpl       service_account        ;  // 可被异步版本替代，暂不启用
+        // builder.RegisterService(&service_account       );  // 可被异步版本替代，暂不启用
+        // SearchServiceImpl        service_search         ;  // 可被异步版本替代，暂不启用
+        // builder.RegisterService(&service_search        );  // 可被异步版本替代，暂不启用
+        MessageServiceImpl          service_message        ;
+        builder.RegisterService   (&service_message       );
+        FileServiceImpl             service_file           ;
+        builder.RegisterService   (&service_file          );
+        SyncServiceImpl             service_sync           ;
+        builder.RegisterService   (&service_sync          );
+
+        // 注册异步服务（注意：必须是 AsyncService）
+        // 注册这一个包含多个 RPC 的异步服务
+        builder.RegisterService   (&m_async_service_account);  // 可替代非异步版本
+        builder.RegisterService   (&m_async_service_search );  // 可替代非异步版本
+        // builder.RegisterService(&m_async_service_file   );  // 文件上传下载功能未完善，暂不启用
+        // builder.RegisterService(&m_async_service_status );
+        // builder.RegisterService(&m_async_service_message);
+        // builder.RegisterService(&m_async_service_sync   );
+
+        int num_cpus = std::thread::hardware_concurrency();
+        LOG_INFO("Detected {} CPUs. Creating corresponding CompletionQueues...", num_cpus);
+
+        // 1. 创建与 CPU 核心数相同的 CompletionQueue
+        for (int i = 0; i < num_cpus; ++i) {
+            m_completion_queues.push_back(builder.AddCompletionQueue());
+        }
+
+        // 添加完成队列后才能启动服务器
+        m_server= builder.BuildAndStart();
+        if (!m_server) {
+            LOG_FATAL("gRPC server failed to start."
+                " Check whether port {} is already in use and "
+                "whether service registration is valid.", server_address_http);
+            return -1;
+        }
+
+        m_thread_pool_worker = std::make_shared<ThreadPool>(num_cpus);
+        m_thread_services.reserve(num_cpus);
+
+        // 2. 轮询把各个 service 的种子平摊到所有的 CQ 中
+        for (int i = 0; i < num_cpus; ++i) {
+            // 每个 CQ 都注册一份所有 RPC 的种子，保证每个 CQ 都能处理所有类型的 RPC 请求，达到负载均衡
+            // service AccountService
+            {
+                // using namespace Chat::Service::Account::Rpc::Async;
+                using namespace Chat::Service::Account::Rpc::AsyncCall;
+                new SignUp             (&m_async_service_account, m_completion_queues[i].get(), m_thread_pool_worker.get());
+                new SignIn             (&m_async_service_account, m_completion_queues[i].get(), m_thread_pool_worker.get());
+                new ContactRequest     (&m_async_service_account, m_completion_queues[i].get(), m_thread_pool_worker.get());
+                new ContactReply       (&m_async_service_account, m_completion_queues[i].get(), m_thread_pool_worker.get());
+                new UpdateProfile      (&m_async_service_account, m_completion_queues[i].get(), m_thread_pool_worker.get());
+                new GetSecurityQuestion(&m_async_service_account, m_completion_queues[i].get(), m_thread_pool_worker.get());
+                new UpdateSecurityInfo (&m_async_service_account, m_completion_queues[i].get(), m_thread_pool_worker.get());
+            }
+            // service SearchService { ... SearchUser, SearchGroup }
+            {
+                // using namespace Chat::Service::Search::Rpc::Async;
+                using namespace Chat::Service::Search::Rpc::AsyncCall;
+                new SearchUser    (&m_async_service_search, m_completion_queues[i].get(), m_thread_pool_worker.get());
+                // new SearchGroup(&m_async_service_search, m_completion_queues[i].get(), m_thread_pool_worker.get());
+            }
+            // service FileService // Chat::Service::File::Rpc::AsyncCall
+            // 文件上传下载功能未完善，暂不启用
+            if(0) {
+                using namespace Chat::Service::File::Rpc::AsyncCall;
+                new GetFileID   (&m_async_service_file, m_completion_queues[i].get(), m_thread_pool_worker.get());
+                // 文件上传有问题，暂不使用
+                // new FileUpload  (&m_async_service_file, m_completion_queues[i].get(), m_thread_pool_worker.get());
+                // new FileDownload(&m_async_service_file, m_completion_queues[i].get(), m_thread_pool_worker.get());
+            }
+        }
+
+        // 启动线程池来轮询 CompletionQueue
+        for (int i = 0; i < num_cpus; ++i) {
+            m_thread_services.emplace_back(&ServerImpl::HandleRpcs, this, m_completion_queues[i].get());
+        }
+
+        // LOG_INFO("gRPC server started successfully on {} (selected port: {})", server_address_http, selected_port_http);
+        LOG_INFO("Server listening on http://{}" , server_address_http);
+        // LOG_INFO("Server listening on https://{}", server_address_https);
+
+        // 等待非异步服务退出
+        m_server->Wait();
+
+        // 等待异步服务退出
+        for (auto& t : m_thread_services) {
+            if (t.joinable()) {
+                t.join();
+            }
+        }
+        return 0;
+    }
+
+    // 提供给外部的主动关闭接口
+    void Shutdown() {
+        if (m_server) {
+            m_server->Shutdown();
+        }
+        // 必须关闭所有的完成队列，否则 cq->Next 将永远阻塞，导致线程无法安全退出
+        for (auto& completion_queue : m_completion_queues) {
+            if (completion_queue) {
+                completion_queue->Shutdown();
+            }
+        }
+    }
+
+private:
+    void HandleRpcs(ServerCompletionQueue* completion_queue) {
+        void* tag;
+        bool ok = false;
+
+        // 多个 RPC 产生的全部底层网络事件，都经过这里统一分发
+        while (completion_queue->Next(&tag, &ok)) {
+            // 利用 C++ 虚函数多态，自动调用具体子类 (GetLastIDCall 或 SyncStreamCall) 的 Proceed
+            static_cast<AsyncCall*>(tag)->Proceed(ok);
+        }
+    }
+
+private:
+    // 一个服务对象里包含了所有定义的 RPC 入口
+    AccountService::AsyncService  m_async_service_account;
+    SearchService ::AsyncService  m_async_service_search ;
+    FileService   ::AsyncService  m_async_service_file   ;
+    StatusService ::AsyncService  m_async_service_status ;
+    MessageService::AsyncService  m_async_service_message;
+    SyncService   ::AsyncService  m_async_service_sync   ;
+    unique_ptr<grpc::Server>      m_server;
+    // 延长生命周期
+    shared_ptr<ThreadPool> m_thread_pool_worker;
+    vector    <thread    > m_thread_services   ;
+    vector    <unique_ptr<ServerCompletionQueue>> m_completion_queues;
+};
+
+int RunServer() {
+    // 启用 gRPC 服务器的默认健康检查服务和反射服务
+    grpc::EnableDefaultHealthCheckService(true);
+    // 反射服务允许客户端在运行时查询服务器支持的服务和方法，这对于调试和开发非常有用。
+    grpc::reflection::InitProtoReflectionServerBuilderPlugin();
+
+    // 构建服务器地址
+    std::string server_address = absl::StrFormat("0.0.0.0:%d", absl::GetFlag(FLAGS_http_port));
+    LOG_INFO("Server listening on {}", server_address);
+
+    // 构建并启动 gRPC 服务器
+    ServerBuilder server_builder;
+    server_builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
+    // 注册服务
+    StatusServiceImpl               service_status_checker ;
+    server_builder.RegisterService(&service_status_checker);
+    AccountServiceImpl              service_account        ;
+    server_builder.RegisterService(&service_account       );
+    SearchServiceImpl               service_search         ;
+    server_builder.RegisterService(&service_search        );
+    MessageServiceImpl              service_message        ;
+    server_builder.RegisterService(&service_message       );
+    FileServiceImpl                 service_file           ;
+    server_builder.RegisterService(&service_file          );
+    SyncServiceImpl                 service_sync           ;
+    server_builder.RegisterService(&service_sync          );
+
+    std::unique_ptr<Server> server = server_builder.BuildAndStart();
+    if (!server) {
+        LOG_FATAL("gRPC server failed to start."
+            " Check whether port {} is already in use and "
+            "whether service registration is valid.", server_address);
+        return 1;
+    }
+    LOG_INFO("gRPC server started successfully on {}", server_address);
+    server->Wait();
+    return 0;
+}
 
 int main(int argc, char** argv) {
     absl::ParseCommandLine(argc, argv);
@@ -52,46 +255,13 @@ int main(int argc, char** argv) {
         return 0;
     }
 
-    // 启用 gRPC 服务器的默认健康检查服务和反射服务
-    grpc::EnableDefaultHealthCheckService(true);
-    // 反射服务允许客户端在运行时查询服务器支持的服务和方法，这对于调试和开发非常有用。
-    grpc::reflection::InitProtoReflectionServerBuilderPlugin();
+    // 文件上传下载有问题，暂不使用
+    // 异步服务器
+    ServerImpl server;
+    server.Run();
 
-    // 构建服务器地址
-    std::string server_address = absl::StrFormat("0.0.0.0:%d", absl::GetFlag(FLAGS_port));
-    LOG_INFO("Server listening on {}", server_address);
-
-    // 构建并启动 gRPC 服务器
-    int selected_port = 0;
-    ServerBuilder server_builder;
-    server_builder.AddListeningPort(server_address, grpc::InsecureServerCredentials(), &selected_port);
-    // 注册服务
-    StatusServiceImpl               service_status_checker;
-    server_builder.RegisterService(&service_status_checker);
-    AccountServiceImpl              service_account;
-    server_builder.RegisterService(&service_account);
-    SearchServiceImpl               service_search;
-    server_builder.RegisterService(&service_search);
-    MessageServiceImpl              service_message;
-    server_builder.RegisterService(&service_message);
-    FileServiceImpl                 service_file;
-    server_builder.RegisterService(&service_file);
-    SyncServiceImpl                 service_sync;
-    server_builder.RegisterService(&service_sync);
-
-    // 校验端口是否绑定成功，以防 server 为 nullptr
-    if (selected_port == 0) {
-        LOG_ERROR("Failed to bind listening port: {}", server_address);
-    }
-    std::unique_ptr<Server> server = server_builder.BuildAndStart();
-    if (!server) {
-        LOG_FATAL("gRPC server failed to start."
-            " Check whether port {} is already in use and "
-            "whether service registration is valid.", server_address);
-        return 1;
-    }
-    LOG_INFO("gRPC server started successfully on {} (selected port: {})", server_address, selected_port);
-    server->Wait();
+    // 非异步服务器
+    // RunServer();
 
     return 0;
 }

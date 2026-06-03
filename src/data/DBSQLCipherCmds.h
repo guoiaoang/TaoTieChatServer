@@ -117,8 +117,8 @@ namespace SQL{
                     -- 用户属性
                     nickname          TEXT,                  -- 昵称
                     avatar_id         TEXT,                  -- 头像 ID
-                    sign              TEXT,                  -- 个性签名
-                    desc              TEXT,                  -- 个人简介
+                    signature         TEXT,                  -- 个性签名
+                    description       TEXT,                  -- 个人简介
                     gender            INTEGER DEFAULT 0,     -- 0:未设置, 1:男, 2:女, 3:保密
                     region            TEXT,                  -- 建议存区域代码 (Code)
                     birthday          TEXT,                  -- 格式: YYYY-MM-DD
@@ -776,11 +776,11 @@ namespace SQL{
                 SET    user_id      = :user_id     ,
                        nickname     = :nickname    ,
                        avatar_id    = :avatar_id   ,
-                       sign         = :sign        ,
+                       signature    = :signature   ,
                        gender       = :gender      ,
                        region       = :region      ,
                        birthday     = :birthday    ,
-                       desc         = :desc        ,
+                       description  = :description ,
                        phones       = :phones      ,
                        emails       = :emails      ,
                        social_links = :social_links

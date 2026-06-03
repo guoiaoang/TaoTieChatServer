@@ -4,27 +4,6 @@
 #include "utils.h"
 #include "DBSQLCipherCmds.h"
 
-using std::string;
-using std::variant;
-using std::nullptr_t;
-using std::map;
-using std::vector;
-using std::list;
-using std::pair;
-using std::shared_ptr;
-using std::make_shared;
-using std::string_view;
-using std::filesystem::path;
-using std::filesystem::absolute;
-using std::filesystem::exists;
-using std::filesystem::create_directories;
-using std::visit;
-using std::decay_t;
-using std::is_same_v;
-using std::format;
-using std::chrono::days;
-using std::get_if;
-
 using namespace SQL::COMMANDS::PRAGMA;
 using namespace SQL::COMMANDS::CREATE;
 using namespace SQL::COMMANDS::QUERY ;
@@ -1965,21 +1944,21 @@ private:
             auto ite_nickname     = row.find("nickname"    );
             auto ite_gender       = row.find("gender"      );
             auto ite_birthday     = row.find("birthday"    );
-            auto ite_sign         = row.find("sign"        );
+            auto ite_signature    = row.find("signature"   );
             auto ite_region       = row.find("region"      );
-            auto ite_desc         = row.find("desc"        );
+            auto ite_description  = row.find("description" );
             auto ite_phones       = row.find("phones"      );
             auto ite_emails       = row.find("emails"      );
             auto ite_social_links = row.find("social_links");
-            if(ite_account_id   != ite_end) { base_info->set_account_id(get_string(ite_account_id->second)); }
-            if(ite_user_id      != ite_end) { base_info->set_user_id   (get_string(ite_user_id   ->second)); }
-            if(ite_avatar_id    != ite_end) { base_info->set_avatar_id (get_string(ite_avatar_id ->second)); }
-            if(ite_nickname     != ite_end) { base_info->set_nickname  (get_string(ite_nickname  ->second)); }
-            if(ite_gender       != ite_end) { base_info->set_gender    (get_int   (ite_gender    ->second)); }
-            if(ite_birthday     != ite_end) { base_info->set_birthday  (get_string(ite_birthday  ->second)); }
-            if(ite_sign         != ite_end) { base_info->set_sign      (get_string(ite_sign      ->second)); }
-            if(ite_region       != ite_end) { base_info->set_region    (get_string(ite_region    ->second)); }
-            if(ite_desc         != ite_end) { base_info->set_desc      (get_string(ite_desc      ->second)); }
+            if(ite_account_id   != ite_end) { base_info->set_account_id (get_string(ite_account_id ->second)); }
+            if(ite_user_id      != ite_end) { base_info->set_user_id    (get_string(ite_user_id    ->second)); }
+            if(ite_avatar_id    != ite_end) { base_info->set_avatar_id  (get_string(ite_avatar_id  ->second)); }
+            if(ite_nickname     != ite_end) { base_info->set_nickname   (get_string(ite_nickname   ->second)); }
+            if(ite_gender       != ite_end) { base_info->set_gender     (get_int   (ite_gender     ->second)); }
+            if(ite_birthday     != ite_end) { base_info->set_birthday   (get_string(ite_birthday   ->second)); }
+            if(ite_signature    != ite_end) { base_info->set_signature  (get_string(ite_signature  ->second)); }
+            if(ite_region       != ite_end) { base_info->set_region     (get_string(ite_region     ->second)); }
+            if(ite_description  != ite_end) { base_info->set_description(get_string(ite_description->second)); }
             if(ite_phones       != ite_end) { for(auto&phone       : split(get_string(ite_phones      ->second), ";")) { base_info->add_phones      (phone      ); } }
             if(ite_emails       != ite_end) { for(auto&email       : split(get_string(ite_emails      ->second), ";")) { base_info->add_emails      (email      ); } }
             if(ite_social_links != ite_end) { for(auto&social_link : split(get_string(ite_social_links->second), ";")) { base_info->add_social_links(social_link); } }
@@ -2721,14 +2700,14 @@ private:
         // 构造参数
         auto sql_params = make_shared<SqlParams>();
         (*sql_params)[":account_id"  ] = account_id                ;  // 必须包含，用于查找
-        (*sql_params)[":user_id"     ] = self_base_info.user_id  ();  // 必须包含，用于查找
-        (*sql_params)[":nickname"    ] = self_base_info.nickname ();
-        (*sql_params)[":avatar_id"   ] = self_base_info.avatar_id();
-        (*sql_params)[":sign"        ] = self_base_info.sign     ();
-        (*sql_params)[":gender"      ] = self_base_info.gender   ();  // 0:未设置，1:男，2:女，3:保密
-        (*sql_params)[":region"      ] = self_base_info.region   ();
-        (*sql_params)[":birthday"    ] = self_base_info.birthday ();
-        (*sql_params)[":desc"        ] = self_base_info.desc     ();
+        (*sql_params)[":user_id"     ] = self_base_info.user_id    ();  // 必须包含，用于查找
+        (*sql_params)[":nickname"    ] = self_base_info.nickname   ();
+        (*sql_params)[":avatar_id"   ] = self_base_info.avatar_id  ();
+        (*sql_params)[":signature"   ] = self_base_info.signature  ();
+        (*sql_params)[":gender"      ] = self_base_info.gender     ();  // 0:未设置，1:男，2:女，3:保密
+        (*sql_params)[":region"      ] = self_base_info.region     ();
+        (*sql_params)[":birthday"    ] = self_base_info.birthday   ();
+        (*sql_params)[":description" ] = self_base_info.description();
         (*sql_params)[":phones"      ] = Utils::join(self_base_info.phones      (), ";");
         (*sql_params)[":emails"      ] = Utils::join(self_base_info.emails      (), ";");
         (*sql_params)[":social_links"] = Utils::join(self_base_info.social_links(), ";");

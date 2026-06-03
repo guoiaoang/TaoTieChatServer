@@ -1,76 +1,6 @@
 #include "headers.h"
 #include "utils.h"
 
-using std::string;
-using std::map;
-using std::set;
-
-using ::grpc::Server;
-using ::grpc::ServerBuilder;
-using ::grpc::ServerContext;
-using ::grpc::Status;
-using ::grpc::StatusCode;
-using ::grpc::ServerWriter;
-using ::grpc::ServerSplitStreamer;
-
-// ph.h
-using ::grpc::ByteBuffer;
-using ::grpc::CallbackServerContext;
-using ::grpc::ChannelInterface;
-using ::grpc::ClientAsyncReader;
-using ::grpc::ClientAsyncReaderInterface;
-using ::grpc::ClientAsyncResponseReader;
-using ::grpc::ClientAsyncResponseReaderInterface;
-using ::grpc::ClientAsyncWriter;
-using ::grpc::ClientAsyncWriterInterface;
-using ::grpc::ClientContext;
-using ::grpc::ClientReader;
-using ::grpc::ClientReaderInterface;
-using ::grpc::ClientReadReactor;
-using ::grpc::ClientUnaryReactor;
-using ::grpc::ClientWriter;
-using ::grpc::ClientWriteReactor;
-using ::grpc::ClientWriterInterface;
-using ::grpc::CompletionQueue;
-using ::grpc::internal::CallbackClientStreamingHandler;
-using ::grpc::internal::CallbackServerStreamingHandler;
-using ::grpc::internal::CallbackUnaryHandler;
-using ::grpc::internal::RpcMethod;
-using ::grpc::internal::SplitServerStreamingHandler;
-using ::grpc::internal::StreamedUnaryHandler;
-using ::grpc::MessageAllocator;
-using ::grpc::ServerCompletionQueue;
-using ::grpc::ServerContext;
-using ::grpc::ServerReader;
-using ::grpc::ServerReadReactor;
-using ::grpc::ServerSplitStreamer;
-using ::grpc::ServerUnaryReactor;
-using ::grpc::ServerUnaryStreamer;
-using ::grpc::ServerWriter;
-using ::grpc::ServerWriteReactor;
-using ::grpc::Service;
-// using ::grpc::Service::GetHandler;
-// using ::grpc::Service::MarkMethodAsync;
-// using ::grpc::Service::MarkMethodCallback;
-// using ::grpc::Service::MarkMethodGeneric;
-// using ::grpc::Service::MarkMethodRaw;
-// using ::grpc::Service::MarkMethodRawCallback;
-// using ::grpc::Service::MarkMethodStreamed;
-// using ::grpc::Service::RequestAsyncClientStreaming;
-// using ::grpc::Service::RequestAsyncServerStreaming;
-// using ::grpc::Service::RequestAsyncUnary;
-using ::grpc::Status;
-// using ::grpc::StatusCode::UNIMPLEMENTED;
-using ::grpc::StubOptions;
-//
-
-using ::TaoTieChat::SuccessCode;
-using ::TaoTieChat::ErrorCode;
-using ::TaoTieChat::MessageService;
-using ::TaoTieChat::MessageContext;
-using ::TaoTieChat::MessageReply;
-using ::TaoTieChat::MessageRequest;
-
 using Utils::success_status;
 using Utils::error_status;
 using Utils::log_grpc_context;
@@ -101,6 +31,7 @@ public:
         response->CopyFrom(*result);
         return Status::OK;
     }
+
     // ReceiveMessages 接收消息。
     Status ReceiveMessages(ServerContext* context, const MessageRequest* request, ServerWriter<MessageContext>* response) override {
         using Request = MessageRequest;

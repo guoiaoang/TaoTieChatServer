@@ -118,6 +118,76 @@
 #include <valarray>
 #include <variant>
 #include <vector>
+
+// auto now = std::chrono::system_clock::now;
+// using string_ref = ::grpc::string_ref;
+using time_point = std::chrono::system_clock::time_point;
+//
+using std::chrono::current_zone;
+using std::chrono::days;
+using std::chrono::duration_cast;
+using std::chrono::duration;
+using std::chrono::high_resolution_clock;
+using std::chrono::hours;
+using std::chrono::microseconds;
+using std::chrono::milliseconds;
+using std::chrono::minutes;
+using std::chrono::months;
+using std::chrono::nanoseconds;
+using std::chrono::parse;
+using std::chrono::seconds;
+using std::chrono::steady_clock;
+using std::chrono::system_clock;
+using std::chrono::weekday;
+using std::chrono::weeks;
+using std::chrono::years;
+using std::chrono::zoned_time;
+using std::condition_variable;
+using std::decay_t;
+using std::filesystem::absolute;
+using std::filesystem::create_directories;
+using std::filesystem::create_directory;
+using std::filesystem::current_path;
+using std::filesystem::exists;
+using std::filesystem::file_size;
+using std::filesystem::filesystem_error;
+using std::filesystem::path;
+using std::format;
+using std::function;
+using std::get_if;
+using std::is_same_v;
+using std::list;
+using std::lock_guard;
+using std::make_pair;
+using std::make_shared;
+using std::make_tuple;
+using std::make_unique;
+using std::map;
+using std::move;
+using std::multimap;
+using std::mutex;
+using std::nullptr_t;
+using std::ofstream;
+using std::pair;
+using std::queue;
+using std::ref;
+using std::scoped_lock;
+using std::set;
+using std::shared_ptr;
+using std::string_view;
+using std::string;
+using std::stringstream;
+using std::this_thread::sleep_for;
+using std::thread;
+using std::tuple;
+using std::unique_lock;
+using std::unique_ptr;
+using std::unordered_map;
+using std::unordered_set;
+using std::variant;
+using std::vector;
+using std::visit;
+using stm = std::tm;
 #endif // ENABLE_HEADERS_STD
 
 // qt
@@ -136,6 +206,7 @@
 #include <QByteArrayView>
 #include <QCheckBox>
 #include <QColor>
+#include <QColorDialog>
 #include <QCommandLineParser>
 #include <QCoreApplication>
 #include <QCryptographicHash>
@@ -144,6 +215,7 @@
 #include <QDateEdit>
 #include <QDateTime>
 #include <QDebug>
+#include <QDesktopServices>
 #include <QDialog>
 #include <QDir>          // 遍历子目录，较老版本 // QDir::entryList()
 #include <QDirIterator>  // 遍历子目录，较新版本，单个遍历
@@ -167,6 +239,8 @@
 #include <QJsonParseError>
 #include <QJsonValue>
 #include <QLabel>
+#include <QLayout>
+#include <QLineEdit>
 #include <QList>
 #include <QListWidgetItem>
 #include <QLocale>
@@ -189,6 +263,8 @@
 #include <QPalette>
 #include <QPicture>
 #include <QPixmap>
+#include <QProcess>
+#include <QProgressBar>
 #include <QPropertyAnimation>
 #include <QProtobufJsonSerializer>
 #include <QProtobufMessage>
@@ -242,6 +318,7 @@
 #include <QToolBar>
 #include <QToolBox>
 #include <QToolButton>
+#include <QToolTip>
 #include <QTranslator>
 #include <QtSvg/QSvgGenerator>
 #include <QUrl>
@@ -308,6 +385,9 @@
 #ifdef ENABLE_BOOST_UUID
 // boost uuid
 #include <boost/uuid.hpp>
+using boost::uuids::random_generator;
+using boost::uuids::string_generator;
+using boost::uuids::uuid;
 #endif // ENABLE_BOOST_UUID
 
 // #define ENABLE_BOOST_PROGRAM_OPTIONS
@@ -337,25 +417,6 @@
 #include <fmt/format.h>
 #endif // ENABLE_FMT
 
-// #define ENABLE_GOOGLE_GRPC
-#ifdef ENABLE_GOOGLE_GRPC
-// grpc
-#include <grpcpp/grpcpp.h>
-#include <grpcpp/ext/proto_server_reflection_plugin.h>
-#include <grpcpp/health_check_service_interface.h>
-#include <google/protobuf/util/time_util.h>  // google::protobuf::util::TimeUtil::GetCurrentTime();
-using ::grpc::CallbackServerContext;
-using ::grpc::Channel;
-using ::grpc::ClientContext;
-using ::grpc::Server;
-using ::grpc::ServerBuilder;
-using ::grpc::ServerContext;
-using ::grpc::ServerUnaryReactor;
-using ::grpc::Status;
-using ::grpc::StatusCode;
-// using google::protobuf::Timestamp;
-#endif // ENABLE_GOOGLE_GRPC
-
 #ifdef ENABLE_ABSL_LIB
 #include "absl/flags/flag.h"
 #include "absl/flags/parse.h"
@@ -365,6 +426,26 @@ using ::grpc::StatusCode;
 #include "absl/log/globals.h"
 #include "absl/strings/str_format.h"
 #endif // ENABLE_ABSL_LIB
+
+// #define ENABLE_GOOGLE_GRPC
+#ifdef ENABLE_GOOGLE_GRPC
+// grpc
+#include <google/protobuf/util/time_util.h>  // google::protobuf::util::TimeUtil::GetCurrentTime();
+#include <grpcpp/alarm.h>
+#include <grpcpp/ext/proto_server_reflection_plugin.h>
+#include <grpcpp/grpcpp.h>
+#include <grpcpp/health_check_service_interface.h>
+using ::google::protobuf::Timestamp;
+using ::grpc::CallbackServerContext;
+using ::grpc::Channel;
+using ::grpc::ClientContext;
+using ::grpc::Server;
+using ::grpc::ServerBuilder;
+using ::grpc::ServerContext;
+using ::grpc::ServerUnaryReactor;
+using ::grpc::Status;
+using ::grpc::StatusCode;
+#endif // ENABLE_GOOGLE_GRPC
 
 // grpc
 #ifdef ENABLE_CLIENT
@@ -385,11 +466,51 @@ using ::TaoTieChat::SyncTypeGadget::SyncType;
 #elif defined(ENABLE_SERVER)  // ENABLE_SERVER
 // server
 #include "taotie_chat.grpc.pb.h"
+using ::grpc::Alarm;
+using ::grpc::AuthContext;
+using ::grpc::ByteBuffer;
+using ::grpc::CallbackServerContext;
+using ::grpc::ChannelInterface;
+using ::grpc::ClientAsyncReader;
+using ::grpc::ClientAsyncReaderInterface;
+using ::grpc::ClientAsyncResponseReader;
+using ::grpc::ClientAsyncResponseReaderInterface;
+using ::grpc::ClientAsyncWriter;
+using ::grpc::ClientAsyncWriterInterface;
+using ::grpc::ClientContext;
+using ::grpc::ClientReader;
+using ::grpc::ClientReaderInterface;
+using ::grpc::ClientReadReactor;
+using ::grpc::ClientUnaryReactor;
+using ::grpc::ClientWriter;
+using ::grpc::ClientWriteReactor;
+using ::grpc::ClientWriterInterface;
+using ::grpc::CompletionQueue;
+using ::grpc::internal::CallbackClientStreamingHandler;
+using ::grpc::internal::CallbackServerStreamingHandler;
+using ::grpc::internal::CallbackUnaryHandler;
+using ::grpc::internal::RpcMethod;
+using ::grpc::internal::SplitServerStreamingHandler;
+using ::grpc::internal::StreamedUnaryHandler;
+using ::grpc::MessageAllocator;
+using ::grpc::Server;
+using ::grpc::ServerAsyncResponseWriter;
+using ::grpc::ServerBuilder;
+using ::grpc::ServerCompletionQueue;
 using ::grpc::ServerContext;
 using ::grpc::ServerReader;
 using ::grpc::ServerReaderWriter;
+using ::grpc::ServerReadReactor;
+using ::grpc::ServerSplitStreamer;
+using ::grpc::ServerUnaryReactor;
+using ::grpc::ServerUnaryStreamer;
 using ::grpc::ServerWriter;
+using ::grpc::ServerWriteReactor;
+using ::grpc::Service;
 using ::grpc::Status;
+using ::grpc::StatusCode;
+using ::grpc::StubOptions;
+
 // enums
 using ::TaoTieChat::ContactReplyCode;
 using ::TaoTieChat::ErrorCode;
@@ -403,6 +524,7 @@ using ::TaoTieChat::FileService;
 using ::TaoTieChat::SearchService;
 using ::TaoTieChat::StatusService;
 using ::TaoTieChat::SyncService;
+using ::TaoTieChat::MessageService;
 // stubs
 using AccountStub = ::TaoTieChat::AccountService::Stub;
 using FileStub    = ::TaoTieChat::FileService::Stub;

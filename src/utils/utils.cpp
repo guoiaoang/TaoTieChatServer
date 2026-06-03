@@ -2,36 +2,36 @@
 
 namespace Utils {
 
-using std::string;
-using std::stringstream;
-using std::string_view;
-using std::vector;
-using std::tuple;
-using std::format;
-using std::chrono::zoned_time;
-using std::chrono::current_zone;
-using std::chrono::parse;
-using std::filesystem::path;
-using std::filesystem::current_path;
-using std::filesystem::absolute;
-using std::filesystem::create_directories;
-using std::filesystem::filesystem_error;
-using boost::uuids::random_generator;
-using boost::uuids::string_generator;
-using boost::uuids::uuid;
-using time_point = std::chrono::system_clock::time_point;
-using stm = std::tm;
+// using std::string;
+// using std::stringstream;
+// using std::string_view;
+// using std::vector;
+// using std::tuple;
+// using std::format;
+// using std::chrono::zoned_time;
+// using std::chrono::current_zone;
+// using std::chrono::parse;
+// using std::filesystem::path;
+// using std::filesystem::current_path;
+// using std::filesystem::absolute;
+// using std::filesystem::create_directories;
+// using std::filesystem::filesystem_error;
+// using boost::uuids::random_generator;
+// using boost::uuids::string_generator;
+// using boost::uuids::uuid;
+// using time_point = std::chrono::system_clock::time_point;
+// using stm = std::tm;
 auto now = std::chrono::system_clock::now;
 
-using ::TaoTieChat::Result;
-using ::TaoTieChat::SuccessCode;
-using ::TaoTieChat::ErrorCode;
-using ::TaoTieChat::SignUpRequest;
-using ::TaoTieChat::SignUpReply;
-using ::TaoTieChat::AuthRequest;
-using ::TaoTieChat::AuthReply;
-using ::TaoTieChat::SignInRequest;
-using ::TaoTieChat::SignInReply;
+// using ::TaoTieChat::Result;
+// using ::TaoTieChat::SuccessCode;
+// using ::TaoTieChat::ErrorCode;
+// using ::TaoTieChat::SignUpRequest;
+// using ::TaoTieChat::SignUpReply;
+// using ::TaoTieChat::AuthRequest;
+// using ::TaoTieChat::AuthReply;
+// using ::TaoTieChat::SignInRequest;
+// using ::TaoTieChat::SignInReply;
 
 // ============================== 路径相关 ============================== //
 
@@ -333,6 +333,8 @@ const string join(const google::protobuf::RepeatedPtrField<std::string>&src, con
 
 //
 void log_grpc_context(::grpc::ServerContext* context) {
+    using string_ref = ::grpc::string_ref;
+
     if(!context) {
         return;
     }
@@ -364,9 +366,9 @@ void log_grpc_context(::grpc::ServerContext* context) {
 }  // namespace Utils
 
 namespace Utils::Transform {
-using std::map;
-using ::TaoTieChat::ErrorCode;
-using ::TaoTieChat::FileStatusCode;
+// using std::map;
+// using ::TaoTieChat::ErrorCode;
+// using ::TaoTieChat::FileStatusCode;
 
 // ====================================================================== //
 

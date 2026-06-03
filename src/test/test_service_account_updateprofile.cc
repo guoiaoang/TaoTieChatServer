@@ -94,14 +94,14 @@ struct ContactInfoFriendPayload {
 };
 
 struct ContactInfoPayload {
-    string user_id   = string{ };  // 要修改为的用户 ID，请求的用户 ID 已经在认证信息里面了
-    string avatar_id = string{ };
-    string nickname  = string{ };
-    int    gender    = int   {0};
-    string birthday  = string{ };
-    string sign      = string{ };
-    string region    = string{ };
-    string desc      = string{ };
+    string user_id     = string{ };  // 要修改为的用户 ID，请求的用户 ID 已经在认证信息里面了
+    string avatar_id   = string{ };
+    string nickname    = string{ };
+    int    gender      = int   {0};
+    string birthday    = string{ };
+    string signature   = string{ };
+    string region      = string{ };
+    string description = string{ };
     vector<string> phones       = { };
     vector<string> emails       = { };
     vector<string> social_links = { };
@@ -121,14 +121,14 @@ struct ContactInfoPayload {
             for(const auto& tag : friend_info->tags) { *friend_info_proto->add_tags() = tag; }
         }
         else {
-            base_info->set_user_id  (user_id  );
-            base_info->set_avatar_id(avatar_id);
-            base_info->set_nickname (nickname );
-            base_info->set_gender   (gender   );
-            base_info->set_birthday (birthday );
-            base_info->set_sign     (sign     );
-            base_info->set_region   (region   );
-            base_info->set_desc     (desc     );
+            base_info->set_user_id    (user_id  );
+            base_info->set_avatar_id  (avatar_id);
+            base_info->set_nickname   (nickname );
+            base_info->set_gender     (gender   );
+            base_info->set_birthday   (birthday );
+            base_info->set_signature  (signature);
+            base_info->set_region     (region   );
+            base_info->set_description(description);
             for(const auto& phone       : phones      ) { *base_info->add_phones      () = phone      ; }
             for(const auto& email       : emails      ) { *base_info->add_emails      () = email      ; }
             for(const auto& social_link : social_links) { *base_info->add_social_links() = social_link; }
@@ -140,14 +140,14 @@ struct ContactInfoPayload {
         if(contact_info.has_base_info()) {
             const auto& base_info = contact_info.base_info();
             // account_id = base_info.account_id();
-            user_id    = base_info.user_id  ();
-            avatar_id  = base_info.avatar_id();
-            nickname   = base_info.nickname ();
-            gender     = base_info.gender   ();
-            birthday   = base_info.birthday ();
-            sign       = base_info.sign     ();
-            region     = base_info.region   ();
-            desc       = base_info.desc     ();
+            user_id     = base_info.user_id    ();
+            avatar_id   = base_info.avatar_id  ();
+            nickname    = base_info.nickname   ();
+            gender      = base_info.gender     ();
+            birthday    = base_info.birthday   ();
+            signature   = base_info.signature  ();
+            region      = base_info.region     ();
+            description = base_info.description();
             phones.clear();
             for(const auto& phone : base_info.phones()) { phones.push_back(phone); }
             emails.clear();
@@ -170,14 +170,14 @@ struct ContactInfoPayload {
         return true;
     }
     bool operator==(const ContactInfoPayload& other) const {
-        if(user_id   != other.user_id  ) { return false; }
-        if(avatar_id != other.avatar_id) { return false; }
-        if(nickname  != other.nickname ) { return false; }
-        if(gender    != other.gender   ) { return false; }
-        if(birthday  != other.birthday ) { return false; }
-        if(sign      != other.sign     ) { return false; }
-        if(region    != other.region   ) { return false; }
-        if(desc      != other.desc     ) { return false; }
+        if(user_id      != other.user_id     ) { return false; }
+        if(avatar_id    != other.avatar_id   ) { return false; }
+        if(nickname     != other.nickname    ) { return false; }
+        if(gender       != other.gender      ) { return false; }
+        if(birthday     != other.birthday    ) { return false; }
+        if(signature    != other.signature   ) { return false; }
+        if(region       != other.region      ) { return false; }
+        if(description  != other.description ) { return false; }
         if(phones       != other.phones      ) { return false; }
         if(emails       != other.emails      ) { return false; }
         if(social_links != other.social_links) { return false; }
@@ -384,14 +384,14 @@ TEST_F(ServiceAccountUpdateProfile, target_user_id_empty) {
     auto request_account_id = response_signup.account_id();
 
     ContactInfoPayload contact_info_payload = ContactInfoPayload{
-        .user_id   = ""               ,
-        .avatar_id = "value_avatar_id",
-        .nickname  = "value_nickname" ,
-        .gender    = 1                ,
-        .birthday  = "value_birthday" ,
-        .sign      = "value_sign"     ,
-        .region    = "value_region"   ,
-        .desc      = "value_desc"     ,
+        .user_id      = ""                 ,
+        .avatar_id    = "value_avatar_id"  ,
+        .nickname     = "value_nickname"   ,
+        .gender       = 1                  ,
+        .birthday     = "value_birthday"   ,
+        .signature    = "value_signature"  ,
+        .region       = "value_region"     ,
+        .description  = "value_description",
         .phones       = { "010-12345", "+86 18812341234" },
         .emails       = { "example@example.com" },
         .social_links = { "QQ:12345678" , "WeChat:example" , "Weibo:example" },
@@ -420,14 +420,14 @@ TEST_F(ServiceAccountUpdateProfile, target_user_id_not_changed) {
     auto request_account_id = response_signup.account_id();
 
     ContactInfoPayload contact_info_payload = ContactInfoPayload{
-        .user_id   = "value_user_id"  ,
-        .avatar_id = "value_avatar_id",
-        .nickname  = "value_nickname" ,
-        .gender    = 1                ,
-        .birthday  = "value_birthday" ,
-        .sign      = "value_sign"     ,
-        .region    = "value_region"   ,
-        .desc      = "value_desc"     ,
+        .user_id      = "value_user_id"    ,
+        .avatar_id    = "value_avatar_id"  ,
+        .nickname     = "value_nickname"   ,
+        .gender       = 1                  ,
+        .birthday     = "value_birthday"   ,
+        .signature    = "value_signature"  ,
+        .region       = "value_region"     ,
+        .description  = "value_description",
         .phones       = { "010-12345", "+86 18812341234" },
         .emails       = { "example@example.com" },
         .social_links = { "QQ:12345678" , "WeChat:example" , "Weibo:example" },
@@ -464,14 +464,14 @@ TEST_F(ServiceAccountUpdateProfile, target_user_id_changed) {
     auto request_account_id = response_signup.account_id();
 
     ContactInfoPayload contact_info_payload = ContactInfoPayload{
-        .user_id   = "value_user_id_changed"  ,
-        .avatar_id = "value_avatar_id",
-        .nickname  = "value_nickname" ,
-        .gender    = 1                ,
-        .birthday  = "value_birthday" ,
-        .sign      = "value_sign"     ,
-        .region    = "value_region"   ,
-        .desc      = "value_desc"     ,
+        .user_id      = "value_user_id_changed",
+        .avatar_id    = "value_avatar_id"  ,
+        .nickname     = "value_nickname"   ,
+        .gender       = 1                  ,
+        .birthday     = "value_birthday"   ,
+        .signature    = "value_signature"  ,
+        .region       = "value_region"     ,
+        .description  = "value_description",
         .phones       = { "010-12345", "+86 18812341234" },
         .emails       = { "example@example.com" },
         .social_links = { "QQ:12345678" , "WeChat:example" , "Weibo:example" },
@@ -508,14 +508,14 @@ TEST_F(ServiceAccountUpdateProfile, target_user_id_changed_again) {
     auto request_account_id = response_signup.account_id();
 
     ContactInfoPayload contact_info_payload = ContactInfoPayload{
-        .user_id   = "value_user_id_changed"  ,
-        .avatar_id = "value_avatar_id",
-        .nickname  = "value_nickname" ,
-        .gender    = 1                ,
-        .birthday  = "value_birthday" ,
-        .sign      = "value_sign"     ,
-        .region    = "value_region"   ,
-        .desc      = "value_desc"     ,
+        .user_id      = "value_user_id_changed",
+        .avatar_id    = "value_avatar_id"  ,
+        .nickname     = "value_nickname"   ,
+        .gender       = 1                  ,
+        .birthday     = "value_birthday"   ,
+        .signature    = "value_signature"  ,
+        .region       = "value_region"     ,
+        .description  = "value_description",
         .phones       = { "010-12345", "+86 18812341234" },
         .emails       = { "example@example.com" },
         .social_links = { "QQ:12345678" , "WeChat:example" , "Weibo:example" },
@@ -565,14 +565,14 @@ TEST_F(ServiceAccountUpdateProfile, target_user_id_exists) {
 
     // 修改用户 ID 之前的信息，便于比较
     ContactInfoPayload contact_info_payload = ContactInfoPayload{
-        .user_id   = "value_user_id"  ,
-        .avatar_id = "value_avatar_id",
-        .nickname  = "value_nickname" ,
-        .gender    = 1                ,
-        .birthday  = "value_birthday" ,
-        .sign      = "value_sign"     ,
-        .region    = "value_region"   ,
-        .desc      = "value_desc"     ,
+        .user_id      = "value_user_id"    ,
+        .avatar_id    = "value_avatar_id"  ,
+        .nickname     = "value_nickname"   ,
+        .gender       = 1                  ,
+        .birthday     = "value_birthday"   ,
+        .signature    = "value_signature"  ,
+        .region       = "value_region"     ,
+        .description  = "value_description",
         .phones       = { "010-12345", "+86 18812341234" },
         .emails       = { "example@example.com" },
         .social_links = { "QQ:12345678" , "WeChat:example" , "Weibo:example" },
@@ -591,14 +591,14 @@ TEST_F(ServiceAccountUpdateProfile, target_user_id_exists) {
 
     // 尝试修改用户 ID 为已经存在的用户 ID
     ContactInfoPayload contact_info_payload_target = ContactInfoPayload{
-        .user_id   = "value_target_user_id"  ,
-        .avatar_id = "value_avatar_id",
-        .nickname  = "value_nickname" ,
-        .gender    = 1                ,
-        .birthday  = "value_birthday" ,
-        .sign      = "value_sign"     ,
-        .region    = "value_region"   ,
-        .desc      = "value_desc"     ,
+        .user_id      = "value_target_user_id"  ,
+        .avatar_id    = "value_avatar_id"  ,
+        .nickname     = "value_nickname"   ,
+        .gender       = 1                  ,
+        .birthday     = "value_birthday"   ,
+        .signature    = "value_signature"  ,
+        .region       = "value_region"     ,
+        .description  = "value_description",
         .phones       = { "010-12345", "+86 18812341234" },
         .emails       = { "example@example.com" },
         .social_links = { "QQ:12345678" , "WeChat:example" , "Weibo:example" },
@@ -648,14 +648,14 @@ TEST_F(ServiceAccountUpdateProfile, friend_info) {
 
     // 先修改好友的基础资料，便于比较
     ContactInfoPayload contact_info_payload = ContactInfoPayload{
-        .user_id   = "value_user_id"  ,
-        .avatar_id = "value_avatar_id",
-        .nickname  = "value_nickname" ,
-        .gender    = 1                ,
-        .birthday  = "value_birthday" ,
-        .sign      = "value_sign"     ,
-        .region    = "value_region"   ,
-        .desc      = "value_desc"     ,
+        .user_id      = "value_user_id"    ,
+        .avatar_id    = "value_avatar_id"  ,
+        .nickname     = "value_nickname"   ,
+        .gender       = 1                  ,
+        .birthday     = "value_birthday"   ,
+        .signature    = "value_signature"  ,
+        .region       = "value_region"     ,
+        .description  = "value_description",
         .phones       = { "010-12345", "+86 18812341234" },
         .emails       = { "example@example.com" },
         .social_links = { "QQ:12345678" , "WeChat:example" , "Weibo:example" },
@@ -674,14 +674,14 @@ TEST_F(ServiceAccountUpdateProfile, friend_info) {
 
     // 修改好友关系中的资料
     ContactInfoPayload contact_info_payload_friend = ContactInfoPayload{
-        // .user_id   = "value_user_id"  ,
-        // .avatar_id = "value_avatar_id",
-        // .nickname  = "value_nickname" ,
-        // .gender    = 1                ,
-        // .birthday  = "value_birthday" ,
-        // .sign      = "value_sign"     ,
-        // .region    = "value_region"   ,
-        // .desc      = "value_desc"     ,
+        // .user_id      = "value_user_id"    ,
+        // .avatar_id    = "value_avatar_id"  ,
+        // .nickname     = "value_nickname"   ,
+        // .gender       = 1                  ,
+        // .birthday     = "value_birthday"   ,
+        // .signature    = "value_signature"  ,
+        // .region       = "value_region"     ,
+        // .description  = "value_description",
         // .phones       = { "010-12345", "+86 18812341234" },
         // .emails       = { "example@example.com" },
         // .social_links = { "QQ:12345678" , "WeChat:example" , "Weibo:example" },
@@ -700,14 +700,14 @@ TEST_F(ServiceAccountUpdateProfile, friend_info) {
 
     // 最终获取到的复合资料
     ContactInfoPayload contact_info_payload_final = ContactInfoPayload{
-        .user_id   = "value_user_id"  ,
-        .avatar_id = "value_avatar_id",
-        .nickname  = "value_nickname" ,
-        .gender    = 1                ,
-        .birthday  = "value_birthday" ,
-        .sign      = "value_sign"     ,
-        .region    = "value_region"   ,
-        .desc      = "value_desc"     ,
+        .user_id      = "value_user_id"    ,
+        .avatar_id    = "value_avatar_id"  ,
+        .nickname     = "value_nickname"   ,
+        .gender       = 1                  ,
+        .birthday     = "value_birthday"   ,
+        .signature    = "value_signature"  ,
+        .region       = "value_region"     ,
+        .description  = "value_description",
         .phones       = { "010-12345", "+86 18812341234" },
         .emails       = { "example@example.com" },
         .social_links = { "QQ:12345678" , "WeChat:example" , "Weibo:example" },
