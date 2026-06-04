@@ -965,6 +965,7 @@ public:
         if(request_account_id.empty()) {
             return error_reply<Reply>(reply, ErrorCode::AUTH_FAILED, std::format("Auth failed to get account_id."));
         }
+        // =================================================================== //
         // 获取要添加的联系人的账号 ID
         auto target_user_id = request->target_user_id();
         auto [success_get_active_account_id, target_account_id] = get_active_account_id(target_user_id);
@@ -1071,7 +1072,7 @@ public:
         if(request_account_id.empty()) {
             return error_reply<Reply>(reply, ErrorCode::AUTH_FAILED, std::format("Auth failed to get account_id."));
         }
-
+        // =================================================================== //
         // 获取要添加的联系人的账号 ID
         auto target_user_id = request->target_user_id();
         auto [success_get_active_account_id, target_account_id] = get_active_account_id(target_user_id);
@@ -1347,7 +1348,7 @@ public:
         if(account_id.empty()) {
             return error_reply<Reply>(reply, ErrorCode::AUTH_FAILED, std::format("Auth failed to get account_id."));
         }
-
+        // =================================================================== //
         // 提取用户信息
         auto contact_info  = request->contact_info();
         // 有自身信息时认为是修改自身资料的操作
@@ -1707,6 +1708,7 @@ public:
         if(account_id.empty()) {
             return error_reply<Reply>(reply, ErrorCode::AUTH_FAILED, std::format("Auth failed to get account_id."));
         }
+        // =================================================================== //
 
         // 流程：查询 metadata --> 更新 permission --> 获取文件状态
 
@@ -1780,15 +1782,34 @@ public:
 
     // 获取指定账号各事件类型的最新 PTS 值（用于客户端同步）
     shared_ptr<GetLastIDReply> get_last_id(const shared_ptr<AuthRequest>& request) {
-        using Reply = GetLastIDReply;
-        auto reply = make_shared<Reply>();
-        if(!request) { return reply; }
-
-        // 身份验证
-        auto auth_reply = auth_check(make_shared<AuthRequest>(*request));
-        if(!auth_reply->result().has_success_code()) { return reply; }
+        using Request = AuthRequest;
+        using Reply   = GetLastIDReply;
+        // =========================== 初始化操作 =========================== //
+        // 用户登录验证，返回是否登录成功
+        // 1. 根据用户 ID 查询用户记录，如果没有找到则返回失败
+        // 2. 如果找到了用户记录则比较密码和安全问题答案，如果匹配则返回成功，否则返回失败
+        shared_ptr<Reply> reply = make_shared<Reply>();
+        set_error(reply->mutable_result(), ErrorCode::ERROR_INIT);
+        if(!request) {
+            return error_reply<Reply>(reply, ErrorCode::ERROR_INIT, std::format("Invalid Param."));
+        }
+        reply->mutable_request()->CopyFrom(*request.get());
+        set_error(reply->mutable_result(), ErrorCode::UNKNOWN);
+        // =========================== 参数校验 =========================== //
+        // =========================== 执行操作 =========================== //
+        // 验证鉴权是否成功
+        shared_ptr<AuthRequest> auth_request = request;  // make_shared<AuthRequest>(request->request_user_auth());
+        auto auth_reply  = auth_check(auth_request);
+        auto&auth_result = auth_reply->result();
+        if(!auth_result.has_success_code()) {
+            return error_reply<Reply>(reply, auth_result.error_code(), auth_result.message());
+        }
+        // 获取结果
         auto account_id = auth_reply->account_id();
-        if(account_id.empty()) { return reply; }
+        if(account_id.empty()) {
+            return error_reply<Reply>(reply, ErrorCode::AUTH_FAILED, std::format("Auth failed to get account_id."));
+        }
+        // =================================================================== //
 
         // 查询该账号所有 pts_stats 记录
         auto sql_params = make_shared<SqlParams>();
@@ -1798,19 +1819,20 @@ public:
 
         // 解析结果，填充 GetLastIDReply
         for(auto& row : sql_result->rows) {
-            auto ite_type  = row.find("pts_type" );
-            auto ite_value = row.find("pts_value");
+            auto  ite_type  = row.find("pts_type" );
+            auto  ite_value = row.find("pts_value");
             if(ite_type == row.end() || ite_value == row.end()) { continue; }
-            auto pts_type_str = get_string(ite_type ->second);
-            auto pts_value    = get_int   (ite_value->second);
+            auto  pts_type_str = get_string(ite_type ->second);
+            auto  pts_value    = get_int   (ite_value->second);
             auto* tag = reply->add_tags();
-            if     (pts_type_str == "CONTACTS") { tag->set_type(SyncType::CONTACTS); }
+            ;    if(pts_type_str == "CONTACTS") { tag->set_type(SyncType::CONTACTS); }
             else if(pts_type_str == "GROUPS"  ) { tag->set_type(SyncType::GROUPS  ); }
             else if(pts_type_str == "MESSAGES") { tag->set_type(SyncType::MESSAGES); }
             else { continue; }  // 跳过未知类型
             tag->set_id(pts_value);
         }
-        return reply;
+        // LOG_TRACE(std::format("get_last_id reply : {}", reply ? reply->DebugString() : "null"));
+        return success_reply<Reply>(reply, SuccessCode::SUCCESS, std::format("SyncService GetLastID Successed."));
     }
 
     // 查询指定账号与类型的增量事件明细

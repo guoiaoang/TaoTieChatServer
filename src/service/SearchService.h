@@ -197,7 +197,7 @@ public:
             // 1. 无缝扔进你手写的任意参数线程池，绝不卡死 gRPC 核心网络流
             thread_pool->enqueue([call, request]() {
                 // 执行耗时的 DBSQLCipher 操作
-                std::shared_ptr<SearchUserReply> result = DBSQLCipher::instance().search_user(std::make_shared<SearchUserRequest>(request));
+                std::shared_ptr<SearchUserReply> result = DBSQLCipher::instance().search_user(std::make_shared<SearchUserRequest>(std::move(request)));
 
                 if (!result) {
                     call->Error(grpc::StatusCode::INTERNAL, "SearchUser Database Failed");

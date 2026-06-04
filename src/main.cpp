@@ -56,8 +56,8 @@ public:
         builder.RegisterService   (&service_message       );
         FileServiceImpl             service_file           ;
         builder.RegisterService   (&service_file          );
-        SyncServiceImpl             service_sync           ;
-        builder.RegisterService   (&service_sync          );
+        // SyncServiceImpl          service_sync           ;
+        // builder.RegisterService(&service_sync          );
 
         // 注册异步服务（注意：必须是 AsyncService）
         // 注册这一个包含多个 RPC 的异步服务
@@ -66,7 +66,7 @@ public:
         // builder.RegisterService(&m_async_service_file   );  // 文件上传下载功能未完善，暂不启用
         // builder.RegisterService(&m_async_service_status );
         // builder.RegisterService(&m_async_service_message);
-        // builder.RegisterService(&m_async_service_sync   );
+        builder.RegisterService   (&m_async_service_sync   );
 
         int num_cpus = std::thread::hardware_concurrency();
         LOG_INFO("Detected {} CPUs. Creating corresponding CompletionQueues...", num_cpus);
@@ -118,6 +118,12 @@ public:
                 // 文件上传有问题，暂不使用
                 // new FileUpload  (&m_async_service_file, m_completion_queues[i].get(), m_thread_pool_worker.get());
                 // new FileDownload(&m_async_service_file, m_completion_queues[i].get(), m_thread_pool_worker.get());
+            }
+            // service SyncService;
+            {
+                using namespace Chat::Service::Sync::Rpc::AsyncCall;
+                new GetLastID       (&m_async_service_sync, m_completion_queues[i].get(), m_thread_pool_worker.get());
+                new SyncCallInstance(&m_async_service_sync, m_completion_queues[i].get(), m_thread_pool_worker.get());
             }
         }
 

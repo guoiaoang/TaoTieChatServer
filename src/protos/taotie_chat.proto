@@ -615,7 +615,9 @@ message GetLastIDTag {
 
 // 获取更新结果，包含每个消息类型的最后一条消息的 ID
 message GetLastIDReply {
-  repeated GetLastIDTag tags = 1;  // 同步标签，包含每个消息类型的最后一条消息的 ID
+  optional  AuthRequest   request = 1;  // 可选的原始请求信息字段
+            Result        result  = 2;  // 状态信息字段
+  repeated  GetLastIDTag  tags    = 3;  // 同步标签，包含每个消息类型的最后一条消息的 ID
 }
 
 message SyncRequestTag {
@@ -671,11 +673,13 @@ message SyncReplyBody {
   SyncRequestTag tag   = 1;  // 同步标签，包含要获取更新的消息类型和最后一条消息的 ID
   int64          count = 2;  // 更新的消息数量
 
-  // 具体的更新消息，不同类型的字段由服务端按 tag.type 填充。
-  ContactInfos contact_infos = 3;  // 联系人列表更新内容
-  Groups       groups        = 4;  // 群组列表更新内容
-  Messages     messages      = 5;  // 消息列表更新内容
-  FileEvents   file_events   = 6;  // 文件事件列表更新内容
+  oneof          info {
+    // 具体的更新消息，不同类型的字段由服务端按 tag.type 填充。
+    ContactInfos contact_infos = 3;  // 联系人列表更新内容
+    Groups       groups        = 4;  // 群组列表更新内容
+    Messages     messages      = 5;  // 消息列表更新内容
+    FileEvents   file_events   = 6;  // 文件事件列表更新内容
+  }
 }
 
 // 返回内容

@@ -457,6 +457,7 @@ using FileClient    = ::TaoTieChat::FileService::Client;
 using MessageClient = ::TaoTieChat::MessageService::Client;
 using SearchClient  = ::TaoTieChat::SearchService::Client;
 using StatusClient  = ::TaoTieChat::StatusService::Client;
+using SyncClient    = ::TaoTieChat::SyncService::Client;
 using ::TaoTieChat::ContactReplyCodeGadget::ContactReplyCode;
 using ::TaoTieChat::ErrorCodeGadget::ErrorCode;
 using ::TaoTieChat::FileStatusCodeGadget::FileStatusCode;

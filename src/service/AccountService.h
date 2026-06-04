@@ -894,7 +894,7 @@ public:
     }
 
 protected:
-    // 重写孵化虚函数，确保高并发时，基类自动 new 出来的下一个监听器依然是 SignUpCall 子类，而不是空壳基类
+    // 重写孵化虚函数，确保高并发时，基类自动 new 出来的下一个监听器依然是 SignUp 子类，而不是空壳基类
     void CloneNext(AccountService::AsyncService* service, grpc::ServerCompletionQueue* cq) override {
         new SignUp(service, cq, m_thread_pool);
     }
@@ -913,7 +913,7 @@ public:
             // 1. 无缝扔进你手写的任意参数线程池，绝不卡死 gRPC 核心网络流
             thread_pool->enqueue([call, request]() {
                 // 执行耗时的 DBSQLCipher 操作
-                std::shared_ptr<SignInReply> result = DBSQLCipher::instance().sign_in(std::make_shared<SignInRequest>(request));
+                std::shared_ptr<SignInReply> result = DBSQLCipher::instance().sign_in(std::make_shared<SignInRequest>(std::move(request)));
 
                 if (!result) {
                     call->Error(grpc::StatusCode::INTERNAL, "SignIn Database Failed");
@@ -925,7 +925,7 @@ public:
     }
 
 protected:
-    // 重写孵化虚函数，确保高并发时，基类自动 new 出来的下一个监听器依然是 SignInCall 子类，而不是空壳基类
+    // 重写孵化虚函数，确保高并发时，基类自动 new 出来的下一个监听器依然是 SignIn 子类，而不是空壳基类
     void CloneNext(AccountService::AsyncService* service, grpc::ServerCompletionQueue* cq) override {
         new SignIn(service, cq, m_thread_pool);
     }
@@ -944,7 +944,7 @@ public:
             // 1. 无缝扔进你手写的任意参数线程池，绝不卡死 gRPC 核心网络流
             thread_pool->enqueue([call, request]() {
                 // 执行耗时的 DBSQLCipher 操作
-                std::shared_ptr<ContactRequestReply> result = DBSQLCipher::instance().contact_request(std::make_shared<ContactRequestRequest>(request));
+                std::shared_ptr<ContactRequestReply> result = DBSQLCipher::instance().contact_request(std::make_shared<ContactRequestRequest>(std::move(request)));
 
                 if (!result) {
                     call->Error(grpc::StatusCode::INTERNAL, "ContactRequest Database Failed");
@@ -956,7 +956,7 @@ public:
     }
 
 protected:
-    // 重写孵化虚函数，确保高并发时，基类自动 new 出来的下一个监听器依然是 ContactRequestCall 子类，而不是空壳基类
+    // 重写孵化虚函数，确保高并发时，基类自动 new 出来的下一个监听器依然是 ContactRequest 子类，而不是空壳基类
     void CloneNext(AccountService::AsyncService* service, grpc::ServerCompletionQueue* cq) override {
         new ContactRequest(service, cq, m_thread_pool);
     }
@@ -975,8 +975,7 @@ public:
             // 1. 无缝扔进你手写的任意参数线程池，绝不卡死 gRPC 核心网络流
             thread_pool->enqueue([call, request]() {
                 // 执行耗时的 DBSQLCipher 操作
-                auto params = std::make_shared<ContactReplyRequest>(request);
-                std::shared_ptr<ContactReplyReply> result = DBSQLCipher::instance().contact_reply(params);
+                std::shared_ptr<ContactReplyReply> result = DBSQLCipher::instance().contact_reply(std::make_shared<ContactReplyRequest>(std::move(request)));
 
                 if (!result) {
                     call->Error(grpc::StatusCode::INTERNAL, "ContactReply Database Failed");
@@ -988,7 +987,7 @@ public:
     }
 
 protected:
-    // 重写孵化虚函数，确保高并发时，基类自动 new 出来的下一个监听器依然是 ContactReplyCall 子类，而不是空壳基类
+    // 重写孵化虚函数，确保高并发时，基类自动 new 出来的下一个监听器依然是 ContactReply 子类，而不是空壳基类
     void CloneNext(AccountService::AsyncService* service, grpc::ServerCompletionQueue* cq) override {
         new ContactReply(service, cq, m_thread_pool);
     }
@@ -1007,7 +1006,7 @@ public:
             // 1. 无缝扔进你手写的任意参数线程池，绝不卡死 gRPC 核心网络流
             thread_pool->enqueue([call, request]() {
                 // 执行耗时的 DBSQLCipher 操作
-                std::shared_ptr<UpdateProfileReply> result = DBSQLCipher::instance().update_profile(std::make_shared<UpdateProfileRequest>(request));
+                std::shared_ptr<UpdateProfileReply> result = DBSQLCipher::instance().update_profile(std::make_shared<UpdateProfileRequest>(std::move(request)));
 
                 if (!result) {
                     call->Error(grpc::StatusCode::INTERNAL, "UpdateProfile Database Failed");
@@ -1019,7 +1018,7 @@ public:
     }
 
 protected:
-    // 重写孵化虚函数，确保高并发时，基类自动 new 出来的下一个监听器依然是 UpdateProfileCall 子类，而不是空壳基类
+    // 重写孵化虚函数，确保高并发时，基类自动 new 出来的下一个监听器依然是 UpdateProfile 子类，而不是空壳基类
     void CloneNext(AccountService::AsyncService* service, grpc::ServerCompletionQueue* cq) override {
         new UpdateProfile(service, cq, m_thread_pool);
     }
@@ -1038,7 +1037,7 @@ public:
             // 1. 无缝扔进你手写的任意参数线程池，绝不卡死 gRPC 核心网络流
             thread_pool->enqueue([call, request]() {
                 // 执行耗时的 DBSQLCipher 操作
-                std::shared_ptr<GetSecurityQuestionReply> result = DBSQLCipher::instance().get_security_question(std::make_shared<AuthRequest>(request));
+                std::shared_ptr<GetSecurityQuestionReply> result = DBSQLCipher::instance().get_security_question(std::make_shared<AuthRequest>(std::move(request)));
 
                 if (!result) {
                     call->Error(grpc::StatusCode::INTERNAL, "GetSecurityQuestion Database Failed");
@@ -1050,7 +1049,7 @@ public:
     }
 
 protected:
-    // 重写孵化虚函数，确保高并发时，基类自动 new 出来的下一个监听器依然是 GetSecurityQuestionCall 子类，而不是空壳基类
+    // 重写孵化虚函数，确保高并发时，基类自动 new 出来的下一个监听器依然是 GetSecurityQuestion 子类，而不是空壳基类
     void CloneNext(AccountService::AsyncService* service, grpc::ServerCompletionQueue* cq) override {
         new GetSecurityQuestion(service, cq, m_thread_pool);
     }
@@ -1069,7 +1068,7 @@ public:
             // 1. 无缝扔进你手写的任意参数线程池，绝不卡死 gRPC 核心网络流
             thread_pool->enqueue([call, request]() {
                 // 执行耗时的 DBSQLCipher 操作
-                std::shared_ptr<UpdateSecurityInfoReply> result = DBSQLCipher::instance().update_security_info(std::make_shared<UpdateSecurityInfoRequest>(request));
+                std::shared_ptr<UpdateSecurityInfoReply> result = DBSQLCipher::instance().update_security_info(std::make_shared<UpdateSecurityInfoRequest>(std::move(request)));
 
                 if (!result) {
                     call->Error(grpc::StatusCode::INTERNAL, "UpdateSecurityInfo Database Failed");
@@ -1081,7 +1080,7 @@ public:
     }
 
 protected:
-    // 重写孵化虚函数，确保高并发时，基类自动 new 出来的下一个监听器依然是 UpdateSecurityInfoCall 子类，而不是空壳基类
+    // 重写孵化虚函数，确保高并发时，基类自动 new 出来的下一个监听器依然是 UpdateSecurityInfo 子类，而不是空壳基类
     void CloneNext(AccountService::AsyncService* service, grpc::ServerCompletionQueue* cq) override {
         new UpdateSecurityInfo(service, cq, m_thread_pool);
     }
