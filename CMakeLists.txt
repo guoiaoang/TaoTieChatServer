@@ -228,6 +228,7 @@ elseif(ENABLE_SERVER)
         ${PROJECT_DIR_SOURCE}/service/StatusService.h
         ${PROJECT_DIR_SOURCE}/service/MessageService.h
         ${PROJECT_DIR_SOURCE}/service/FileService.h
+        ${PROJECT_DIR_SOURCE}/service/SyncService.h
     )
 
     # if(WIN32)

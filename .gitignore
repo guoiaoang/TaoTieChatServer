@@ -87,6 +87,7 @@ CMakeLists.txt.user*
 /.cache/
 /.vscode/cache/
 /.qtcreator/
+/.vs/
 
 # grpc 生成的文件
 /src/protos/include/

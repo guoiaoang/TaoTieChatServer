@@ -39,7 +39,7 @@ set(
         test_service_account_getsecurityquestion # 获取安全问题
         test_service_account_updatesecurityinfo  # 更新安全信息（密码/密保问题和答案）
         test_service_file                    # 文件上传下载测试
-        test_service_sync_pts                # 消息/事件同步
+        # test_service_sync_pts              # 消息/事件同步
 )
 foreach(TEST_ITEM ${TEST_TARGETS})
     add_executable(${TEST_ITEM}

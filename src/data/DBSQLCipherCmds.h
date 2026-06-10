@@ -316,6 +316,10 @@ namespace SQL{
             constexpr std::string_view SQL_CREATE_TABLE_FRIEND_REQUESTS = R"(
                 CREATE TABLE IF NOT EXISTS friend_requests (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+                    -- 事件 ID，用于唯一定位一条消息
+                    event_id           TEXT NOT NULL UNIQUE,
+
                     -- request_account_id 发起好友请求的账号 ID
                     request_account_id TEXT NOT NULL,
 
@@ -447,7 +451,7 @@ namespace SQL{
                     pts_value   INTEGER DEFAULT 0,                   -- 事件序号  -- 对用户的自增 ID
                     update_time DATETIME DEFAULT (datetime('now')),  -- 更新时间
                     common      TEXT,                                -- common 通用字段
-                    UNIQUE(account_id, pts_type)                    -- 联合唯一：每个账号的每种类型只有一条统计记录
+                    UNIQUE(account_id, pts_type)                     -- 联合唯一：每个账号的每种类型只有一条统计记录
                 );
             )";
         }
@@ -564,6 +568,24 @@ namespace SQL{
             )";
 
             // 获取指定账号的好友添加请求状态
+            constexpr std::string_view SQL_QUERY_GET_FRIEND_REQUEST_INFO = R"(
+                SELECT *
+                FROM   friend_requests
+                WHERE
+                        request_account_id = :request_account_id
+                    AND target_account_id  = :target_account_id
+                LIMIT 10;
+            )";
+            // 根据事件ID查询好友请求信息
+            constexpr std::string_view SQL_QUERY_GET_FRIEND_REQUEST_INFO_BY_EVENT_ID = R"(
+                SELECT *
+                FROM   friend_requests
+                WHERE
+                        event_id = :event_id
+                LIMIT 1;
+            )";
+
+            // 获取指定账号的好友添加请求状态
             constexpr std::string_view SQL_QUERY_GET_FRIEND_REQUEST_STATUS = R"(
                 SELECT status
                 FROM   friend_requests
@@ -675,8 +697,8 @@ namespace SQL{
 
             // 添加好友请求记录
             constexpr std::string_view SQL_INSERT_FRIEND_REQUEST = R"(
-                INSERT INTO friend_requests ( request_account_id,  target_account_id,  status,  message, timestamp)
-                VALUES                      (:request_account_id, :target_account_id,       0, :message, datetime('now'));
+                INSERT INTO friend_requests ( event_id,  request_account_id,  target_account_id,  status,  message, timestamp)
+                VALUES                      (:event_id, :request_account_id, :target_account_id,       0, :message, datetime('now'));
             )";
 
             // 添加好友

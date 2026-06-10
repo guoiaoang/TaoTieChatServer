@@ -52,6 +52,7 @@ enum SuccessCode {
   STATUS_SUCCESS = 0x00000001;  // 成功
   STATUS_RUNNING = 0x00000001;  // 运行中
   STATUS_ONLINE  = 0x00000001;  // 在线
+  SUCCESS_EMPTY  = 0x00000002;  // 无结果但不是错误
   SUCCESS_INIT   = 0x00000101;  // 返回初始值
 }
 
@@ -470,7 +471,7 @@ message SearchUserRequest{
 message SearchUserReply{
   optional  SearchUserRequest request      = 1;  // 可选的原始请求信息字段  // “真”可选
             Result            result       = 2;  // 状态信息字段
-            ContactInfo       contact_info = 3;  // 用户/账号信息
+  optional  ContactInfo       contact_info = 3;  // 用户/账号信息  // 搜索结果可以为空
 }
 
 // 搜索群组需要的参数
@@ -597,39 +598,75 @@ service SyncService {
   rpc GetLastID(AuthRequest) returns (GetLastIDReply) {}
   // 监听是否有新的消息
   // 双向流式 RPC，客户端发送 SyncRequest 请求，服务器持续返回 SyncReply 消息流
+  // 服务端每次限制获取前 100 条消息并返回消息区间，由客户端判断消息范围进行同步
   rpc Sync(stream SyncRequest) returns (stream SyncReply) {}
+}
+
+// ------------------------------ 主子类型 enum ------------------------------ //
+
+// 主类型及范围
+message SyncTag {
+  SyncType    type     = 1;  // 更新类型
+  // SyncSubType sub_type = 2;  // 子类型
+  int64       id_start = 3;  // 起始消息的 ID
+  int64       id_end   = 4;  // 结束消息的 ID
+  int64       count    = 5;  // 更新的消息数量
 }
 
 // 要获取更新的消息类型
 enum SyncType {
-  CONTACTS = 0;  // 联系人列表
-  GROUPS   = 1;  // 群组列表
-  MESSAGES = 2;  // 消息列表
+  SYNC_UNSET    = 0;
+  SYNC_CONTACTS = 1;  // 联系人列表
+  SYNC_GROUPS   = 2;  // 群组列表
+  SYNC_MESSAGES = 3;  // 消息列表
 }
 
-// 同步标签，包含要获取更新的消息类型和最后一条消息的 ID
-message GetLastIDTag {
-  SyncType type = 1;  // 更新类型
-  int64    id   = 2;  // 最后一条消息的 ID
+// 子类型
+message SyncSubType{
+  oneof sub_type{
+    SyncSubTypeContact contact = 1;
+    SyncSubTypeGroup   group   = 2;
+    SyncSubTypeMessage message = 3;
+  }
 }
+
+enum SyncSubTypeContact {
+  SYNC_CONTACT_UNSET   = 0;
+  SYNC_CONTACT_INFO    = 1;  // 联系人资料更新
+  SYNC_CONTACT_REUQEST = 2;  // 好友申请
+  SYNC_CONTACT_REPLY   = 3;  // 好友申请回复
+  SYNC_CONTACT_SHIP    = 4;  // 好友关系变更
+}
+
+enum SyncSubTypeGroup {
+  SYNC_GROUP_UNSET = 0;
+}
+
+enum SyncSubTypeMessage {
+  SYNC_MESSAGE_UNSET = 0;
+}
+
+// -------------------------------- GetLastID -------------------------------- //
+
+// // 同步标签，包含要获取更新的消息类型和最后一条消息的 ID
+// message GetLastIDTag {
+//   SyncType type = 1;  // 更新类型
+//   int64    id   = 2;  // 最后一条消息的 ID
+// }
 
 // 获取更新结果，包含每个消息类型的最后一条消息的 ID
 message GetLastIDReply {
-  optional  AuthRequest   request = 1;  // 可选的原始请求信息字段
-            Result        result  = 2;  // 状态信息字段
-  repeated  GetLastIDTag  tags    = 3;  // 同步标签，包含每个消息类型的最后一条消息的 ID
+  optional  AuthRequest request = 1;  // 可选的原始请求信息字段
+            Result      result  = 2;  // 状态信息字段
+  repeated  SyncTag     tags    = 3;  // 同步标签，包含每个消息类型的最后一条消息的 ID
 }
 
-message SyncRequestTag {
-  SyncType type     = 1;  // 更新类型
-  int64    id_start = 2;  // 起始消息的 ID
-  int64    id_end   = 3;  // 结束消息的 ID
-}
+// ------------------- Sync SyncRequest & SyncReplyHeader ------------------- //
 
 // 请求信息
 message SyncRequest{
-  optional  AuthRequest    request_user_auth = 1;  // 鉴权  // 可能不需要
-  repeated  SyncRequestTag sync_tag          = 2;  // 同步标签，包含要获取更新的消息类型和最后一条消息的 ID
+  optional  AuthRequest request_user_auth = 1;  // 鉴权  // 可能不需要
+  repeated  SyncTag     sync_tag          = 2;  // 同步标签，包含要获取更新的消息类型和最后一条消息的 ID
 }
 
 // 连接认证结果
@@ -638,47 +675,16 @@ message SyncReplyHeader {
             Result      result  = 2;  // 状态信息字段
 }
 
-// 单条消息增量事件
-message MessageEvent {
-  string server_message_id   = 1;  // 服务端消息 ID
-  string client_message_id   = 2;  // 客户端消息 ID
-  string sender_account_id   = 3;  // 发送方账号 ID
-  string receiver_account_id = 4;  // 接收方账号 ID
-  string short_text          = 5;  // 文本消息内容
-  string timestamp           = 6;  // 服务端落库时间（UTC 字符串）
-  string event_sub_type      = 7;  // 事件子类型（如 MESSAGE_TEXT）
-}
-
-// 消息增量列表
-message Messages {
-  repeated MessageEvent messages = 1;
-}
-
-// 单条文件增量事件
-message FileEvent {
-  string         file_id        = 1;  // 文件 ID
-  FileMetadata   file_metadata  = 2;  // 文件元数据
-  FileStatusCode file_status    = 3;  // 文件状态
-  string         event_sub_type = 4;  // 事件子类型（如 FILE_UPLOAD）
-}
-
-// 文件增量列表
-message FileEvents {
-  repeated FileEvent file_events = 1;
-}
-
 // 认证成功后返回的主要内容
 message SyncReplyBody {
-  // 大分类，比如好友申请与删除均在 CONTACTS 分类下，具体的操作类型需要再解析消息内容来区分。
-  SyncRequestTag tag   = 1;  // 同步标签，包含要获取更新的消息类型和最后一条消息的 ID
-  int64          count = 2;  // 更新的消息数量
-
+  SyncTag        tag   = 1;  // 同步标签，包含要获取更新的消息类型和最后一条消息的 ID
   oneof          info {
-    // 具体的更新消息，不同类型的字段由服务端按 tag.type 填充。
-    ContactInfos contact_infos = 3;  // 联系人列表更新内容
-    Groups       groups        = 4;  // 群组列表更新内容
-    Messages     messages      = 5;  // 消息列表更新内容
-    FileEvents   file_events   = 6;  // 文件事件列表更新内容
+    // // 具体的更新消息，不同类型的字段由服务端按 tag.type 填充。
+    // ContactInfos contact_infos = 3;  // 联系人列表更新内容
+    // Groups       groups        = 4;  // 群组列表更新内容
+    // Messages     messages      = 5;  // 消息列表更新内容
+    // FileEvents   file_events   = 6;  // 文件事件列表更新内容
+    SyncContacts contacts = 2;  // 账号相关消息
   }
 }
 
@@ -689,6 +695,141 @@ message SyncReply{
     SyncReplyBody   body   = 2;  // 同步回复体，包含更新内容
   }
 }
+
+// ------------------------------ SyncContacts ------------------------------ //
+
+// 同步账号相关信息
+message SyncContacts {
+  repeated SyncContact contact = 1;
+}
+
+// 同步账号相关信息
+message SyncContact {
+  SyncSubTypeContact   sub_type = 1;
+  oneof info {
+    SyncContactUpdate  update   = 2;  // 个人资料更新
+    SyncContactRequest request  = 3;  // 发送了好友申请
+    SyncContactReply   reply    = 4;  // 回复了好友申请
+    SyncContactShip    ship     = 5;  // 好友关系变更
+  }
+}
+
+// 账号信息更新
+message SyncContactUpdate {
+  ContactInfo contact_info = 1;
+}
+
+// 好友申请
+message SyncContactRequest{
+  ContactInfo contact_request = 1;
+  string      time            = 2;
+  string      message         = 3;
+}
+
+// 好友申请回复
+message SyncContactReply{
+  ContactInfo contact_reply   = 1;
+  string      time            = 2;
+  string      message         = 3;
+}
+
+// 好友关系变更
+message SyncContactShip{
+  ContactInfo contact = 1;
+  // ...
+}
+
+// ------------------------------- SyncGroups ------------------------------- //
+
+// 同步群组相关信息
+message SyncGroups {
+  repeated SyncGroup group = 1;
+}
+
+// 同步群组相关信息
+message SyncGroup {
+  SyncSubTypeGroup   sub_type = 1;
+  oneof info {
+    SyncGroupUpdate  update   = 2;  // 群组资料更新
+    SyncGroupRequest request  = 3;  // 发送了群组申请
+    SyncGroupReply   reply    = 4;  // 回复了群组申请
+    SyncGroupShip    ship     = 5;  // 群组关系变更
+  }
+}
+
+// 群组信息更新
+message SyncGroupUpdate {
+  Group group = 1;
+}
+
+// 群组申请
+message SyncGroupRequest{
+  Group  group   = 1;
+  string time    = 2;
+  string message = 3;
+}
+
+// 群组申请回复
+message SyncGroupReply{
+  Group  group   = 1;
+  string time    = 2;
+  string message = 3;
+}
+
+// 群组关系变更
+message SyncGroupShip{
+  Group group = 1;
+  // ...
+}
+
+// ------------------------------ SyncMessages ------------------------------ //
+
+// 同步消息相关信息  // 包括文件
+message SyncMessages {
+  repeated SyncMessage message = 1;
+}
+
+// 同步消息相关信息
+message SyncMessage {
+  SyncSubTypeMessage   sub_type = 1;
+  // oneof info {
+  //   SyncMessageUpdate  update   = 2;  // 个人资料更新
+  //   SyncMessageRequest request  = 3;  // 发送了好友申请
+  //   SyncMessageReply   reply    = 4;  // 回复了好友申请
+  //   SyncMessageShip    ship     = 5;  // 好友关系变更
+  // }
+}
+
+// ------------------------------ SyncReplyBody ------------------------------ //
+
+// // 单条消息增量事件
+// message MessageEvent {
+//   string server_message_id   = 1;  // 服务端消息 ID
+//   string client_message_id   = 2;  // 客户端消息 ID
+//   string sender_account_id   = 3;  // 发送方账号 ID
+//   string receiver_account_id = 4;  // 接收方账号 ID
+//   string short_text          = 5;  // 文本消息内容
+//   string timestamp           = 6;  // 服务端落库时间（UTC 字符串）
+//   string event_sub_type      = 7;  // 事件子类型（如 MESSAGE_TEXT）
+// }
+//
+// // 消息增量列表
+// message Messages {
+//   repeated MessageEvent messages = 1;
+// }
+//
+// // 单条文件增量事件
+// message FileEvent {
+//   string         file_id        = 1;  // 文件 ID
+//   FileMetadata   file_metadata  = 2;  // 文件元数据
+//   FileStatusCode file_status    = 3;  // 文件状态
+//   string         event_sub_type = 4;  // 事件子类型（如 FILE_UPLOAD）
+// }
+//
+// // 文件增量列表
+// message FileEvents {
+//   repeated FileEvent file_events = 1;
+// }
 
 // ==============================  FileService  ============================== //
 
@@ -801,6 +942,7 @@ message FileDownloadHeader {
             Result              result        = 2;  // 状态信息字段
             FileMetadata        file_metadata = 3;  // 文件元数据
             string              message       = 4;  // 可选的错误消息字段
+            int64               offset        = 5;  // 文件大小异常时，告知客户端重置写入的位置
 }
 
 // =========================================================================== //

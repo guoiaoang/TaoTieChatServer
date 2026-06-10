@@ -2,36 +2,7 @@
 
 namespace Utils {
 
-// using std::string;
-// using std::stringstream;
-// using std::string_view;
-// using std::vector;
-// using std::tuple;
-// using std::format;
-// using std::chrono::zoned_time;
-// using std::chrono::current_zone;
-// using std::chrono::parse;
-// using std::filesystem::path;
-// using std::filesystem::current_path;
-// using std::filesystem::absolute;
-// using std::filesystem::create_directories;
-// using std::filesystem::filesystem_error;
-// using boost::uuids::random_generator;
-// using boost::uuids::string_generator;
-// using boost::uuids::uuid;
-// using time_point = std::chrono::system_clock::time_point;
-// using stm = std::tm;
 auto now = std::chrono::system_clock::now;
-
-// using ::TaoTieChat::Result;
-// using ::TaoTieChat::SuccessCode;
-// using ::TaoTieChat::ErrorCode;
-// using ::TaoTieChat::SignUpRequest;
-// using ::TaoTieChat::SignUpReply;
-// using ::TaoTieChat::AuthRequest;
-// using ::TaoTieChat::AuthReply;
-// using ::TaoTieChat::SignInRequest;
-// using ::TaoTieChat::SignInReply;
 
 // ============================== 路径相关 ============================== //
 
@@ -366,20 +337,16 @@ void log_grpc_context(::grpc::ServerContext* context) {
 }  // namespace Utils
 
 namespace Utils::Transform {
-// using std::map;
-// using ::TaoTieChat::ErrorCode;
-// using ::TaoTieChat::FileStatusCode;
-
 // ====================================================================== //
 
 // 获取错误信息
 string to_message(SuccessCode code) {
     static const std::map<SuccessCode, string> map_codes = {
-        {SuccessCode::SUCCESS       , "Success"},
-        {SuccessCode::STATUS_SUCCESS, "Success"},
-        {SuccessCode::STATUS_RUNNING, "Running"},
-        {SuccessCode::STATUS_ONLINE , "Online" },
-        {SuccessCode::SUCCESS_INIT  , "Success on Init" },
+        { SuccessCode::SUCCESS       , "Success"         },
+        { SuccessCode::STATUS_SUCCESS, "Success"         },
+        { SuccessCode::STATUS_RUNNING, "Running"         },
+        { SuccessCode::STATUS_ONLINE , "Online"          },
+        { SuccessCode::SUCCESS_INIT  , "Success on Init" },
     };
 
     if (map_codes.contains(code)) {
@@ -392,19 +359,19 @@ string to_message(SuccessCode code) {
 // 获取错误信息
 string to_message(ErrorCode code) {
     static const std::map<ErrorCode, string> map_codes = {
-        {ErrorCode::ERROR_UNSET, "Unset Error Code"       },
-        {ErrorCode::UNKNOWN    , "Unknown Error Code"     },
-        {ErrorCode::ERROR_INIT , "Error on Init"          },
-        {ErrorCode::ERROR_CONN , "Error on connect"       },
-        {ErrorCode::ERROR_RECV , "Error on Recv or Parse" },
-        {ErrorCode::ERROR_SEND , "Error on Send"          },
+        { ErrorCode::ERROR_UNSET, "Unset Error Code"       },
+        { ErrorCode::UNKNOWN    , "Unknown Error Code"     },
+        { ErrorCode::ERROR_INIT , "Error on Init"          },
+        { ErrorCode::ERROR_CONN , "Error on connect"       },
+        { ErrorCode::ERROR_RECV , "Error on Recv or Parse" },
+        { ErrorCode::ERROR_SEND , "Error on Send"          },
         // 数据库相关错误码
-        {ErrorCode::DB_QUERY        , "DB Query Failed"  },
-        {ErrorCode::DB_QUERY_EMPTY  , "DB Query Empty"   },
-        {ErrorCode::DB_EXECUTE      , "DB Execute Failed"},
-        {ErrorCode::DB_EXECUTE_EMPTY, "DB Execute Empty" },
-        {ErrorCode::DB_CHECK        , "DB Check Failed"  },
-        {ErrorCode::DB_CHECK_EMPTY  , "DB Check Empty"   },
+        { ErrorCode::DB_QUERY        , "DB Query Failed"   },
+        { ErrorCode::DB_QUERY_EMPTY  , "DB Query Empty"    },
+        { ErrorCode::DB_EXECUTE      , "DB Execute Failed" },
+        { ErrorCode::DB_EXECUTE_EMPTY, "DB Execute Empty"  },
+        { ErrorCode::DB_CHECK        , "DB Check Failed"   },
+        { ErrorCode::DB_CHECK_EMPTY  , "DB Check Empty"    },
     };
 
     if (map_codes.contains(code)) {
@@ -429,10 +396,16 @@ string to_string(const TaoTieChat::Result& result) {
     return "[UNDEFINED]";
 }
 
-string to_string(const SyncType& type) {
-    if(type == SyncType::CONTACTS) { return "CONTACTS"; }
-    if(type == SyncType::GROUPS  ) { return "GROUPS"  ; }
-    if(type == SyncType::MESSAGES) { return "MESSAGES"; }
+string to_string(const SyncType& sync_type) {
+    static map<SyncType, string> map_sync_types = {
+        { SyncType::SYNC_UNSET   ,  "SYNC_UNSET"    },
+        { SyncType::SYNC_CONTACTS,  "SYNC_CONTACTS" },
+        { SyncType::SYNC_GROUPS  ,  "SYNC_GROUPS"   },
+        { SyncType::SYNC_MESSAGES,  "SYNC_MESSAGES" },
+    };
+    if(map_sync_types.contains(sync_type)) {
+        return map_sync_types.at(sync_type);
+    }
     return string{};
 }
 
@@ -440,77 +413,112 @@ string to_string(const SyncType& type) {
 
 // int to enum code
 ErrorCode contact_status_to_error_code        (int result) {
-    static map<int, ErrorCode> status_error_code_map = {
-        {-1, ErrorCode::DB_RECORD_NOT_FOUND },  // 好友请求未找到
-        {0, ErrorCode::PENDING   },  // 存在好友申请
-        {1, ErrorCode::ASSOCIATED},  // 已经是好友了
-        {2, ErrorCode::REFUSED   },  // 好友请求被拒绝
-        {3, ErrorCode::BLOCKED   },  // 被对方拉黑了
+    static map<int, ErrorCode> map_status_error_codes = {
+        { -1, ErrorCode::DB_RECORD_NOT_FOUND },  // 好友请求未找到
+        {  0, ErrorCode::PENDING             },  // 存在好友申请
+        {  1, ErrorCode::ASSOCIATED          },  // 已经是好友了
+        {  2, ErrorCode::REFUSED             },  // 好友请求被拒绝
+        {  3, ErrorCode::BLOCKED             },  // 被对方拉黑了
     };
-    if(status_error_code_map.find(result) != status_error_code_map.end()) {
-        return status_error_code_map[result];
+    if(map_status_error_codes.contains(result)) {
+        return map_status_error_codes.at(result);
     }
     return ErrorCode::DEFAULT;
 }
+
 ErrorCode contact_request_status_to_error_code(int result) {
-    static map<int, ErrorCode> status_error_code_map = {
-        {-1, ErrorCode::DB_RECORD_NOT_FOUND },  // 好友请求未找到
-        {0, ErrorCode::PENDING },  // 好友请求待处理
-        {1, ErrorCode::ACCEPTED},  // 同意好友申请
-        {2, ErrorCode::REFUSED },  // 拒绝好友申请
-        {3, ErrorCode::IGNORED },  // 忽略好友申请（不回复，既不接受也不拒绝）
+    static map<int, ErrorCode> map_status_error_codes = {
+        { -1, ErrorCode::DB_RECORD_NOT_FOUND },  // 好友请求未找到
+        {  0, ErrorCode::PENDING             },  // 好友请求待处理
+        {  1, ErrorCode::ACCEPTED            },  // 同意好友申请
+        {  2, ErrorCode::REFUSED             },  // 拒绝好友申请
+        {  3, ErrorCode::IGNORED             },  // 忽略好友申请（不回复，既不接受也不拒绝）
     };
-    if(status_error_code_map.find(result) != status_error_code_map.end()) {
-        return status_error_code_map[result];
+    if(map_status_error_codes.contains(result)) {
+        return map_status_error_codes.at(result);
     }
     return ErrorCode::DEFAULT;
 }
+
 FileStatusCode file_status_to_file_status_code(int result) {
-    static map<int, FileStatusCode> status_code_map = {
+    static map<int, FileStatusCode> map_status_codes = {
         {0, FileStatusCode::FILE_STATUS_NONE      },  // 文件状态未知，或查询失败
         {1, FileStatusCode::FILE_STATUS_UPLOADED  },  // 文件已存在，无需上传
         {2, FileStatusCode::FILE_STATUS_UPLOADING },  // 文件不存在或未完成上传，需要上传
         {3, FileStatusCode::FILE_STATUS_NOT_FOUND },  // 文件不存在或已删除
     };
-    if(status_code_map.find(result) != status_code_map.end()) {
-        return status_code_map[result];
+    if(map_status_codes.contains(result)) {
+        return map_status_codes.at(result);
     }
     return FileStatusCode::FILE_STATUS_NONE;
 }
-int to_int(const ContactReplyCode& code       ) {
-    ;    if(code == ContactReplyCode::CONTACT_REPLY_ACCEPT) { return 1; }
-    else if(code == ContactReplyCode::CONTACT_REPLY_REJECT) { return 2; }
-    else if(code == ContactReplyCode::CONTACT_REPLY_IGNORE) { return 3; }
+
+int to_int(const ContactReplyCode& contact_reply_code) {
+    static map<ContactReplyCode, int> map_contact_reply_codes = {
+        { ContactReplyCode::CONTACT_REPLY_ACCEPT, 1 },
+        { ContactReplyCode::CONTACT_REPLY_REJECT, 2 },
+        { ContactReplyCode::CONTACT_REPLY_IGNORE, 3 },
+    };
+    if(map_contact_reply_codes.contains(contact_reply_code)) {
+        return map_contact_reply_codes.at(contact_reply_code);
+    }
     return -1;
 }
-int to_int(const FileStatusCode  & file_status) {
-    static map<FileStatusCode, int> file_status_code_map = {
-        {FileStatusCode::FILE_STATUS_NONE     , 0},
-        {FileStatusCode::FILE_STATUS_UPLOADED , 1},
-        {FileStatusCode::FILE_STATUS_UPLOADING, 2},
-        {FileStatusCode::FILE_STATUS_NOT_FOUND, 3},
+
+int to_int(const FileStatusCode  & file_status_code) {
+    static map<FileStatusCode, int> map_file_status_codes = {
+        { FileStatusCode::FILE_STATUS_NONE     , 0 },
+        { FileStatusCode::FILE_STATUS_UPLOADED , 1 },
+        { FileStatusCode::FILE_STATUS_UPLOADING, 2 },
+        { FileStatusCode::FILE_STATUS_NOT_FOUND, 3 },
     };
-    if(file_status_code_map.find(file_status) != file_status_code_map.end()) {
-        return file_status_code_map[file_status];
+    if(map_file_status_codes.contains(file_status_code)) {
+        return map_file_status_codes.at(file_status_code);
     }
     return 0;
 }
 
 int to_int(const PermissionCode& permission_code) {
-    static map<PermissionCode, int> permission_code_map = {
-        {PermissionCode::PERMISSION_NONE   , 0},  // 0000 0000 // 无权限
-        {PermissionCode::PERMISSION_CREATE , 1},  // 0000 0001 //
-        {PermissionCode::PERMISSION_READ   , 2},  // 0000 0010 //
-        {PermissionCode::PERMISSION_WRITE  , 4},  // 0000 0100 //
-        {PermissionCode::PERMISSION_MODIFY , 8},  // 0000 1000 //
-        {PermissionCode::PERMISSION_DELETE ,16},  // 0001 0000 //
-        {PermissionCode::PERMISSION_SHARE  ,32},  // 0010 0000 //
-        {PermissionCode::PERMISSION_EXECUTE,64},  // 0100 0000 //
+    static map<PermissionCode, int> map_permission_codes = {
+        { PermissionCode::PERMISSION_NONE   ,  0 },  // 0000 0000 // 无权限
+        { PermissionCode::PERMISSION_CREATE ,  1 },  // 0000 0001 //
+        { PermissionCode::PERMISSION_READ   ,  2 },  // 0000 0010 //
+        { PermissionCode::PERMISSION_WRITE  ,  4 },  // 0000 0100 //
+        { PermissionCode::PERMISSION_MODIFY ,  8 },  // 0000 1000 //
+        { PermissionCode::PERMISSION_DELETE , 16 },  // 0001 0000 //
+        { PermissionCode::PERMISSION_SHARE  , 32 },  // 0010 0000 //
+        { PermissionCode::PERMISSION_EXECUTE, 64 },  // 0100 0000 //
     };
-    if(permission_code_map.find(permission_code) != permission_code_map.end()) {
-        return permission_code_map[permission_code];
+    if(map_permission_codes.contains(permission_code)) {
+        return map_permission_codes.at(permission_code);
     }
     return 0;
+}
+
+int to_int(const SyncType& sync_type) {
+    static map<SyncType, int> map_sync_types = {
+        { SyncType::SYNC_UNSET   ,  1 },
+        { SyncType::SYNC_CONTACTS,  1 },
+        { SyncType::SYNC_GROUPS  ,  2 },
+        { SyncType::SYNC_MESSAGES,  3 },
+    };
+    if(map_sync_types.contains(sync_type)) {
+        return map_sync_types.at(sync_type);
+    }
+    return 0;
+}
+
+SyncType to_sync_type(const int& sync_type) {
+    static map<int, SyncType> map_sync_types = {
+        {  1, SyncType::SYNC_UNSET    },
+        {  1, SyncType::SYNC_CONTACTS },
+        {  2, SyncType::SYNC_GROUPS   },
+        {  3, SyncType::SYNC_MESSAGES },
+    };
+    if(map_sync_types.contains(sync_type)) {
+        return map_sync_types.at(sync_type);
+    }
+    return SyncType::SYNC_UNSET;
 }
 
 }  // namespace Utils::Transform

@@ -1,6 +1,6 @@
 {
     "[cpp]": {
-        "editor.defaultFormatter": "ms-vscode.cpptools",
+        "editor.defaultFormatter": "llvm-vs-code-extensions.vscode-clangd",
         "editor.formatOnSave": false,
         "editor.semanticHighlighting.enabled": true
     },
@@ -8,8 +8,9 @@
         "editor.defaultFormatter": "ms-vscode.cpptools",
         "editor.semanticHighlighting.enabled": true
     },
+    "C_Cpp.enhancedColorization": "disabled",
     "C_Cpp.intelliSenseEngine": "default",
-    "C_Cpp.formatting": "vcFormat",
+    "C_Cpp.formatting": "clangFormat",
     "editor.semanticHighlighting.enabled": true,
     "files.associations": {
         "*.ERROR": "log",
@@ -139,6 +140,23 @@
     },
     // "cmake.loggingLevel": "debug",
     "cmake.terminal.external": true,
+    // clang 自动填充设置
+    //   需要启用 `-DCMAKE_EXPORT_COMPILE_COMMANDS=ON` 命令
+    //   添加 `compile_commands.json` 文件生成目录
+    "clangd.arguments": [
+        "--compile-commands-dir=out/build/msvs2022x64_vcpkg_debug",
+        "--all-scopes-completion",
+        "--clang-tidy",
+        "--completion-style=bundled",
+        "--enable-config",
+        "--fallback-style=Google",
+        "--header-insertion-decorators",
+        "--log=verbose",
+        "--pch-storage=memory",
+        "--pretty",
+        "--ranking-model=decision_forest",
+        "-j=8"
+    ],
     // "terminal.integrated.profiles.windows": {
     //     "PowerShell": {
     //         "source": "PowerShell",
@@ -163,7 +181,8 @@
     //         "source": "Git Bash"
     //     }
     // },
+    "clangd.onConfigChanged": "restart",
     "commentTranslate.hover.enabled": true,
-    "workbench.tree.renderIndentGuides": "always",
-    "commentTranslate.multiLineMerge": true
+    "commentTranslate.multiLineMerge": true,
+    "workbench.tree.renderIndentGuides": "always"
 }

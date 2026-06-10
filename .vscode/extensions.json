@@ -1,6 +1,10 @@
 {
     "recommendations": [
+        // C++ 调试支持
         "ms-vscode.cpptools",
-        "ms-vscode.cmake-tools"
+        // cmake 项目解析
+        "ms-vscode.cmake-tools",
+        // Qt 调试可视化工具
+        "theqtcompany.qt-cpp"
     ]
 }

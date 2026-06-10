@@ -262,7 +262,7 @@ public:
         return success_status<Reply, Request>(stream, response.get(), SuccessCode::SUCCESS, std::format("File uploaded successfully for file_id: {}", file_id));
     }
 
-    // FileDownload 下载文件。
+    // FileDownload 下载文件。 // 获取用户头像时可能无身份但需要获取成功
     Status FileDownload(ServerContext* context, const FileDownloadRequest* request, ServerWriter<FileDownloadReply>* response) override {
         using Request = FileDownloadRequest;
         using Reply   = FileDownloadReply;
@@ -282,20 +282,23 @@ public:
         }
         const AuthRequest& request_user_auth = params->request_user_auth();
         // =========================== 执行操作 =========================== //
-        // 1. 身份合法验证
-        shared_ptr<AuthReply> auth_reply = db_sqlcipher.auth_check(std::make_shared<AuthRequest>(request_user_auth));
-        if(!auth_reply || !auth_reply->result().has_success_code()) {
-            return error_status<Reply, FileDownloadHeader>(response, header_reply.get(), header_reply->mutable_header(), ErrorCode::AUTH_FAILED,
-                std::format("Authentication failed: {}", auth_reply ? auth_reply->result().message() : "Unknown error"));
-        }
-        // 2. 文件读取权限验证
-        string account_id = auth_reply->account_id();
-        auto [success_check_permission, file_permission] = db_sqlcipher.get_file_permission_interface(account_id, file_id);
-        if(!success_check_permission) {
-            return error_status<Reply, FileDownloadHeader>(response, header_reply.get(), header_reply->mutable_header(), ErrorCode::DB_CHECK, std::format("Failed to check file read permission for account_id: {}, file_id: {}", account_id, file_id));
-        }
-        if(!(file_permission & Utils::Transform::to_int(PermissionCode::PERMISSION_READ))) {
-            return error_status<Reply, FileDownloadHeader>(response, header_reply.get(), header_reply->mutable_header(), ErrorCode::PERMISSION_DENIED, std::format("No read permission for account_id: {}, file_id: {}", account_id, file_id));
+        // 获取用户头像时可能无身份但需要获取成功
+        if(0) {
+            // 1. 身份合法验证
+            shared_ptr<AuthReply> auth_reply = db_sqlcipher.auth_check(std::make_shared<AuthRequest>(request_user_auth));
+            if(!auth_reply || !auth_reply->result().has_success_code()) {
+                return error_status<Reply, FileDownloadHeader>(response, header_reply.get(), header_reply->mutable_header(), ErrorCode::AUTH_FAILED,
+                    std::format("Authentication failed: {}", auth_reply ? auth_reply->result().message() : "Unknown error"));
+            }
+            // 2. 文件读取权限验证
+            string account_id = auth_reply->account_id();
+            auto [success_check_permission, file_permission] = db_sqlcipher.get_file_permission_interface(account_id, file_id);
+            if(!success_check_permission) {
+                return error_status<Reply, FileDownloadHeader>(response, header_reply.get(), header_reply->mutable_header(), ErrorCode::DB_CHECK, std::format("Failed to check file read permission for account_id: {}, file_id: {}", account_id, file_id));
+            }
+            if(!(file_permission & Utils::Transform::to_int(PermissionCode::PERMISSION_READ))) {
+                return error_status<Reply, FileDownloadHeader>(response, header_reply.get(), header_reply->mutable_header(), ErrorCode::PERMISSION_DENIED, std::format("No read permission for account_id: {}, file_id: {}", account_id, file_id));
+            }
         }
         // 3. 获取文件元数据
         auto [success_get_file_info, file_metadata, file_status] = db_sqlcipher.get_file_info_interface(file_id);
@@ -308,17 +311,15 @@ public:
         if(file_name.empty() || file_size < 0 || file_md5.empty()) {
             return error_status<Reply, FileDownloadHeader>(response, header_reply.get(), header_reply->mutable_header(), ErrorCode::DB_QUERY, std::format("Get file info for file_id: {} failed.", file_id));
         }
+        // 如果客户端发来的文件大小异常，那么就通知客户都重置位置
+        int64_t file_offset = request->downloaded_bytes();
+        file_offset = file_offset > file_size ? 0 : file_offset;
         // 4. 发送文件元数据给客户端，客户端可以根据这些信息准备接收文件内容
-        header_reply->mutable_header()->mutable_file_metadata()->set_file_name(file_name);
-        header_reply->mutable_header()->mutable_file_metadata()->set_file_size(file_size);
-        header_reply->mutable_header()->mutable_file_metadata()->set_file_md5 (file_md5 );
+        header_reply->mutable_header()->mutable_file_metadata()->set_file_name(file_name  );
+        header_reply->mutable_header()->mutable_file_metadata()->set_file_size(file_size  );
+        header_reply->mutable_header()->mutable_file_metadata()->set_file_md5 (file_md5   );
+        header_reply->mutable_header()->set_offset(file_offset);
         success_status<Reply, FileDownloadHeader>(response, header_reply.get(), header_reply->mutable_header(), SuccessCode::SUCCESS, std::format("Get file info for file_id: {} succeeded.", file_id));
-
-        // // 5. 获取文件路径
-        // auto [success_get_file_path, file_path] = db_sqlcipher.get_file_path_interface(file_md5);
-        // if(!success_get_file_path) {
-        //     return error_status<Reply, FileDownloadHeader>(response, header_reply.get(), header_reply->mutable_header(), ErrorCode::DB_QUERY, std::format("Get file path for file_id: {} failed.", file_id));
-        // }
 
         // 既然是依据 md5 存储的，就可以平级存储，也可以不存储文件路径
         auto file_path = Utils::storage_dir() / file_md5;
@@ -330,16 +331,10 @@ public:
         if(!ifs) {
             return error_status<Reply, FileDownloadHeader>(response, header_reply.get(), header_reply->mutable_header(), ErrorCode::FILE_READ_ERROR, std::format("Failed to open file for file_id: {}", file_id));
         }
+        // 跳转发送位置
+        ifs.seekg(file_offset);
         // 断点续传时根据客户端已接收的字节数定位到文件中对应的位置开始发送
-        int64_t bytes_read_offset = 0;
-        int64_t downloaded_bytes = request->downloaded_bytes();
-        if(downloaded_bytes >= 0) {
-            if(downloaded_bytes > file_size) {
-                return error_status<Reply, FileDownloadHeader>(response, header_reply.get(), header_reply->mutable_header(), ErrorCode::FILE_READ_ERROR, std::format("Downloaded bytes exceed or equal file size for file_id: {}", file_id));
-            }
-            ifs.seekg(downloaded_bytes);
-            bytes_read_offset = downloaded_bytes;
-        }
+        int64_t bytes_read_offset = file_offset;
         // 服务端一次发送数据过小会增加系统调用的开销，过大会导致内存占用过高。
         // 基于服务端内存、grpc 默认设置及网络设备支持的数据包默认大小，建议 64KB 到 1MB 之间，128KB 是一个相对合理的值。
         const size_t chunk_size = 128 * 1024;  // 128KB

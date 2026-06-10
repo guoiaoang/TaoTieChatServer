@@ -1,9 +1,6 @@
 {
     "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
     "builtin-baseline": "9842d45d567ba785627932cca506615b4e43ae6e",
-    "description": "Simple chat server based on the Google GRPC API.",
-    "name": "taotiechatserver",
-    "version-string": "0.1.0",
     "dependencies": [
         "benchmark",
         "boost-dll",
@@ -31,7 +28,8 @@
         { "name": "spdlog"       , "features": ["benchmark", "wchar"] },
         { "name": "sqlcipher"    , "platform": "windows & !uwp & !static", "features": [ "fts5", "geopoly", "json1", "tool" ] },
         { "name": "sqlitecpp"    , "features": ["sqlcipher", "sqlite"] },
-        { "name": "stduuid"      , "features": ["gsl-span" , "system-gen"] }
+        { "name": "stduuid"      , "features": ["gsl-span" , "system-gen"] },
+        { "name": "vulkan-loader", "platform": "windows", "features": [] }
     ],
     "features": {
         "vcpkg-qt": {
@@ -64,6 +62,7 @@
                 { "name": "stduuid"              , "version>=": "1.2.3"     },
                 { "name": "tinyxml2"             , "version>=": "11.0.0"    },
                 { "name": "tomlplusplus"         , "version>=": "3.4.0"     },
+                { "name": "vulkan-loader"        , "version>=": "1.4.341.0" },
                 { "name": "yaml-cpp"             , "version>=": "0.8.0"     }
             ]
         }

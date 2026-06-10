@@ -2,6 +2,35 @@
     "version": 10,
     "configurePresets": [
         {
+            "$comment" : [
+                "`ms-vscode.cpptools` 扩展的内联建议总是转圈圈，可改为 `llvm-vs-code-extensions.vscode-clangd` 扩展的内联建议。",
+                "启用 clang 的内联建议需要:",
+                "  1. 启用 clang 内联配置;",
+                "     * `...`",
+                "  2. 指定 `compile_commands.json` 文件的位置;",
+                "     * `${sourceDir}/.vscode/settings.json : {clangd.arguments:[--compile-commands-dir=out/build/msvs2022x64_vcpkg_debug]}`",
+                "  3. 生成 `compile_commands.json` 文件需要:",
+                "     1. 指定 `cmake ... -DCMAKE_EXPORT_COMPILE_COMMANDS=ON` 编译参数;",
+                "     2. 不能使用 Visual Studio 多配置生成器， `CMAKE_EXPORT_COMPILE_COMMANDS` 只对单配置生成器（例如 Ninja / Unix Makefiles）有效;",
+                "        * `cmake ... -G Ninja`",
+                "     3. `Ninja` 不支持  `architecture:x64` 参数;",
+                "        * `${sourceDir}/CMakePresets.json : {configurePresets:[{architecture:x64}]}`",
+                "  4. 需要手动添加编译环境:",
+                "     1. 需要指定 `Windows SDK` 目录，否则自动找到的 SDK 版本可能不正确",
+                "        * `...=C:/Windows Kits/10/{bin,Include,Lib}/10.0.26100.0/`",
+                "        * `PATH=.../bin/.../x64`",
+                "        * `INCLUDE=.../Include/.../ucrt;.../Include/.../um;.../Include/.../shared;.../Include/.../winrt`",
+                "        * `LIB=.../lib/.../ucrt/x64;.../lib/.../um/x64`",
+                "     2. 需要添加 `ucrtd.lib` 文件所在路径",
+                "        * `...=C:/app/dev/msvs/2022/enterprise/VC/Tools/MSVC/14.44.35207`",
+                "        * `PATH=.../bin/HostX64/x64`",
+                "        * `INCLUDE=.../include`",
+                "        * `LIB=.../lib/x64`",
+                "     3. 指定编译器路径;",
+                "        * `...=C:/app/dev/msvs/2022/enterprise/VC/Tools/MSVC/14.44.35207/bin/HostX64/x64`",
+                "        * `cacheVariables:{CMAKE_C_COMPILER:.../cl.exe,CMAKE_CXX_COMPILER:.../cl.exe}`",
+                "注意：引用环境变量时 `$env{XXX}`/`$penv{XXX}` 中的 `env`/`penv` 均区分大小写且均需要全部小写，否则传递给 `cmake` 时仅会被认为是字符串而无法解析。"
+            ],
             "name": "base-msvs2022-vcpkg",
             "condition":
             {
@@ -10,18 +39,47 @@
                 "rhs": "Windows"
             },
             "hidden": true,
-            "generator": "Visual Studio 17 2022",
+            "generator": "Ninja",
             "binaryDir": "${sourceDir}/out/build/${presetName}",
             "installDir": "${sourceDir}/out/install/${presetName}",
             "toolchainFile": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
-            "architecture": "x64",
+            "cmakeExecutable": "C:/app/dev/Qt/Tools/CMake_64/bin/cmake.exe",
+            "toolset": {
+                "strategy": "external",
+                "value": "C:/app/dev/Qt/Tools/CMake_64"
+            },
             "environment": {
-                "VCPKG_ROOT": "C:/app/dev/vcpkg"
+                "QT_ROOT": "C:/app/dev/Qt/6.10.3/msvc2022_64",
+                "QT_ENV_PATH": "$env{QT_ROOT}/bin;$penv{PATH}",
+                "VCINSTALLDIR": "C:/app/dev/msvs/2022/enterprise/VC/",
+                "VCPKG_ROOT": "C:/app/dev/vcpkg",
+                "WINDOWS_SDK_ROOT"     : "C:/Windows Kits/10",
+                "WINDOWS_SDK_VERSION"  : "10.0.26100.0",
+                "BUILD_ARCH":"x64",
+                "WINDOWS_SDK_BIN_PATH"    : "$env{WINDOWS_SDK_ROOT}/bin/$env{WINDOWS_SDK_VERSION}/",
+                "WINDOWS_SDK_INCLUDE_PATH": "$env{WINDOWS_SDK_ROOT}/Include/$env{WINDOWS_SDK_VERSION}",
+                "WINDOWS_SDK_LIB_PATH"    : "$env{WINDOWS_SDK_ROOT}/Lib/$env{WINDOWS_SDK_VERSION}",
+                "WINDOWS_SDK_ENV_PATH"    : "$env{WINDOWS_SDK_BIN_PATH}/$env{BUILD_ARCH}",
+                "WINDOWS_SDK_ENV_INCLUDE" : "$env{WINDOWS_SDK_INCLUDE_PATH}/ucrt;$env{WINDOWS_SDK_INCLUDE_PATH}/um;$env{WINDOWS_SDK_INCLUDE_PATH}/shared;$env{WINDOWS_SDK_INCLUDE_PATH}/winrt",
+                "WINDOWS_SDK_ENV_LIB"     : "$env{WINDOWS_SDK_LIB_PATH}/ucrt/$env{BUILD_ARCH};$env{WINDOWS_SDK_LIB_PATH}/um/$env{BUILD_ARCH}",
+                "WINDOWS_VC_ROOT" :"C:/app/dev/msvs/2022/enterprise/VC/Tools/MSVC/14.44.35207",
+                "WINDOWS_VC_ENV_PATH"    : "$env{WINDOWS_VC_ROOT}/bin/HostX64/$env{BUILD_ARCH}",
+                "WINDOWS_VC_ENV_INCLUDE" : "$env{WINDOWS_VC_ROOT}/include",
+                "WINDOWS_VC_ENV_LIB"     : "$env{WINDOWS_VC_ROOT}/lib/$env{BUILD_ARCH}",
+                "PATH"   : "$env{WINDOWS_VC_ENV_PATH};$env{WINDOWS_SDK_ENV_PATH};C:/app/dev/ninja;$env{QT_ENV_PATH};$penv{PATH}",
+                "INCLUDE": "$env{WINDOWS_VC_ENV_INCLUDE};$env{WINDOWS_SDK_ENV_INCLUDE};$penv{INCLUDE}",
+                "LIB"    : "$env{WINDOWS_VC_ENV_LIB};$env{WINDOWS_SDK_ENV_LIB};$penv{LIB}",
+                "HTTP_PROXY": "http://127.0.0.1:2080",
+                "HTTPS_PROXY": "http://127.0.0.1:2080"
             },
             "cacheVariables": {
                 "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/${presetName}",
                 "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
-                "BUILD_TESTING": "ON"
+                "CMAKE_PREFIX_PATH": "C:/app/dev/Qt/6.10.3/msvc2022_64/",
+                "BUILD_TESTING": "ON",
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+                "CMAKE_CXX_COMPILER": "$env{WINDOWS_VC_ENV_PATH}/cl.exe",
+                "CMAKE_MAKE_PROGRAM": "C:/app/dev/ninja/ninja.exe"
             }
         },
         {
@@ -54,9 +112,9 @@
                 "PKG_CONFIG_EXECUTABLE": "/home/linuxbrew/.linuxbrew/bin/pkg-config",
                 "BUILD_TESTING": "ON",
                 "VCPKG_INSTALL_OPTIONS": "--allow-unsupported",
-                "CMAKE_MAKE_PROGRAM": "/home/linuxbrew/.linuxbrew/bin/ninja"
-                ,
-                    "VCPKG_OVERLAY_PORTS": "${sourceDir}/vcpkg-overlays"
+                "CMAKE_MAKE_PROGRAM": "/home/linuxbrew/.linuxbrew/bin/ninja",
+                "VCPKG_OVERLAY_PORTS": "${sourceDir}/vcpkg-overlays",
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
             }
         },
         {

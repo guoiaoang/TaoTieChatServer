@@ -105,16 +105,18 @@ string to_message(SuccessCode code);
 string to_message(ErrorCode   code);
 // ====================================================================== //
 string to_string(const Result  & result);
-string to_string(const SyncType& type  );
+string to_string(const SyncType& sync_type);
 // ====================================================================== //
 // int to enum code
 ErrorCode      contact_status_to_error_code        (int result);
 ErrorCode      contact_request_status_to_error_code(int result);
 FileStatusCode file_status_to_file_status_code     (int result);
 // enum code to int
-int to_int(const ContactReplyCode& code       );
-int to_int(const FileStatusCode  & file_status);
+int to_int(const ContactReplyCode& code           );
+int to_int(const FileStatusCode  & file_status    );
 int to_int(const PermissionCode  & permission_code);
+int to_int(const SyncType        & sync_type      );
+SyncType to_sync_type(const int& sync_type);
 
 }  // namespace Utils::Transform
 
