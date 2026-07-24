@@ -144,7 +144,7 @@
     //   需要启用 `-DCMAKE_EXPORT_COMPILE_COMMANDS=ON` 命令
     //   添加 `compile_commands.json` 文件生成目录
     "clangd.arguments": [
-        "--compile-commands-dir=out/build/msvs2022x64_vcpkg_debug",
+        "--compile-commands-dir=out/build/Debug",
         "--all-scopes-completion",
         "--clang-tidy",
         "--completion-style=bundled",

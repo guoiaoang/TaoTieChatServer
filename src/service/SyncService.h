@@ -8,6 +8,230 @@ using Utils::log_grpc_context;
 using Utils::set_success;
 using Utils::set_error;
 
+// 线程安全的 Stream 写封装
+class SyncStreamWriter {
+public:
+    explicit SyncStreamWriter(ServerReaderWriter<SyncReply, SyncRequest>* stream)
+        : stream_(stream) {}
+
+    bool Write(const SyncReply& reply) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return stream_->Write(reply);
+    }
+
+private:
+    ServerReaderWriter<SyncReply, SyncRequest>* stream_;
+    std::mutex mutex_;
+};
+
+// 支持多设备同时在线的 Session 管理器
+class SessionManager {
+public:
+    static SessionManager& instance() {
+        static SessionManager mgr;
+        return mgr;
+    }
+
+    /**
+     * @brief 注册 Session
+     * @param account_id 账号 ID
+     * @param device_id 设备唯一标识（如 "iPhone_15_PRO", "PC_WIN11"，若无可以传空或自动生成）
+     * @param writer 线程安全的流写入器
+     */
+    void register_session(const std::string& account_id, const std::string& device_id, std::shared_ptr<SyncStreamWriter> writer) {
+        std::lock_guard<std::mutex> lock(mutex_);
+
+        // 如果该账号还没有任何设备在线，会自动创建对应的 map
+        sessions_[account_id][device_id] = writer;
+
+        LOG_INFO(std::format("User {} logged in from device {}. Total active devices: {}",
+                 account_id, device_id, sessions_[account_id].size()));
+    }
+
+    /**
+     * @brief 注销指定设备的 Session
+     * @param account_id 账号 ID
+     * @param device_id 设备唯一标识
+     */
+    void unregister_session(const std::string& account_id, const std::string& device_id) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        auto user_it = sessions_.find(account_id);
+        if (user_it != sessions_.end()) {
+            user_it->second.erase(device_id);
+            LOG_INFO(std::format("User {} logged out device {}.", account_id, device_id));
+
+            // 如果该用户已经没有在线设备，清理该用户的 Key，释放内存
+            if (user_it->second.empty()) {
+                sessions_.erase(user_it);
+                LOG_INFO(std::format("User {} has no active devices left, session cleared.", account_id));
+            }
+        }
+    }
+
+    /**
+     * @brief 主动推送消息给该账号下的所有在线设备
+     * @param account_id 接收方账号 ID
+     * @param push_reply 推送的 Protobuf 结构体
+     * @return int 成功推送到的设备数量
+     */
+    int push_to_user(const std::string& account_id, const SyncReply& push_reply) {
+        std::vector<std::shared_ptr<SyncStreamWriter>> target_writers;
+
+        // 1. 在锁保护下快速复制出当前所有在线设备的 writer 句柄，避免加锁执行网络 IO 导致阻塞
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            auto user_it = sessions_.find(account_id);
+            if (user_it != sessions_.end()) {
+                target_writers.reserve(user_it->second.size());
+                for (const auto& [dev_id, writer] : user_it->second) {
+                    target_writers.push_back(writer);
+                }
+            }
+        }
+
+        // 2. 锁外并行或依次推送给各个设备
+        int success_count = 0;
+        for (const auto& writer : target_writers) {
+            if (writer && writer->Write(push_reply)) {
+                success_count++;
+            }
+        }
+
+        return success_count; // 返回成功送达的设备数（如果为 0 则代表全端离线）
+    }
+
+private:
+    SessionManager() = default;
+    ~SessionManager() = default;
+    SessionManager(const SessionManager&) = delete;
+    SessionManager& operator=(const SessionManager&) = delete;
+
+    // 数据结构：account_id -> { device_id -> SyncStreamWriter }
+    std::unordered_map<std::string, std::unordered_map<std::string, std::shared_ptr<SyncStreamWriter>>> sessions_;
+    std::mutex mutex_;
+};
+
+void sync_sercice_realtime_sync(const PtsData&pts_data) {
+    if (pts_data.account_id  .empty() ||
+        pts_data.pts_type    .empty() ||
+        pts_data.pts_sub_type.empty() ||
+        pts_data.pts_value    <= 0    ||
+        pts_data.pts_event_id.empty()
+    ) {
+        return;
+    }
+
+    SyncReply body_reply;
+    auto* body = body_reply.mutable_body();
+    auto* tag  = body->mutable_tag();
+    // tag->CopyFrom(request_tag);
+    tag->set_type(Utils::Transform::to_sync_type(pts_data.pts_type));
+    tag->set_id_start(pts_data.pts_value);
+    tag->set_id_end(pts_data.pts_value);
+    tag->set_count(0);  // 需要读取实际写入的数量而非查询到的数量
+    // int64_t count = 0;  // 记录实际添加的记录数
+
+    LOG_TRACE(std::format("sync pts_type : {}, pts_value : {}", pts_data.pts_type, pts_data.pts_value));
+
+    DBSQLCipher& db_sqlcipher = DBSQLCipher::instance();
+    auto get_string = [](const SqlRow&row, const std::string&key, const std::string default_value = std::string{}) -> string {
+        if(row.contains(key)) { return to_string(row.at(key)); }
+        return default_value;
+    };
+    auto get_first_string = [](const SqlRows&rows, const std::string&key, const std::string default_value = std::string{}) -> string {
+        for(auto&row:rows) {
+            if(row.contains(key)) {
+                return to_string(row.at(key));
+            }
+        }
+        return default_value;
+    };
+
+    do {
+        auto&self_account_id = pts_data.account_id  ;
+        auto pts_type        = Utils::Transform::to_sync_type(pts_data.pts_type);
+        auto&pts_sub_type    = pts_data.pts_sub_type;
+        auto&pts_value       = pts_data.pts_value   ;
+        auto&pts_event_id    = pts_data.pts_event_id;
+        // 如果用户请求获取账号相关的更新，则从查找到的记录里面提取并填充
+        if (pts_type == SyncType::SYNC_CONTACTS) {
+            // 添加数据 // 有效才允许添加
+            // auto* sync_contact = body->mutable_contacts()->add_contact();
+            ::TaoTieChat::SyncContact  __contact;
+            ::TaoTieChat::SyncContact* sync_contact = &__contact;
+            // 按照子类型填充数据
+            if(pts_sub_type == "FRIEND_REQUEST") {
+                sync_contact->set_sub_type(::TaoTieChat::SyncSubTypeContact::SYNC_CONTACT_REUQEST);
+                // 他人向自己发来的好友申请
+                // 获取请求内容(friend_requests)及好友 ID 和资料()进行填充返回
+                auto contact_request = sync_contact->mutable_request();
+                // 获取申请记录
+                auto[success_request_info, rows_request_info] = db_sqlcipher.get_friend_request_info_by_event_id(pts_event_id);
+                if(!success_request_info) { continue; }
+                // 获取发起者的账号 ID
+                auto request_account_id = get_first_string(rows_request_info, "request_account_id");
+                if(request_account_id.empty()) { continue; }
+                // 校验接收者为自己
+                auto target_account_id = get_first_string(rows_request_info, "target_account_id");
+                if(target_account_id != self_account_id) { continue; }
+                // 填充发送时间
+                auto request_timestamp = get_first_string(rows_request_info, "timestamp");
+                if(!request_timestamp.empty()) { contact_request->set_time(request_timestamp); }
+                // 填充附加消息
+                auto request_message = get_first_string(rows_request_info, "message");
+                if(!request_message.empty()) { contact_request->set_message(request_message); }
+                // 获取发起者的个人资料
+                auto [ok_user_info, request_contact_info] = db_sqlcipher.get_active_account_info_interface(request_account_id);
+                if (ok_user_info) {
+                    contact_request->mutable_contact_request()->CopyFrom(request_contact_info);  // 复制账号资料
+                    // 获取是否已经是好友关系  // 多端登陆时可能已经从其他端同意
+                    auto [ok_friend_info, friend_info] = db_sqlcipher.get_friend_info_interface(self_account_id, request_account_id);
+                    if (ok_friend_info && friend_info) {
+                        // 是好友关系时才复制好友关系的内容
+                        contact_request->mutable_contact_request()->mutable_friend_info()->CopyFrom(*friend_info.get());
+                    }
+                }
+            }
+            else if(pts_sub_type == "FRIEND_ACCEPT") {
+                // 同意他人好友申请时更新好友列表即可，不需要广播允许状态
+
+                // 自己加他人为好友时，他人的回复
+                sync_contact->set_sub_type(::TaoTieChat::SyncSubTypeContact::SYNC_CONTACT_REPLY);
+                auto contact_reply = sync_contact->mutable_reply();
+                // 获取申请记录
+                auto[success_request_info, rows_request_info] = db_sqlcipher.get_friend_request_info_by_event_id(pts_event_id);
+                if(!success_request_info) { continue; }
+                // 校验申请发送者为自己
+                auto request_account_id = get_first_string(rows_request_info, "request_account_id");
+                if(request_account_id != self_account_id) { continue; }  // 不是自己的申请  // TODO:同意好友申请时的回复
+                // 获取接收者账号
+                auto target_account_id = get_first_string(rows_request_info, "target_account_id");
+                if(request_account_id.empty()) { continue; }
+                // 填充发送时间
+                auto request_timestamp = get_first_string(rows_request_info, "timestamp");
+                if(!request_timestamp.empty()) { contact_reply->set_time(request_timestamp); }
+                // 填充附加消息
+                auto request_message = get_first_string(rows_request_info, "message");
+                if(!request_message.empty()) { contact_reply->set_message(request_message); }
+                // 获取被添加者的个人资料
+                auto [ok_user_info, reply_contact_info] = db_sqlcipher.get_active_account_info_interface(target_account_id);
+                if (ok_user_info) {
+                    contact_reply->mutable_contact_reply()->CopyFrom(reply_contact_info);  // 复制账号资料
+                    // 获取是否已经是好友关系  // 多端登陆时可能已经从其他端同意
+                    auto [ok_friend_info, friend_info] = db_sqlcipher.get_friend_info_interface(self_account_id, request_account_id);
+                    if (ok_friend_info && friend_info) {
+                        contact_reply->mutable_contact_reply()->mutable_friend_info()->CopyFrom(*friend_info.get());
+                    }
+                }
+            }
+            // 成功才填充
+            auto contact = body->mutable_contacts()->add_contact();
+            contact->CopyFrom(__contact);
+        }
+    } while(false);
+    SessionManager::instance().push_to_user(pts_data.account_id, body_reply);
+}
+
 // 服务端实现
 class SyncServiceImpl final : public SyncService::Service {
 public:
@@ -43,6 +267,22 @@ public:
         // =========================== 执行操作 =========================== //
         DBSQLCipher& db_sqlcipher = DBSQLCipher::instance();
 
+        auto safe_writer = std::make_shared<SyncStreamWriter>(stream);
+
+        std::string current_account_id;
+        std::string current_device_id; // 标识当前客户端设备
+
+        // RAII 清理器：无论异常退出、客户端断开还是函数返回，都会自动卸载该设备的 Session
+        struct SessionCleaner {
+            std::string& account_id;
+            std::string& device_id;
+            ~SessionCleaner() {
+                if (!account_id.empty() && !device_id.empty()) {
+                    SessionManager::instance().unregister_session(account_id, device_id);
+                }
+            }
+        } cleaner{current_account_id, current_device_id};
+
         Request request;
         while(stream->Read(&request)) {
             // 发送鉴权结果 header
@@ -53,7 +293,7 @@ public:
             // 获取身份校验信息
             if(!request.has_request_user_auth()) {
                 set_error(header->mutable_result(), ErrorCode::AUTH_INFO_NONE);
-                stream->Write(header_reply);
+                safe_writer->Write(header_reply);
                 continue;
             }
 
@@ -62,7 +302,7 @@ public:
             auto auth_reply = db_sqlcipher.auth_check(auth_request);
             if(!auth_reply || !auth_reply->result().has_success_code()) {
                 set_error(header->mutable_result(), ErrorCode::AUTH_FAILED);
-                stream->Write(header_reply);
+                safe_writer->Write(header_reply);
                 continue;
             }
 
@@ -70,12 +310,31 @@ public:
             auto self_account_id = auth_reply->account_id();
             if(self_account_id.empty()) {
                 set_error(header->mutable_result(), ErrorCode::AUTH_FAILED);
-                stream->Write(header_reply);
+                safe_writer->Write(header_reply);
                 continue;
             }
 
+            // --- 2. 获取设备 ID 并注册多端 Session ---
+            if (current_account_id.empty()) {
+                current_account_id = self_account_id;
+
+                current_device_id = context->peer() + "_" + std::to_string(reinterpret_cast<uint64_t>(stream));
+                // // 优先获取客户端 Request 中携带的 device_id，若没有则可以自动生成或使用 context Peer 信息
+                // if (request.has_device_id() && !request.device_id().empty()) {
+                //     current_device_id = request.device_id();
+                // } else {
+                //     // 回退逻辑：用客户端 peer 地址加随机/指针生成唯一标识
+                //     current_device_id = context->peer() + "_" + std::to_string(reinterpret_cast<uint64_t>(stream));
+                // }
+
+                // 注册到 SessionManager
+                SessionManager::instance().register_session(current_account_id, current_device_id, safe_writer);
+            }
+
             set_success(header->mutable_result(), SuccessCode::SUCCESS);
-            stream->Write(header_reply);
+            if (!safe_writer->Write(header_reply)) {
+                break; // 客户端断开连接
+            }
 
             // =========================================================== //
 
@@ -254,7 +513,11 @@ public:
 
                 tag->set_count(count);
                 // 将记录发送给客户端  // TODO:客户端意外断开会导致服务端崩溃
-                stream->Write(body_reply);
+                // 发送增量数据
+                if (!safe_writer->Write(body_reply)) {
+                    // 如果写入失败，说明客户端异常断开，退出循环
+                    return Status::OK;
+                }
             }
         }
         return Status::OK;

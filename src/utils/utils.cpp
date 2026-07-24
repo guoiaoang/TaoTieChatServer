@@ -1,4 +1,5 @@
 #include "utils.h"
+#include "platform_path.h"
 
 namespace Utils {
 
@@ -15,9 +16,10 @@ path app_dir() {
 }
 
 path home_dir() {
-    // 防止路径冲突，改为放在父目录下的 data 文件夹中
-    // Linux 下生成的可执行文件没有后缀名
-    return app_dir() / "TaoTie" / "Chat" / "Server";
+    return std::filesystem::path(PathEx::PlatformPath::getDocumentsDir()) / "TaoTie" / "Chat" / "Server";
+    // // 防止路径冲突，改为放在父目录下的 data 文件夹中
+    // // Linux 下生成的可执行文件没有后缀名
+    // return app_dir() / "TaoTie" / "Chat" / "Server";
 }
 
 path data_dir() {
@@ -517,6 +519,19 @@ SyncType to_sync_type(const int& sync_type) {
     };
     if(map_sync_types.contains(sync_type)) {
         return map_sync_types.at(sync_type);
+    }
+    return SyncType::SYNC_UNSET;
+}
+
+SyncType to_sync_type(const string& str_sync_type) {
+    static map<const string, SyncType> map_sync_types = {
+        { "SYNC_UNSET"   , SyncType::SYNC_UNSET    },
+        { "SYNC_CONTACTS", SyncType::SYNC_CONTACTS },
+        { "SYNC_GROUPS"  , SyncType::SYNC_GROUPS   },
+        { "SYNC_MESSAGES", SyncType::SYNC_MESSAGES },
+    };
+    if(map_sync_types.contains(str_sync_type)) {
+        return map_sync_types.at(str_sync_type);
     }
     return SyncType::SYNC_UNSET;
 }

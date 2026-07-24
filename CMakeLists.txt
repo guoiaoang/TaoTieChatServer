@@ -220,6 +220,7 @@ elseif(ENABLE_SERVER)
         ${PROJECT_DIR_SOURCE}/utils/utils.h
         ${PROJECT_DIR_SOURCE}/utils/utils.cpp
         ${PROJECT_DIR_SOURCE}/utils/ThreadPool.h
+        ${PROJECT_DIR_SOURCE}/utils/platform_path.h
         ${PROJECT_DIR_SOURCE}/data/DBSQLCipherCmds.h
         ${PROJECT_DIR_SOURCE}/data/DBSQLCipher.h
         ${PROJECT_DIR_SOURCE}/service/AsyncCall.h

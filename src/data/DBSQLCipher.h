@@ -31,6 +31,18 @@ using Utils::Transform::to_string;
 
 // =========================================================================== //
 
+// SyncService 服务中向客户端发送实时更新消息
+struct PtsData{
+    const string  account_id;
+    const string  pts_type;
+    const string  pts_sub_type;
+    const int64_t pts_value;
+    const string  pts_event_id;
+};
+void sync_sercice_realtime_sync(const PtsData&pts_data);
+
+// =========================================================================== //
+
 // 定义一个简单的多类型值容器（C++17）
 using SqlValue  = variant<int, int64_t, double, string, nullptr_t>;  // 0,1,2,3 分别表示 int、double、string、null
 using SqlParams = map<string, SqlValue>;  // 参数其实不必保留顺序
@@ -1042,7 +1054,7 @@ public:
         return error_reply<Reply>(reply, ErrorCode::DEFAULT, std::format("Default error."));
     }
 
-    // 添加为联系人的申请
+    // 添加为联系人的回复
     shared_ptr<ContactReplyReply> contact_reply(shared_ptr<ContactReplyRequest> request) {
         using Request  = ContactReplyRequest;
         using Reply    = ContactReplyReply;
@@ -2873,6 +2885,15 @@ private:
         if(!sql_insert_result || !sql_insert_result->done) {
             return {false, false};
         }
+        // 向客户端推送消息
+        PtsData pts_data{
+            .account_id   = account_id  ,
+            .pts_type     = pts_type    ,
+            .pts_sub_type = pts_sub_type,
+            .pts_value    = pts_value   ,
+            .pts_event_id = pts_event_id,
+        };
+        sync_sercice_realtime_sync(pts_data);
         return {true, true};
     }
 

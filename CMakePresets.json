@@ -1,37 +1,64 @@
 {
+    "$comment" : [
+        "1.`ms-vscode.cpptools` 扩展的内联建议总是转圈圈，可改为 `llvm-vs-code-extensions.vscode-clangd` 扩展的内联建议。",
+        "  启用 clang 的内联建议需要:",
+        "    1. 启用 clang 内联配置;",
+        "       * `...`",
+        "    2. 指定 `compile_commands.json` 文件的位置;",
+        "       * `${sourceDir}/.vscode/settings.json : {clangd.arguments:[--compile-commands-dir=out/build/base-windows-debug]}`",
+        "    3. 生成 `compile_commands.json` 文件需要:",
+        "       1. 指定 `cmake ... -DCMAKE_EXPORT_COMPILE_COMMANDS=ON` 编译参数;",
+        "       2. 不能使用 Visual Studio 多配置生成器， `CMAKE_EXPORT_COMPILE_COMMANDS` 只对单配置生成器（例如 Ninja / Unix Makefiles）有效;",
+        "          * `cmake ... -G Ninja`",
+        "       3. `Ninja` 不支持  `architecture:x64` 参数;",
+        "          * `${sourceDir}/CMakePresets.json : {configurePresets:[{architecture:x64}]}`",
+        "    4. 需要手动添加编译环境:",
+        "       1. 需要指定 `Windows SDK` 目录，否则自动找到的 SDK 版本可能不正确",
+        "          * `...=C:/Windows Kits/10/{bin,Include,Lib}/10.0.26100.0/`",
+        "          * `PATH=.../bin/.../x64`",
+        "          * `INCLUDE=.../Include/.../ucrt;.../Include/.../um;.../Include/.../shared;.../Include/.../winrt`",
+        "          * `LIB=.../lib/.../ucrt/x64;.../lib/.../um/x64`",
+        "       2. 需要添加 `ucrtd.lib` 文件所在路径",
+        "          * `...=C:/app/dev/msvs/2022/enterprise/VC/Tools/MSVC/14.44.35207`",
+        "          * `PATH=.../bin/HostX64/x64`",
+        "          * `INCLUDE=.../include`",
+        "          * `LIB=.../lib/x64`",
+        "       3. 指定编译器路径;",
+        "          * `...=C:/app/dev/msvs/2022/enterprise/VC/Tools/MSVC/14.44.35207/bin/HostX64/x64`",
+        "          * `cacheVariables:{CMAKE_C_COMPILER:.../cl.exe,CMAKE_CXX_COMPILER:.../cl.exe}`",
+        "2.引用环境变量时 `$env{XXX}`/`$penv{XXX}` 中的 `env`/`penv` 均区分大小写且均需要全部小写，否则传递给 `cmake` 时仅会被认为是字符串而无法解析。",
+        "3.cmake presets 配置使用数组表示多继承，多继承时从前向后应用，不同配置之间相同名称会被覆盖。",
+        "4.查看preset列表：",
+        "  configure    : cmake --list-presets",
+        "  build&install: cmake --build --list-presets",
+        "  test         : ctest --list-presets",
+        "  pack         : cpack --list-presets"
+    ],
     "version": 10,
     "configurePresets": [
         {
-            "$comment" : [
-                "`ms-vscode.cpptools` 扩展的内联建议总是转圈圈，可改为 `llvm-vs-code-extensions.vscode-clangd` 扩展的内联建议。",
-                "启用 clang 的内联建议需要:",
-                "  1. 启用 clang 内联配置;",
-                "     * `...`",
-                "  2. 指定 `compile_commands.json` 文件的位置;",
-                "     * `${sourceDir}/.vscode/settings.json : {clangd.arguments:[--compile-commands-dir=out/build/msvs2022x64_vcpkg_debug]}`",
-                "  3. 生成 `compile_commands.json` 文件需要:",
-                "     1. 指定 `cmake ... -DCMAKE_EXPORT_COMPILE_COMMANDS=ON` 编译参数;",
-                "     2. 不能使用 Visual Studio 多配置生成器， `CMAKE_EXPORT_COMPILE_COMMANDS` 只对单配置生成器（例如 Ninja / Unix Makefiles）有效;",
-                "        * `cmake ... -G Ninja`",
-                "     3. `Ninja` 不支持  `architecture:x64` 参数;",
-                "        * `${sourceDir}/CMakePresets.json : {configurePresets:[{architecture:x64}]}`",
-                "  4. 需要手动添加编译环境:",
-                "     1. 需要指定 `Windows SDK` 目录，否则自动找到的 SDK 版本可能不正确",
-                "        * `...=C:/Windows Kits/10/{bin,Include,Lib}/10.0.26100.0/`",
-                "        * `PATH=.../bin/.../x64`",
-                "        * `INCLUDE=.../Include/.../ucrt;.../Include/.../um;.../Include/.../shared;.../Include/.../winrt`",
-                "        * `LIB=.../lib/.../ucrt/x64;.../lib/.../um/x64`",
-                "     2. 需要添加 `ucrtd.lib` 文件所在路径",
-                "        * `...=C:/app/dev/msvs/2022/enterprise/VC/Tools/MSVC/14.44.35207`",
-                "        * `PATH=.../bin/HostX64/x64`",
-                "        * `INCLUDE=.../include`",
-                "        * `LIB=.../lib/x64`",
-                "     3. 指定编译器路径;",
-                "        * `...=C:/app/dev/msvs/2022/enterprise/VC/Tools/MSVC/14.44.35207/bin/HostX64/x64`",
-                "        * `cacheVariables:{CMAKE_C_COMPILER:.../cl.exe,CMAKE_CXX_COMPILER:.../cl.exe}`",
-                "注意：引用环境变量时 `$env{XXX}`/`$penv{XXX}` 中的 `env`/`penv` 均区分大小写且均需要全部小写，否则传递给 `cmake` 时仅会被认为是字符串而无法解析。"
-            ],
-            "name": "base-msvs2022-vcpkg",
+            "name": "base-configure",
+            "displayName": "configure for all",
+            "description": "configure for all",
+            "hidden": true,
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/out/build/$env{BUILD_TYPE}",
+            "installDir": "${sourceDir}/out/install/$env{BUILD_TYPE}",
+            "toolchainFile": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
+            "cacheVariables": {
+                "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/$env{BUILD_TYPE}",
+                "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
+                "CMAKE_PREFIX_PATH": "$env{QT_ROOT}",
+                "BUILD_TESTING": "ON",
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+                "CPACK_PACKAGE_FILE_NAME": "$env{PROJECT_NAME}",
+                "CMAKE_BUILD_TYPE": "$env{BUILD_TYPE}"
+            }
+        },
+        {
+            "name": "base-windows-configure-define",
+            "displayName": "configure define",
+            "description": "configure define for windows",
             "condition":
             {
                 "type": "equals",
@@ -39,51 +66,88 @@
                 "rhs": "Windows"
             },
             "hidden": true,
-            "generator": "Ninja",
-            "binaryDir": "${sourceDir}/out/build/${presetName}",
-            "installDir": "${sourceDir}/out/install/${presetName}",
-            "toolchainFile": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
-            "cmakeExecutable": "C:/app/dev/Qt/Tools/CMake_64/bin/cmake.exe",
-            "toolset": {
-                "strategy": "external",
-                "value": "C:/app/dev/Qt/Tools/CMake_64"
-            },
+            "cmakeExecutable": "$env{CMAKE_ROOT}/bin/cmake.exe",
             "environment": {
-                "QT_ROOT": "C:/app/dev/Qt/6.10.3/msvc2022_64",
-                "QT_ENV_PATH": "$env{QT_ROOT}/bin;$penv{PATH}",
-                "VCINSTALLDIR": "C:/app/dev/msvs/2022/enterprise/VC/",
-                "VCPKG_ROOT": "C:/app/dev/vcpkg",
-                "WINDOWS_SDK_ROOT"     : "C:/Windows Kits/10",
-                "WINDOWS_SDK_VERSION"  : "10.0.26100.0",
-                "BUILD_ARCH":"x64",
-                "WINDOWS_SDK_BIN_PATH"    : "$env{WINDOWS_SDK_ROOT}/bin/$env{WINDOWS_SDK_VERSION}/",
-                "WINDOWS_SDK_INCLUDE_PATH": "$env{WINDOWS_SDK_ROOT}/Include/$env{WINDOWS_SDK_VERSION}",
-                "WINDOWS_SDK_LIB_PATH"    : "$env{WINDOWS_SDK_ROOT}/Lib/$env{WINDOWS_SDK_VERSION}",
-                "WINDOWS_SDK_ENV_PATH"    : "$env{WINDOWS_SDK_BIN_PATH}/$env{BUILD_ARCH}",
-                "WINDOWS_SDK_ENV_INCLUDE" : "$env{WINDOWS_SDK_INCLUDE_PATH}/ucrt;$env{WINDOWS_SDK_INCLUDE_PATH}/um;$env{WINDOWS_SDK_INCLUDE_PATH}/shared;$env{WINDOWS_SDK_INCLUDE_PATH}/winrt",
-                "WINDOWS_SDK_ENV_LIB"     : "$env{WINDOWS_SDK_LIB_PATH}/ucrt/$env{BUILD_ARCH};$env{WINDOWS_SDK_LIB_PATH}/um/$env{BUILD_ARCH}",
-                "WINDOWS_VC_ROOT" :"C:/app/dev/msvs/2022/enterprise/VC/Tools/MSVC/14.44.35207",
-                "WINDOWS_VC_ENV_PATH"    : "$env{WINDOWS_VC_ROOT}/bin/HostX64/$env{BUILD_ARCH}",
-                "WINDOWS_VC_ENV_INCLUDE" : "$env{WINDOWS_VC_ROOT}/include",
-                "WINDOWS_VC_ENV_LIB"     : "$env{WINDOWS_VC_ROOT}/lib/$env{BUILD_ARCH}",
-                "PATH"   : "$env{WINDOWS_VC_ENV_PATH};$env{WINDOWS_SDK_ENV_PATH};C:/app/dev/ninja;$env{QT_ENV_PATH};$penv{PATH}",
-                "INCLUDE": "$env{WINDOWS_VC_ENV_INCLUDE};$env{WINDOWS_SDK_ENV_INCLUDE};$penv{INCLUDE}",
-                "LIB"    : "$env{WINDOWS_VC_ENV_LIB};$env{WINDOWS_SDK_ENV_LIB};$penv{LIB}",
-                "HTTP_PROXY": "http://127.0.0.1:2080",
-                "HTTPS_PROXY": "http://127.0.0.1:2080"
+                "QT_ENV_PATH"     : "$env{QT_ROOT}/bin;$penv{PATH}",
+                "SDK_BIN_PATH"    : "$env{SDK_ROOT}/bin/$env{SDK_VERSION}/",
+                "SDK_INCLUDE_PATH": "$env{SDK_ROOT}/Include/$env{SDK_VERSION}",
+                "SDK_LIB_PATH"    : "$env{SDK_ROOT}/Lib/$env{SDK_VERSION}",
+                "SDK_ENV_PATH"    : "$env{SDK_BIN_PATH}/$env{BUILD_ARCH}",
+                "SDK_ENV_INCLUDE" : "$env{SDK_INCLUDE_PATH}/ucrt;$env{SDK_INCLUDE_PATH}/um;$env{SDK_INCLUDE_PATH}/shared;$env{SDK_INCLUDE_PATH}/winrt",
+                "SDK_ENV_LIB"     : "$env{SDK_LIB_PATH}/ucrt/$env{BUILD_ARCH};$env{SDK_LIB_PATH}/um/$env{BUILD_ARCH}",
+                "VC_ROOT"         : "$env{VCINSTALLDIR}/Tools/MSVC/14.44.35207",
+                "VC_ENV_PATH"     : "$env{VC_ROOT}/bin/HostX64/$env{BUILD_ARCH}",
+                "VC_ENV_INCLUDE"  : "$env{VC_ROOT}/include",
+                "VC_ENV_LIB"      : "$env{VC_ROOT}/lib/$env{BUILD_ARCH}",
+                "PATH"   : "$env{VC_ENV_PATH};$env{SDK_ENV_PATH};C:/app/dev/ninja;$env{QT_ENV_PATH};$penv{PATH}",
+                "INCLUDE": "$env{VC_ENV_INCLUDE};$env{SDK_ENV_INCLUDE};$penv{INCLUDE}",
+                "LIB"    : "$env{VC_ENV_LIB};$env{SDK_ENV_LIB};$penv{LIB}"
             },
             "cacheVariables": {
-                "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/${presetName}",
-                "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
-                "CMAKE_PREFIX_PATH": "C:/app/dev/Qt/6.10.3/msvc2022_64/",
-                "BUILD_TESTING": "ON",
-                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
-                "CMAKE_CXX_COMPILER": "$env{WINDOWS_VC_ENV_PATH}/cl.exe",
-                "CMAKE_MAKE_PROGRAM": "C:/app/dev/ninja/ninja.exe"
+                "CMAKE_CXX_COMPILER": "$env{VC_ENV_PATH}/cl.exe",
+                "CMAKE_MAKE_PROGRAM": "$env{NINJA_ROOT}/ninja.exe"
             }
         },
         {
-            "name": "base-linux-ninja-vcpkg",
+            "name": "base-windows-configure-example",
+            "displayName": "configure path and debug",
+            "description": "configure path and set debug model for windows x64",
+            "condition": {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Windows"
+            },
+            "hidden": true,
+            "environment": {
+                "NINJA_ROOT"  : "C:/app/dev/ninja",
+                "VCPKG_ROOT"  : "C:/app/dev/vcpkg",
+                "CMAKE_ROOT"  : "C:/app/dev/Qt/Tools/CMake_64",
+                "QT_ROOT"     : "C:/app/dev/Qt/6.10.3/msvc2022_64",
+                "VCINSTALLDIR": "C:/app/dev/msvs/2022/enterprise/VC",
+                "SDK_ROOT"    : "C:/app/dev/WindowsKits/10",
+                "VC_VERSION"  : "14.44.35207",
+                "SDK_VERSION" : "10.0.26100.0",
+                "BUILD_ARCH"  : "x64",
+                "HTTP_PROXY"  : "http://127.0.0.1:2080",
+                "HTTPS_PROXY" : "http://127.0.0.1:2080",
+                "PROJECT_NAME": "TaoTieChatServer",
+                "BUILD_TYPE"  : "Debug"
+            }
+        },
+        {
+            "name": "base-windows-debug-configure",
+            "displayName": "debug configure",
+            "description": "debug configure for windows",
+            "condition":
+            {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Windows"
+            },
+            "inherits": ["base-configure", "base-windows-configure-define", "base-windows-configure-example"],
+            "environment": {
+                "BUILD_TYPE"  : "Debug"
+            }
+        },
+        {
+            "name": "base-windows-release-configure",
+            "displayName": "release configure",
+            "description": "release configure for windows",
+            "condition":
+            {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Windows"
+            },
+            "inherits": ["base-configure", "base-windows-configure-define", "base-windows-configure-example"],
+            "environment": {
+                "BUILD_TYPE"  : "Release"
+            }
+        },
+        {
+            "name": "base-linux-configure",
+            "displayName": "configure define",
+            "description": "configure define for linux",
             "condition":
             {
                 "type": "equals",
@@ -91,10 +155,6 @@
                 "rhs": "Linux"
             },
             "hidden": true,
-            "generator": "Ninja",
-            "binaryDir": "${sourceDir}/out/build/${presetName}",
-            "installDir": "${sourceDir}/out/install/${presetName}",
-            "toolchainFile": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
             "environment": {
                 "VCPKG_ROOT": "$penv{HOME}/workspace/tools/vcpkg",
                 "PATH": "/home/linuxbrew/.linuxbrew/opt/binutils/bin:/home/linuxbrew/.linuxbrew/bin:$penv{PATH}",
@@ -102,198 +162,155 @@
                 "CXX": "/home/linuxbrew/.linuxbrew/bin/g++-15",
                 "PKG_CONFIG_PATH": "/home/linuxbrew/.linuxbrew/opt/sqlcipher/lib/pkgconfig:$penv{PKG_CONFIG_PATH}",
                 "COMPILER_PATH": "/home/linuxbrew/.linuxbrew/opt/binutils/bin:$penv{COMPILER_PATH}",
-                "LD_LIBRARY_PATH": "/home/linuxbrew/.linuxbrew/lib/gcc/current:/home/linuxbrew/.linuxbrew/lib:$penv{LD_LIBRARY_PATH}"
+                "LD_LIBRARY_PATH": "/home/linuxbrew/.linuxbrew/lib/gcc/current:/home/linuxbrew/.linuxbrew/lib:$penv{LD_LIBRARY_PATH}",
+                "PROJECT_NAME": "TaoTieChatServer"
             },
             "cacheVariables": {
-                "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/${presetName}",
-                "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
                 "CMAKE_C_COMPILER": "/home/linuxbrew/.linuxbrew/bin/gcc-15",
                 "CMAKE_CXX_COMPILER": "/home/linuxbrew/.linuxbrew/bin/g++-15",
                 "PKG_CONFIG_EXECUTABLE": "/home/linuxbrew/.linuxbrew/bin/pkg-config",
-                "BUILD_TESTING": "ON",
                 "VCPKG_INSTALL_OPTIONS": "--allow-unsupported",
                 "CMAKE_MAKE_PROGRAM": "/home/linuxbrew/.linuxbrew/bin/ninja",
-                "VCPKG_OVERLAY_PORTS": "${sourceDir}/vcpkg-overlays",
-                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+                "VCPKG_OVERLAY_PORTS": "${sourceDir}/vcpkg-overlays"
             }
         },
         {
-            "name": "msvs2022x64_vcpkg_debug",
-            "condition":
-            {
-                "type": "equals",
-                "lhs": "${hostSystemName}",
-                "rhs": "Windows"
-            },
-            "inherits": "base-msvs2022-vcpkg",
-            "displayName": "msvs2022debug-config",
-            "description": "msvs2022debug",
-            "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Debug",
-                "CPACK_PACKAGE_FILE_NAME": "TaoTieChatServer"
-            }
-        },
-        {
-            "name": "msvs2022x64_vcpkg_release",
-            "condition":
-            {
-                "type": "equals",
-                "lhs": "${hostSystemName}",
-                "rhs": "Windows"
-            },
-            "inherits": "base-msvs2022-vcpkg",
-            "displayName": "msvs2022release-config",
-            "description": "msvs2022release",
-            "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Release",
-                "CPACK_PACKAGE_FILE_NAME": "TaoTieChatServer"
-            }
-        },
-        {
-            "name": "linux_ninja_vcpkg_debug",
+            "name": "base-linux-debug-configure",
+            "displayName": "debug configure",
+            "description": "debug configure for linux",
             "condition":
             {
                 "type": "equals",
                 "lhs": "${hostSystemName}",
                 "rhs": "Linux"
             },
-            "inherits": "base-linux-ninja-vcpkg",
-            "displayName": "linux ninja + vcpkg for debug config",
-            "description": "linux ninja + vcpkg for debug",
-            "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Debug",
-                "CPACK_PACKAGE_FILE_NAME": "TaoTieChatServer"
-            }
+            "inherits": ["base-configure", "base-linux-configure"]
         },
         {
-            "name": "linux_ninja_vcpkg_release",
+            "name": "base-linux-release-configure",
+            "displayName": "release configure",
+            "description": "release configure for linux",
             "condition":
             {
                 "type": "equals",
                 "lhs": "${hostSystemName}",
                 "rhs": "Linux"
             },
-            "inherits": "base-linux-ninja-vcpkg",
-            "displayName": "linux ninja + vcpkg for release config",
-            "description": "linux ninja + vcpkg for release",
-            "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Release",
-                "CPACK_PACKAGE_FILE_NAME": "TaoTieChatServer"
-            }
+            "inherits": ["base-configure", "base-linux-configure"]
         }
     ],
     "buildPresets": [
         {
-            "name": "msvs2022x64_vcpkg_debug",
+            "name": "base-windows-debug-build",
+            "displayName": "debug build",
+            "description": "debug build for windows",
             "condition":
             {
                 "type": "equals",
                 "lhs": "${hostSystemName}",
                 "rhs": "Windows"
             },
-            "description": "msvs2022debug-build",
-            "displayName": "msvs2022debug",
-            "configurePreset": "msvs2022x64_vcpkg_debug",
+            "configurePreset": "base-windows-debug-configure",
             "configuration": "Debug"
         },
         {
-            "name": "msvs2022x64_vcpkg_release",
+            "name": "base-windows-release-build",
+            "displayName": "release build",
+            "description": "release build for windows",
             "condition":
             {
                 "type": "equals",
                 "lhs": "${hostSystemName}",
                 "rhs": "Windows"
             },
-            "description": "msvs2022release-build",
-            "displayName": "msvs2022release",
-            "configurePreset": "msvs2022x64_vcpkg_release",
+            "configurePreset": "base-windows-release-configure",
             "configuration": "Release"
         },
         {
-            "name": "msvs2022x64_vcpkg_debug_install",
+            "name": "base-windows-debug-install",
+            "displayName": "debug install",
+            "description": "debug install for windows",
             "condition":
             {
                 "type": "equals",
                 "lhs": "${hostSystemName}",
                 "rhs": "Windows"
             },
-            "description": "Install build artifacts for debug",
-            "displayName": "Install target for debug",
-            "configurePreset": "msvs2022x64_vcpkg_debug",
+            "configurePreset": "base-windows-debug-configure",
             "configuration": "Debug",
             "targets": [
                 "install"
             ]
         },
         {
-            "name": "msvs2022x64_vcpkg_release_install",
+            "name": "base-windows-release-install",
+            "displayName": "release install",
+            "description": "release install for windows",
             "condition":
             {
                 "type": "equals",
                 "lhs": "${hostSystemName}",
                 "rhs": "Windows"
             },
-            "description": "Install build artifacts for release",
-            "displayName": "Install target for release",
-            "configurePreset": "msvs2022x64_vcpkg_release",
+            "configurePreset": "base-windows-release-configure",
             "configuration": "Release",
             "targets": [
                 "install"
             ]
         },
         {
-            "name": "linux_ninja_vcpkg_debug",
+            "name": "base-linux-debug-build",
+            "displayName": "debug build",
+            "description": "debug build for linux",
             "condition":
             {
                 "type": "equals",
                 "lhs": "${hostSystemName}",
                 "rhs": "Linux"
             },
-            "description": "linux ninja + vcpkg for debug build",
-            "displayName": "linux ninja + vcpkg for debug",
-            "configurePreset": "linux_ninja_vcpkg_debug",
+            "configurePreset": "base-linux-debug-configure",
             "configuration": "Debug"
         },
         {
-            "name": "linux_ninja_vcpkg_release",
+            "name": "base-linux-release-build",
+            "displayName": "release build",
+            "description": "release build for linux",
             "condition":
             {
                 "type": "equals",
                 "lhs": "${hostSystemName}",
                 "rhs": "Linux"
             },
-            "description": "linux ninja + vcpkg for release build",
-            "displayName": "linux ninja + vcpkg for release",
-            "configurePreset": "linux_ninja_vcpkg_release",
+            "configurePreset": "base-linux-release-configure",
             "configuration": "Release"
         },
         {
-            "name": "linux_ninja_vcpkg_debug_install",
+            "name": "base-linux-debug-install",
+            "displayName": "debug install",
+            "description": "debug install for windows",
             "condition":
             {
                 "type": "equals",
                 "lhs": "${hostSystemName}",
                 "rhs": "Linux"
             },
-            "description": "Install build artifacts for debug",
-            "displayName": "Install target for debug",
-            "configurePreset": "linux_ninja_vcpkg_debug",
+            "configurePreset": "base-linux-debug-configure",
             "configuration": "Debug",
             "targets": [
                 "install"
             ]
         },
         {
-            "name": "linux_ninja_vcpkg_release_install",
+            "name": "base-linux-release-install",
+            "displayName": "release install",
+            "description": "release install for windows",
             "condition":
             {
                 "type": "equals",
                 "lhs": "${hostSystemName}",
                 "rhs": "Linux"
             },
-            "description": "Install build artifacts for release",
-            "displayName": "Install target for release",
-            "configurePreset": "linux_ninja_vcpkg_release",
+            "configurePreset": "base-linux-release-configure",
             "configuration": "Release",
             "targets": [
                 "install"
@@ -302,16 +319,16 @@
     ],
     "testPresets": [
         {
-            "name": "msvs2022x64_vcpkg_debug",
+            "name": "base-windows-debug-test",
+            "displayName": "debug test ",
+            "description": "debug test for windows",
             "condition":
             {
                 "type": "equals",
                 "lhs": "${hostSystemName}",
                 "rhs": "Windows"
             },
-            "displayName": "CTest Debug",
-            "description": "Run tests in debug build tree",
-            "configurePreset": "msvs2022x64_vcpkg_debug",
+            "configurePreset": "base-windows-debug-configure",
             "configuration": "Debug",
             "execution": {
                 "stopOnFailure": false,
@@ -319,16 +336,16 @@
             }
         },
         {
-            "name": "msvs2022x64_vcpkg_release",
+            "name": "base-windows-release-test",
+            "displayName": "release test",
+            "description": "release test for windows",
             "condition":
             {
                 "type": "equals",
                 "lhs": "${hostSystemName}",
                 "rhs": "Windows"
             },
-            "displayName": "CTest Release",
-            "description": "Run tests in release build tree",
-            "configurePreset": "msvs2022x64_vcpkg_release",
+            "configurePreset": "base-windows-release-configure",
             "configuration": "Release",
             "execution": {
                 "stopOnFailure": false,
@@ -336,16 +353,16 @@
             }
         },
         {
-            "name": "linux_ninja_vcpkg_debug",
+            "name": "base-linux-debug-test",
+            "displayName": "debug test ",
+            "description": "debug test for linux",
             "condition":
             {
                 "type": "equals",
                 "lhs": "${hostSystemName}",
                 "rhs": "Linux"
             },
-            "displayName": "CTest Debug",
-            "description": "Run tests in debug build tree",
-            "configurePreset": "linux_ninja_vcpkg_debug",
+            "configurePreset": "base-linux-debug-configure",
             "configuration": "Debug",
             "execution": {
                 "stopOnFailure": false,
@@ -353,16 +370,16 @@
             }
         },
         {
-            "name": "linux_ninja_vcpkg_release",
+            "name": "base-linux-release-test",
+            "displayName": "release test ",
+            "description": "release test for linux",
             "condition":
             {
                 "type": "equals",
                 "lhs": "${hostSystemName}",
                 "rhs": "Linux"
             },
-            "displayName": "CTest Release",
-            "description": "Run tests in release build tree",
-            "configurePreset": "linux_ninja_vcpkg_release",
+            "configurePreset": "base-linux-release-configure",
             "configuration": "Release",
             "execution": {
                 "stopOnFailure": false,
@@ -372,16 +389,16 @@
     ],
     "packagePresets": [
         {
-            "name": "msvs2022x64_vcpkg_debug",
+            "name": "base-windows-debug-package",
+            "displayName": "debug package",
+            "description": "debug package for windows",
             "condition":
             {
                 "type": "equals",
                 "lhs": "${hostSystemName}",
                 "rhs": "Windows"
             },
-            "description": "msvs2022debug-package",
-            "displayName": "msvs2022debug",
-            "configurePreset": "msvs2022x64_vcpkg_debug",
+            "configurePreset": "base-windows-debug-configure",
             "configurations": [
                 "Debug"
             ],
@@ -390,16 +407,16 @@
             ]
         },
         {
-            "name": "msvs2022x64_vcpkg_release",
+            "name": "base-windows-release-package",
+            "displayName": "release package",
+            "description": "release package for windows",
             "condition":
             {
                 "type": "equals",
                 "lhs": "${hostSystemName}",
                 "rhs": "Windows"
             },
-            "description": "msvs2022release-package",
-            "displayName": "msvs2022release",
-            "configurePreset": "msvs2022x64_vcpkg_release",
+            "configurePreset": "base-windows-release-configure",
             "configurations": [
                 "Release"
             ],
@@ -411,7 +428,9 @@
             "$comment": [
                 "需要的依赖未完整包含，因此暂不启用。"
             ],
-            "name": "linux_ninja_vcpkg_debug",
+            "name": "base-linux-debug-package",
+            "displayName": "debug package",
+            "description": "debug package for linux",
             "hidden": true,
             "condition":
             {
@@ -419,9 +438,7 @@
                 "lhs": "${hostSystemName}",
                 "rhs": "Linux"
             },
-            "description": "linux ninja + vcpkg for debug package",
-            "displayName": "linux ninja + vcpkg for debug",
-            "configurePreset": "linux_ninja_vcpkg_debug",
+            "configurePreset": "base-linux-debug-configure",
             "configurations": [
                 "Debug"
             ],
@@ -433,7 +450,9 @@
             "$comment": [
                 "需要的依赖未完整包含，因此暂不启用。"
             ],
-            "name": "linux_ninja_vcpkg_release",
+            "name": "base-linux-release-package",
+            "displayName": "release package",
+            "description": "release package for linux",
             "hidden": true,
             "condition":
             {
@@ -441,9 +460,7 @@
                 "lhs": "${hostSystemName}",
                 "rhs": "Linux"
             },
-            "description": "linux ninja + vcpkg for release package",
-            "displayName": "linux ninja + vcpkg for release",
-            "configurePreset": "linux_ninja_vcpkg_release",
+            "configurePreset": "base-linux-release-configure",
             "configurations": [
                 "Release"
             ],
@@ -454,86 +471,56 @@
     ],
     "workflowPresets": [
         {
-            "name": "msvs2022x64_vcpkg_debug",
-            "description": "msvs2022debug-workflow",
-            "displayName": "msvs2022debug",
+            "name": "base-windows-debug-workflow",
+            "displayName": "debug workflow",
+            "description": "debug workflow for windows",
             "steps": [
                 {
                     "type": "configure",
-                    "name": "msvs2022x64_vcpkg_debug"
+                    "name": "base-windows-debug-configure"
                 },
                 {
                     "type": "build",
-                    "name": "msvs2022x64_vcpkg_debug"
+                    "name": "base-windows-debug-build"
                 },
                 {
                     "type": "test",
-                    "name": "msvs2022x64_vcpkg_debug"
+                    "name": "base-windows-debug-test"
                 },
                 {
                     "type": "build",
-                    "name": "msvs2022x64_vcpkg_debug_install"
+                    "name": "base-windows-debug-install"
                 },
                 {
                     "type": "package",
-                    "name": "msvs2022x64_vcpkg_debug"
+                    "name": "base-windows-debug-package"
                 }
             ]
         },
         {
-            "name": "msvs2022x64_vcpkg_release",
-            "description": "msvs2022release-workflow",
-            "displayName": "msvs2022release",
+            "name": "base-windows-release-workflow",
+            "displayName": "release workflow",
+            "description": "release workflow for windows",
             "steps": [
                 {
                     "type": "configure",
-                    "name": "msvs2022x64_vcpkg_release"
+                    "name": "base-windows-release-configure"
                 },
                 {
                     "type": "build",
-                    "name": "msvs2022x64_vcpkg_release"
+                    "name": "base-windows-release-build"
                 },
                 {
                     "type": "test",
-                    "name": "msvs2022x64_vcpkg_release"
+                    "name": "base-windows-release-test"
                 },
                 {
                     "type": "build",
-                    "name": "msvs2022x64_vcpkg_release_install"
+                    "name": "base-windows-release-install"
                 },
                 {
                     "type": "package",
-                    "name": "msvs2022x64_vcpkg_release"
-                }
-            ]
-        },
-        {
-            "$comment": [
-                "需要的依赖未完整包含，因此暂不启用。"
-            ],
-            "name": "linux_ninja_vcpkg_debug",
-            "description": "linux ninja + vcpkg for debug workflow",
-            "displayName": "linux ninja + vcpkg for debug",
-            "steps": [
-                {
-                    "type": "configure",
-                    "name": "linux_ninja_vcpkg_debug"
-                },
-                {
-                    "type": "build",
-                    "name": "linux_ninja_vcpkg_debug"
-                },
-                {
-                    "type": "test",
-                    "name": "linux_ninja_vcpkg_debug"
-                },
-                {
-                    "type": "build",
-                    "name": "linux_ninja_vcpkg_debug_install"
-                },
-                {
-                    "type": "package",
-                    "name": "linux_ninja_vcpkg_debug"
+                    "name": "base-windows-release-package"
                 }
             ]
         },
@@ -541,29 +528,59 @@
             "$comment": [
                 "需要的依赖未完整包含，因此暂不启用。"
             ],
-            "name": "linux_ninja_vcpkg_release",
-            "description": "linux ninja + vcpkg for release workflow",
-            "displayName": "linux ninja + vcpkg for release",
+            "name": "base-linux-debug-workflow",
+            "displayName": "debug workflow",
+            "description": "debug workflow for linux",
             "steps": [
                 {
                     "type": "configure",
-                    "name": "linux_ninja_vcpkg_release"
+                    "name": "base-linux-debug-configure"
                 },
                 {
                     "type": "build",
-                    "name": "linux_ninja_vcpkg_release"
+                    "name": "base-linux-debug-build"
                 },
                 {
                     "type": "test",
-                    "name": "linux_ninja_vcpkg_release"
+                    "name": "base-linux-debug-test"
                 },
                 {
                     "type": "build",
-                    "name": "linux_ninja_vcpkg_release_install"
+                    "name": "base-linux-debug-install"
                 },
                 {
                     "type": "package",
-                    "name": "linux_ninja_vcpkg_release"
+                    "name": "base-linux-debug-package"
+                }
+            ]
+        },
+        {
+            "$comment": [
+                "需要的依赖未完整包含，因此暂不启用。"
+            ],
+            "name": "base-linux-release-workflow",
+            "displayName": "release workflow",
+            "description": "release workflow for linux",
+            "steps": [
+                {
+                    "type": "configure",
+                    "name": "base-linux-release-configure"
+                },
+                {
+                    "type": "build",
+                    "name": "base-linux-release-build"
+                },
+                {
+                    "type": "test",
+                    "name": "base-linux-release-test"
+                },
+                {
+                    "type": "build",
+                    "name": "base-linux-release-install"
+                },
+                {
+                    "type": "package",
+                    "name": "base-linux-release-package"
                 }
             ]
         }

@@ -117,6 +117,7 @@ int to_int(const FileStatusCode  & file_status    );
 int to_int(const PermissionCode  & permission_code);
 int to_int(const SyncType        & sync_type      );
 SyncType to_sync_type(const int& sync_type);
+SyncType to_sync_type(const string& str_sync_type);
 
 }  // namespace Utils::Transform
 
