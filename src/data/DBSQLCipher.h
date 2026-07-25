@@ -39,7 +39,7 @@ struct PtsData{
     const int64_t pts_value;
     const string  pts_event_id;
 };
-void sync_sercice_realtime_sync(const PtsData&pts_data);
+void sync_service_realtime_sync(const PtsData&pts_data);
 
 // =========================================================================== //
 
@@ -2602,6 +2602,7 @@ private:
         }
         // 通知双方联系人列表已更新（CONTACTS pts）
         // 各自事件 ID 使用“对端账号 ID”，便于客户端按对端刷新联系人卡片。
+        // 表 "friends" 目前没有 event_id 字段
         write_pts_event(request_account_id, Utils::Transform::to_string(SyncType::SYNC_CONTACTS), "FRIEND_ACCEPT", target_account_id);
         write_pts_event(target_account_id,  Utils::Transform::to_string(SyncType::SYNC_CONTACTS), "FRIEND_ACCEPT", request_account_id);
         return {true, true};
@@ -2893,7 +2894,7 @@ private:
             .pts_value    = pts_value   ,
             .pts_event_id = pts_event_id,
         };
-        sync_sercice_realtime_sync(pts_data);
+        sync_service_realtime_sync(pts_data);
         return {true, true};
     }
 

@@ -111,7 +111,7 @@ private:
     std::mutex mutex_;
 };
 
-void sync_sercice_realtime_sync(const PtsData&pts_data) {
+void sync_service_realtime_sync(const PtsData&pts_data) {
     if (pts_data.account_id  .empty() ||
         pts_data.pts_type    .empty() ||
         pts_data.pts_sub_type.empty() ||
@@ -135,12 +135,12 @@ void sync_sercice_realtime_sync(const PtsData&pts_data) {
 
     DBSQLCipher& db_sqlcipher = DBSQLCipher::instance();
     auto get_string = [](const SqlRow&row, const std::string&key, const std::string default_value = std::string{}) -> string {
-        if(row.contains(key)) { return to_string(row.at(key)); }
+        if (row.contains(key)) { return to_string(row.at(key)); }
         return default_value;
     };
     auto get_first_string = [](const SqlRows&rows, const std::string&key, const std::string default_value = std::string{}) -> string {
         for(auto&row:rows) {
-            if(row.contains(key)) {
+            if (row.contains(key)) {
                 return to_string(row.at(key));
             }
         }
@@ -160,26 +160,26 @@ void sync_sercice_realtime_sync(const PtsData&pts_data) {
             ::TaoTieChat::SyncContact  __contact;
             ::TaoTieChat::SyncContact* sync_contact = &__contact;
             // 按照子类型填充数据
-            if(pts_sub_type == "FRIEND_REQUEST") {
+            if (pts_sub_type == "FRIEND_REQUEST") {
                 sync_contact->set_sub_type(::TaoTieChat::SyncSubTypeContact::SYNC_CONTACT_REUQEST);
                 // 他人向自己发来的好友申请
                 // 获取请求内容(friend_requests)及好友 ID 和资料()进行填充返回
                 auto contact_request = sync_contact->mutable_request();
                 // 获取申请记录
                 auto[success_request_info, rows_request_info] = db_sqlcipher.get_friend_request_info_by_event_id(pts_event_id);
-                if(!success_request_info) { continue; }
+                if (!success_request_info) { continue; }
                 // 获取发起者的账号 ID
                 auto request_account_id = get_first_string(rows_request_info, "request_account_id");
-                if(request_account_id.empty()) { continue; }
+                if (request_account_id.empty()) { continue; }
                 // 校验接收者为自己
                 auto target_account_id = get_first_string(rows_request_info, "target_account_id");
-                if(target_account_id != self_account_id) { continue; }
+                if (target_account_id != self_account_id) { continue; }
                 // 填充发送时间
                 auto request_timestamp = get_first_string(rows_request_info, "timestamp");
-                if(!request_timestamp.empty()) { contact_request->set_time(request_timestamp); }
+                if (!request_timestamp.empty()) { contact_request->set_time(request_timestamp); }
                 // 填充附加消息
                 auto request_message = get_first_string(rows_request_info, "message");
-                if(!request_message.empty()) { contact_request->set_message(request_message); }
+                if (!request_message.empty()) { contact_request->set_message(request_message); }
                 // 获取发起者的个人资料
                 auto [ok_user_info, request_contact_info] = db_sqlcipher.get_active_account_info_interface(request_account_id);
                 if (ok_user_info) {
@@ -192,44 +192,31 @@ void sync_sercice_realtime_sync(const PtsData&pts_data) {
                     }
                 }
             }
-            else if(pts_sub_type == "FRIEND_ACCEPT") {
+            else if (pts_sub_type == "FRIEND_ACCEPT") {
                 // 同意他人好友申请时更新好友列表即可，不需要广播允许状态
-
-                // 自己加他人为好友时，他人的回复
+                // 表 friends 目前没有 event_id 字段
+                // 简化处理，只推送新添加了好友即可
                 sync_contact->set_sub_type(::TaoTieChat::SyncSubTypeContact::SYNC_CONTACT_REPLY);
-                auto contact_reply = sync_contact->mutable_reply();
-                // 获取申请记录
-                auto[success_request_info, rows_request_info] = db_sqlcipher.get_friend_request_info_by_event_id(pts_event_id);
-                if(!success_request_info) { continue; }
-                // 校验申请发送者为自己
-                auto request_account_id = get_first_string(rows_request_info, "request_account_id");
-                if(request_account_id != self_account_id) { continue; }  // 不是自己的申请  // TODO:同意好友申请时的回复
-                // 获取接收者账号
-                auto target_account_id = get_first_string(rows_request_info, "target_account_id");
-                if(request_account_id.empty()) { continue; }
-                // 填充发送时间
-                auto request_timestamp = get_first_string(rows_request_info, "timestamp");
-                if(!request_timestamp.empty()) { contact_reply->set_time(request_timestamp); }
-                // 填充附加消息
-                auto request_message = get_first_string(rows_request_info, "message");
-                if(!request_message.empty()) { contact_reply->set_message(request_message); }
-                // 获取被添加者的个人资料
-                auto [ok_user_info, reply_contact_info] = db_sqlcipher.get_active_account_info_interface(target_account_id);
-                if (ok_user_info) {
-                    contact_reply->mutable_contact_reply()->CopyFrom(reply_contact_info);  // 复制账号资料
-                    // 获取是否已经是好友关系  // 多端登陆时可能已经从其他端同意
-                    auto [ok_friend_info, friend_info] = db_sqlcipher.get_friend_info_interface(self_account_id, request_account_id);
-                    if (ok_friend_info && friend_info) {
-                        contact_reply->mutable_contact_reply()->mutable_friend_info()->CopyFrom(*friend_info.get());
-                    }
-                }
+                // 从好友表中找对方，进行状态推送
+                // 基础信息
+                auto [success_account, target_account_info] = db_sqlcipher.get_active_account_info_interface(pts_event_id);
+                if (!success_account) { continue; }
+                // 好友信息
+                auto [success_ship, friend_info] = db_sqlcipher.get_friend_info_interface(self_account_id, pts_event_id);
+                if (!success_ship) { continue; }
+                // 复制回传
+                auto contact_info = sync_contact->mutable_ship()->mutable_contact();
+                LOG_TRACE(std::format("target_account_info : \n{}", target_account_info.DebugString()));
+                LOG_TRACE(std::format("friend_info : \n{}", friend_info->DebugString()));
+                contact_info->mutable_base_info()->CopyFrom(target_account_info.base_info());  // 基础信息
+                contact_info->mutable_friend_info()->CopyFrom(*friend_info.get());  // 好友信息
             }
             // 成功才填充
             auto contact = body->mutable_contacts()->add_contact();
             contact->CopyFrom(__contact);
         }
+        SessionManager::instance().push_to_user(pts_data.account_id, body_reply);
     } while(false);
-    SessionManager::instance().push_to_user(pts_data.account_id, body_reply);
 }
 
 // 服务端实现
@@ -241,14 +228,14 @@ public:
         using Reply   = GetLastIDReply;
         // =========================== 初始化操作 =========================== //
         log_grpc_context(context);
-        if(!context || !request || !response) {
+        if (!context || !request || !response) {
             return Status(StatusCode::INTERNAL, std::format("Invalid request or response pointer"));
         }
         DBSQLCipher& db_sqlcipher = DBSQLCipher::instance();
         shared_ptr<Request> params = make_shared<Request>(*request);
         // =========================== 执行操作 =========================== //
         shared_ptr<Reply> result = db_sqlcipher.get_last_id(params);
-        if(!result) {
+        if (!result) {
             return Status(StatusCode::INTERNAL, std::format("GetLastID failed."));
         }
         response->CopyFrom(*result);
@@ -261,7 +248,7 @@ public:
         using Reply   = SyncReply  ;
         // =========================== 初始化操作 =========================== //
         log_grpc_context(context);
-        if(!context || !stream) {
+        if (!context || !stream) {
             return Status(StatusCode::INTERNAL, std::format("Invalid stream pointer"));
         }
         // =========================== 执行操作 =========================== //
@@ -291,7 +278,7 @@ public:
             header->mutable_request()->CopyFrom(request);
 
             // 获取身份校验信息
-            if(!request.has_request_user_auth()) {
+            if (!request.has_request_user_auth()) {
                 set_error(header->mutable_result(), ErrorCode::AUTH_INFO_NONE);
                 safe_writer->Write(header_reply);
                 continue;
@@ -300,7 +287,7 @@ public:
             // 身份校验
             auto auth_request = make_shared<AuthRequest>(request.request_user_auth());
             auto auth_reply = db_sqlcipher.auth_check(auth_request);
-            if(!auth_reply || !auth_reply->result().has_success_code()) {
+            if (!auth_reply || !auth_reply->result().has_success_code()) {
                 set_error(header->mutable_result(), ErrorCode::AUTH_FAILED);
                 safe_writer->Write(header_reply);
                 continue;
@@ -308,7 +295,7 @@ public:
 
             // 获取账号 ID
             auto self_account_id = auth_reply->account_id();
-            if(self_account_id.empty()) {
+            if (self_account_id.empty()) {
                 set_error(header->mutable_result(), ErrorCode::AUTH_FAILED);
                 safe_writer->Write(header_reply);
                 continue;
@@ -346,7 +333,7 @@ public:
                 auto id_end   = request_tag.id_end  ();
                 id_start = std::max(decltype(id_start)(0), id_start);
                 id_end   = std::max(decltype(id_end  )(0), id_end  );
-                if(id_start >= id_end) { continue; }
+                if (id_start >= id_end) { continue; }
 
                 // 限制一次最多只返回 100 条记录，需要更多记录时需要由客户端继续拉取
                 const int pts_limit = 100;
@@ -371,12 +358,12 @@ public:
                 // 因为有 start/end/count，所以需要按组返回数据
                 for (auto& row : records) {
                     auto get_string = [](const SqlRow&row, const std::string&key, const std::string default_value = std::string{}) -> string {
-                        if(row.contains(key)) { return to_string(row.at(key)); }
+                        if (row.contains(key)) { return to_string(row.at(key)); }
                         return default_value;
                     };
                     auto get_first_string = [](const SqlRows&rows, const std::string&key, const std::string default_value = std::string{}) -> string {
                         for(auto&row:rows) {
-                            if(row.contains(key)) {
+                            if (row.contains(key)) {
                                 return to_string(row.at(key));
                             }
                         }
@@ -394,26 +381,26 @@ public:
                         ::TaoTieChat::SyncContact  __contact;
                         ::TaoTieChat::SyncContact* sync_contact = &__contact;
                         // 按照子类型填充数据
-                        if(event_sub_type == "FRIEND_REQUEST") {
+                        if (event_sub_type == "FRIEND_REQUEST") {
                             sync_contact->set_sub_type(::TaoTieChat::SyncSubTypeContact::SYNC_CONTACT_REUQEST);
                             // 他人向自己发来的好友申请
                             // 获取请求内容(friend_requests)及好友 ID 和资料()进行填充返回
                             auto contact_request = sync_contact->mutable_request();
                             // 获取申请记录
                             auto[success_request_info, rows_request_info] = db_sqlcipher.get_friend_request_info_by_event_id(event_id);
-                            if(!success_request_info) { continue; }
+                            if (!success_request_info) { continue; }
                             // 获取发起者的账号 ID
                             auto request_account_id = get_first_string(rows_request_info, "request_account_id");
-                            if(request_account_id.empty()) { continue; }
+                            if (request_account_id.empty()) { continue; }
                             // 校验接收者为自己
                             auto target_account_id = get_first_string(rows_request_info, "target_account_id");
-                            if(target_account_id != self_account_id) { continue; }
+                            if (target_account_id != self_account_id) { continue; }
                             // 填充发送时间
                             auto request_timestamp = get_first_string(rows_request_info, "timestamp");
-                            if(!request_timestamp.empty()) { contact_request->set_time(request_timestamp); }
+                            if (!request_timestamp.empty()) { contact_request->set_time(request_timestamp); }
                             // 填充附加消息
                             auto request_message = get_first_string(rows_request_info, "message");
-                            if(!request_message.empty()) { contact_request->set_message(request_message); }
+                            if (!request_message.empty()) { contact_request->set_message(request_message); }
                             // 获取发起者的个人资料
                             auto [ok_user_info, request_contact_info] = db_sqlcipher.get_active_account_info_interface(request_account_id);
                             if (ok_user_info) {
@@ -426,35 +413,24 @@ public:
                                 }
                             }
                         }
-                        else if(event_sub_type == "FRIEND_ACCEPT") {
-                            // 自己加他人为好友时，他人的回复
+                        else if (event_sub_type == "FRIEND_ACCEPT") {
+                            // 同意他人好友申请时更新好友列表即可，不需要广播允许状态
+                            // 表 friends 目前没有 event_id 字段
+                            // 简化处理，只推送新添加了好友即可
                             sync_contact->set_sub_type(::TaoTieChat::SyncSubTypeContact::SYNC_CONTACT_REPLY);
-                            auto contact_reply = sync_contact->mutable_reply();
-                            // 获取申请记录
-                            auto[success_request_info, rows_request_info] = db_sqlcipher.get_friend_request_info_by_event_id(event_id);
-                            if(!success_request_info) { continue; }
-                            // 校验申请发送者为自己
-                            auto request_account_id = get_first_string(rows_request_info, "request_account_id");
-                            if(request_account_id != self_account_id) { continue; }  // 不是自己的申请
-                            // 获取接收者账号
-                            auto target_account_id = get_first_string(rows_request_info, "target_account_id");
-                            if(request_account_id.empty()) { continue; }
-                            // 填充发送时间
-                            auto request_timestamp = get_first_string(rows_request_info, "timestamp");
-                            if(!request_timestamp.empty()) { contact_reply->set_time(request_timestamp); }
-                            // 填充附加消息
-                            auto request_message = get_first_string(rows_request_info, "message");
-                            if(!request_message.empty()) { contact_reply->set_message(request_message); }
-                            // 获取被添加者的个人资料
-                            auto [ok_user_info, reply_contact_info] = db_sqlcipher.get_active_account_info_interface(target_account_id);
-                            if (ok_user_info) {
-                                contact_reply->mutable_contact_reply()->CopyFrom(reply_contact_info);  // 复制账号资料
-                                // 获取是否已经是好友关系  // 多端登陆时可能已经从其他端同意
-                                auto [ok_friend_info, friend_info] = db_sqlcipher.get_friend_info_interface(self_account_id, request_account_id);
-                                if (ok_friend_info && friend_info) {
-                                    contact_reply->mutable_contact_reply()->mutable_friend_info()->CopyFrom(*friend_info.get());
-                                }
-                            }
+                            // 从好友表中找对方，进行状态推送
+                            // 基础信息
+                            auto [success_account, target_account_info] = db_sqlcipher.get_active_account_info_interface(event_id);
+                            if (!success_account) { continue; }
+                            // 好友信息
+                            auto [success_ship, friend_info] = db_sqlcipher.get_friend_info_interface(self_account_id, event_id);
+                            if (!success_ship) { continue; }
+                            // 复制回传
+                            auto contact_info = sync_contact->mutable_ship()->mutable_contact();
+                            LOG_TRACE(std::format("target_account_info : \n{}", target_account_info.DebugString()));
+                            LOG_TRACE(std::format("friend_info : \n{}", friend_info->DebugString()));
+                            contact_info->mutable_base_info()->CopyFrom(target_account_info.base_info());  // 基础信息
+                            contact_info->mutable_friend_info()->CopyFrom(*friend_info.get());  // 好友信息
                         }
                         // 成功才填充
                         auto contact = body->mutable_contacts()->add_contact();
@@ -469,14 +445,14 @@ public:
 //                     for(auto& row : records) {
 //                         auto ite_sub_type = row.find("pts_sub_type");
 //                         auto ite_event_id = row.find("pts_event_id");
-//                         if(ite_sub_type == row.end() || ite_event_id == row.end()) {
+//                         if (ite_sub_type == row.end() || ite_event_id == row.end()) {
 //                             continue;
 //                         }
 //                         auto sub_type = get_string(ite_sub_type->second);
 //                         auto event_id = get_string(ite_event_id->second);
-//                         if(sub_type == "MESSAGE_TEXT") {
+//                         if (sub_type == "MESSAGE_TEXT") {
 //                             auto [ok_record, record] = db_sqlcipher.get_message_record_interface(event_id);
-//                             if(!ok_record) {
+//                             if (!ok_record) {
 //                                 continue;
 //                             }
 //                             auto* msg = messages->add_messages();
@@ -490,9 +466,9 @@ public:
 //                             continue;
 //                         }
 // 
-//                         if(sub_type == "FILE_UPLOAD") {
+//                         if (sub_type == "FILE_UPLOAD") {
 //                             auto [ok_file, file_metadata, file_status] = db_sqlcipher.get_file_info_interface(event_id);
-//                             if(!ok_file) {
+//                             if (!ok_file) {
 //                                 continue;
 //                             }
 //                             auto* file_event = file_events->add_file_events();
@@ -631,7 +607,7 @@ public:
                     auto id_end   = request_tag.id_end  ();
                     id_start = std::max(decltype(id_start)(0), id_start);
                     id_end   = std::max(decltype(id_end  )(0), id_end  );
-                    if(id_start >= id_end) { continue; }
+                    if (id_start >= id_end) { continue; }
 
                     // 限制一次最多只返回 100 条记录，需要更多记录时需要由客户端继续拉取
                     const int pts_limit = 100;
@@ -656,12 +632,12 @@ public:
                     // 因为有 start/end/count，所以需要按组返回数据
                     for (auto& row : records) {
                         auto get_string = [](const SqlRow&row, const std::string&key, const std::string default_value = std::string{}) -> string {
-                            if(row.contains(key)) { return to_string(row.at(key)); }
+                            if (row.contains(key)) { return to_string(row.at(key)); }
                             return default_value;
                         };
                         auto get_first_string = [](const SqlRows&rows, const std::string&key, const std::string default_value = std::string{}) -> string {
                             for(auto&row:rows) {
-                                if(row.contains(key)) {
+                                if (row.contains(key)) {
                                     return to_string(row.at(key));
                                 }
                             }
@@ -679,26 +655,26 @@ public:
                             ::TaoTieChat::SyncContact  __contact;
                             ::TaoTieChat::SyncContact* sync_contact = &__contact;
                             // 按照子类型填充数据
-                            if(event_sub_type == "FRIEND_REQUEST") {
+                            if (event_sub_type == "FRIEND_REQUEST") {
                                 sync_contact->set_sub_type(::TaoTieChat::SyncSubTypeContact::SYNC_CONTACT_REUQEST);
                                 // 他人向自己发来的好友申请
                                 // 获取请求内容(friend_requests)及好友 ID 和资料()进行填充返回
                                 auto contact_request = sync_contact->mutable_request();
                                 // 获取申请记录
                                 auto[success_request_info, rows_request_info] = db_sqlcipher.get_friend_request_info_by_event_id(event_id);
-                                if(!success_request_info) { continue; }
+                                if (!success_request_info) { continue; }
                                 // 获取发起者的账号 ID
                                 auto request_account_id = get_first_string(rows_request_info, "request_account_id");
-                                if(request_account_id.empty()) { continue; }
+                                if (request_account_id.empty()) { continue; }
                                 // 校验接收者为自己
                                 auto target_account_id = get_first_string(rows_request_info, "target_account_id");
-                                if(target_account_id != self_account_id) { continue; }
+                                if (target_account_id != self_account_id) { continue; }
                                 // 填充发送时间
                                 auto request_timestamp = get_first_string(rows_request_info, "timestamp");
-                                if(!request_timestamp.empty()) { contact_request->set_time(request_timestamp); }
+                                if (!request_timestamp.empty()) { contact_request->set_time(request_timestamp); }
                                 // 填充附加消息
                                 auto request_message = get_first_string(rows_request_info, "message");
-                                if(!request_message.empty()) { contact_request->set_message(request_message); }
+                                if (!request_message.empty()) { contact_request->set_message(request_message); }
                                 // 获取发起者的个人资料
                                 auto [ok_user_info, request_contact_info] = db_sqlcipher.get_active_account_info_interface(request_account_id);
                                 if (ok_user_info) {
@@ -711,25 +687,25 @@ public:
                                     }
                                 }
                             }
-                            else if(event_sub_type == "FRIEND_ACCEPT") {
+                            else if (event_sub_type == "FRIEND_ACCEPT") {
                                 // 自己加他人为好友时，他人的回复
                                 sync_contact->set_sub_type(::TaoTieChat::SyncSubTypeContact::SYNC_CONTACT_REPLY);
                                 auto contact_reply = sync_contact->mutable_reply();
                                 // 获取申请记录
                                 auto[success_request_info, rows_request_info] = db_sqlcipher.get_friend_request_info_by_event_id(event_id);
-                                if(!success_request_info) { continue; }
+                                if (!success_request_info) { continue; }
                                 // 校验申请发送者为自己
                                 auto request_account_id = get_first_string(rows_request_info, "request_account_id");
-                                if(request_account_id != self_account_id) { continue; }  // 不是自己的申请
+                                if (request_account_id != self_account_id) { continue; }  // 不是自己的申请
                                 // 获取接收者账号
                                 auto target_account_id = get_first_string(rows_request_info, "target_account_id");
-                                if(request_account_id.empty()) { continue; }
+                                if (request_account_id.empty()) { continue; }
                                 // 填充发送时间
                                 auto request_timestamp = get_first_string(rows_request_info, "timestamp");
-                                if(!request_timestamp.empty()) { contact_reply->set_time(request_timestamp); }
+                                if (!request_timestamp.empty()) { contact_reply->set_time(request_timestamp); }
                                 // 填充附加消息
                                 auto request_message = get_first_string(rows_request_info, "message");
-                                if(!request_message.empty()) { contact_reply->set_message(request_message); }
+                                if (!request_message.empty()) { contact_reply->set_message(request_message); }
                                 // 获取被添加者的个人资料
                                 auto [ok_user_info, reply_contact_info] = db_sqlcipher.get_active_account_info_interface(target_account_id);
                                 if (ok_user_info) {

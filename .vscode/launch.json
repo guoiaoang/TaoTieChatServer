@@ -1,0 +1,46 @@
+{
+    // 使用 IntelliSense 了解相关属性。
+    // 悬停以查看现有属性的描述。
+    // 欲了解更多信息，请访问: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            // 启动当前的 cmake debug 中的目标程序
+            "name": "CMake Debug (MSVC - Windows)",
+            "type": "cppvsdbg",
+            "request": "launch",
+            // 自动动态获取当前 CMake 选中的可执行文件绝对路径
+            "program": "${command:cmake.launchTargetPath}",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "console": "integratedTerminal",
+            // 受翻译影响，找不到 `CMake: build` 时可执行 `CMake: 生成`
+            // "preLaunchTask": "CMake: build"
+            "preLaunchTask": "CMake: 生成"
+        },
+        {
+            "name": "CMake Debug (GDB / LLDB - Linux / macOS)",
+            "type": "cppdbg",
+            "request": "launch",
+            // 自动动态获取当前 CMake 选中的可执行文件绝对路径
+            "program": "${command:cmake.launchTargetPath}",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb", // macOS 可改为 "lldb"
+            "setupCommands": [
+                {
+                    "description": "为 gdb 启用整洁打印",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            // 运行前自动触发 CMake Build（确保代码改动后自动重新编译）
+            "preLaunchTask": "CMake: build"
+        }
+    ]
+}
