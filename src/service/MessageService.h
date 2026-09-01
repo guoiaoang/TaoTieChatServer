@@ -9,7 +9,7 @@ using Utils::log_grpc_context;
 class MessageServiceImpl final : public MessageService::Service {
 public:
     // SendMessage 发送消息。
-    Status SendMessage(ServerContext* context, const MessageContext* request, MessageReply* response) override {
+    Status TTCSendMessage(ServerContext* context, const MessageContext* request, MessageReply* response) override {
         using Request = MessageContext;
         using Reply   = MessageReply;
         // =========================== 初始化操作 =========================== //
@@ -21,6 +21,7 @@ public:
         DBSQLCipher& db_sqlcipher = DBSQLCipher::instance();
         shared_ptr<Request> params = make_shared<Request>(*request);
         // =========================== 执行操作 =========================== //
+        // LOG_DEBUG("request DebugString : {}", request->DebugString());
         // 执行注册
         shared_ptr<Reply> result = db_sqlcipher.write_message(params);
         // 判断结果是否为 nullptr，防止拷贝时崩溃

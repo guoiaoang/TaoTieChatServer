@@ -1,0 +1,7 @@
+Index:
+  # 排除不需要索引的外部库和编译生成文件夹
+  Exclude: ["build/**", "third_party/**", "extern/**", "tests/**"]
+
+CompileFlags:
+  # 移除会导致 clangd 生成大量调试符号的编译参数
+  Remove: [-g, -O*]

@@ -78,12 +78,14 @@ string local_date_time_str(                      const string& fmt = "{:%Y-%m-%d
 // static time_point to_time_point(const std::string& utc_str) {
 //     return from_time_t(std::mktime(std::gmtime(&utc_str[0])));
 // }
-// 将 UTC 时间字符串转换为时间点
-time_point to_time_point(const string& utc_str);
+// 将 UTC 时间字符串转换为时间点  // 解析字符串不包含 "{" / "}"
+time_point to_time_point(const string& utc_str, const string& fmt = "%Y-%m-%d %H:%M:%S");
 // 将 UTC 时间字符串转换为本地时间字符串
 string utc_to_local(const string& utc_str, const string& fmt = "{:%Y-%m-%d %H:%M:%S}");
 // 将时间点设置到 Timestamp 消息中
 void set_timestamp(TaoTieChat::Timestamp& timestamp, const std::chrono::system_clock::time_point& time_point);
+// 转换为 protobuf 中的时间戳
+google::protobuf::Timestamp to_timestamp(const time_point& tp);
 
 // ============================== std 扩展 ============================== //
 vector<string> split(const string&src, const string&div);

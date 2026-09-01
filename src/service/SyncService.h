@@ -215,6 +215,13 @@ void sync_service_realtime_sync(const PtsData&pts_data) {
             auto contact = body->mutable_contacts()->add_contact();
             contact->CopyFrom(__contact);
         }
+        else if(pts_type == SyncType::SYNC_MESSAGES) {
+            // // 文本消息
+            auto [success_sync_message, sync_message] = db_sqlcipher.get_message_record_interface(pts_event_id);
+            if (!success_sync_message) { continue; }
+            sync_message.set_sub_type(::TaoTieChat::SyncSubTypeMessage::SYNC_MESSAGE_TEXT);
+            body->mutable_messages()->add_message()->CopyFrom(sync_message);
+        }
         SessionManager::instance().push_to_user(pts_data.account_id, body_reply);
     } while(false);
 }
@@ -436,10 +443,19 @@ public:
                         auto contact = body->mutable_contacts()->add_contact();
                         contact->CopyFrom(__contact);
                         count++;
+                        continue;
                     }
 
                     // MESSAGES (消息与文件详情增量)
-                    if (request_tag.type() == SyncType::SYNC_MESSAGES) {
+                    else if (request_tag.type() == SyncType::SYNC_MESSAGES) {
+                        // 文本消息
+                        auto [success_sync_message, sync_message] = db_sqlcipher.get_message_record_interface(event_id);
+                        if (!success_sync_message) { continue; }
+                        sync_message.set_sub_type(::TaoTieChat::SyncSubTypeMessage::SYNC_MESSAGE_TEXT);
+                        body->mutable_messages()->add_message()->CopyFrom(sync_message);
+                        // LOG_DEBUG("sync_message DebugString : {}", sync_message.DebugString());
+                        count++;
+                        continue;
 //                     auto* messages = body->mutable_messages();
 //                     auto* file_events = body->mutable_file_events();
 //                     for(auto& row : records) {
@@ -482,7 +498,7 @@ public:
                     }
 
                     // ...
-                    if (request_tag.type() == SyncType::SYNC_GROUPS) {
+                    else if (request_tag.type() == SyncType::SYNC_GROUPS) {
                         // ...
                     }
                 }

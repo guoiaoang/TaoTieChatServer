@@ -81,14 +81,14 @@ struct SQLResult{
         : done(done), msg(msg), rows(rows) {}
 };
 
-struct MessageRecord {
-    string server_message_id  ;
-    string client_message_id  ;
-    string sender_account_id  ;
-    string receiver_account_id;
-    string short_text         ;
-    string timestamp          ;
-};
+// struct MessageRecord {
+//     string server_message_id  ;
+//     string client_message_id  ;
+//     string sender_account_id  ;
+//     string receiver_account_id;
+//     string short_text         ;
+//     string timestamp          ;
+// };
 
 class DBSQLCipher {
 private:
@@ -1199,8 +1199,8 @@ public:
         set_error(reply->mutable_result(), ErrorCode::UNKNOWN);
         // =================================================================== //
         auto has_terget_id = [](const shared_ptr<MessageContext>&request) -> bool {
-            if(request->has_group_id()) { return true; }
-            if(request->has_user_id ()) { return true; }
+            if(request->has_group_id  ()) { return true; }
+            if(request->has_account_id()) { return true; }
             return false;
         };
         auto has_message_context = [](const shared_ptr<MessageContext>&request) -> bool {
@@ -1225,33 +1225,33 @@ public:
             if(short_text.size() < SHORT_MESSAGE_MAX_LENGTH) { return true; }
             return false;
         };
-        auto is_context_message = [](const shared_ptr<MessageContext>&request) -> bool {
-            if(request->has_user_id()) { return true; }
-            return false;
-        };
+        // auto is_context_message = [](const shared_ptr<MessageContext>&request) -> bool {
+        //     if(request->has_account_id()) { return true; }
+        //     return false;
+        // };
         // auto is_long_text_message = [](const shared_ptr<MessageContext>&request) -> bool {
         //     if(request->has_long_text () && !request->long_text().empty()) { return true; }
         //     return false;
         // };
         auto get_receiver_account_id = [this](const shared_ptr<MessageContext>&request) -> string {
-            if(request->has_user_id() && !request->user_id().empty()) {
-                auto user_id = request->user_id();
-                auto[success_get_active_account_id, result_account_id] = get_active_account_id(user_id);
-                if(!success_get_active_account_id) {
-                    return string{};
-                }
-                // 用户或账号 ID 未注册或停用等，返回账号不存在即可
-                if(result_account_id.empty()) {
-                    return string{};
-                }
-                return result_account_id;
-            }
-            if(request->has_group_id() && !request->group_id().empty()) {
-                return request->group_id();
-            }
+            // if(request->has_user_id() && !request->user_id().empty()) {
+            //     auto user_id = request->user_id();
+            //     auto[success_get_active_account_id, result_account_id] = get_active_account_id(user_id);
+            //     if(!success_get_active_account_id) {
+            //         return string{};
+            //     }
+            //     // 用户或账号 ID 未注册或停用等，返回账号不存在即可
+            //     if(result_account_id.empty()) {
+            //         return string{};
+            //     }
+            //     return result_account_id;
+            // }
+            ;    if (request->has_account_id() && !request->account_id().empty()) { return request->account_id(); }
+            else if (request->has_group_id  () && !request->group_id  ().empty()) { return request->group_id  (); }
             return string{};
         };
         // =========================== 参数校验 =========================== //
+        // LOG_DEBUG("request DebugString : {}", request->DebugString());
         // 参数校验
         if(!has_terget_id(request)) {
             return error_reply<Reply>(reply, ErrorCode::TARGET_ID_REQUESTED, std::format("Message receiver is empty."));
@@ -1275,6 +1275,10 @@ public:
         auto account_id = auth_reply->account_id();
         if(account_id.empty()) {
             return error_reply<Reply>(reply, ErrorCode::AUTH_FAILED, std::format("Auth failed to get account_id."));
+        }
+        // 消息发送者必须为当前账号才有权添加
+        if (account_id != request->sender_account_id()) {
+            return error_reply<Reply>(reply, ErrorCode::ACCOUNT_ID_ERROR, std::format("Sender account ID error."));
         }
         // 获取目标用户账号 ID
         auto receiver_account_id = get_receiver_account_id(request);
@@ -1777,7 +1781,7 @@ public:
     //    4. 文件 md5 用来判断上传的文件是否正确。
     std::tuple<bool, bool         > update_file_status_interface     (const string&file_id           , FileStatusCode file_status) { return update_file_status     (file_id          , file_status); }
     std::tuple<bool, int          > get_file_permission_interface    (const string&account_id        , const string  &file_id    ) { return get_file_permission    (account_id       , file_id    ); }
-    std::tuple<bool, MessageRecord> get_message_record_interface     (const string& server_message_id                            ) { return get_message_record     (server_message_id             ); }
+    std::tuple<bool, SyncMessage  > get_message_record_interface     (const string& server_message_id                            ) { return get_message_record     (server_message_id             ); }
     std::tuple<bool, ContactInfo  > get_active_account_info_interface(const string&account_id                                    ) { return get_active_account_info(account_id                    ); }
     std::tuple<bool, FileMetadata , FileStatusCode     > get_file_info_interface  (const string&file_id                          ) { return get_file_info          (file_id                       ); }
     std::tuple<bool, std::shared_ptr<ContactInfoFriend>> get_friend_info_interface(const string&self_account_id, const string&friend_account_id) {
@@ -2086,25 +2090,33 @@ private:
         }
         return file_info;
     }
-    std::tuple<bool, MessageRecord> get_message_record(const SqlRows& rows) {
-        MessageRecord record{};
+    std::tuple<bool, SyncMessage> get_message_record(const SqlRows& rows) {
+        SyncMessage sync_message{};
         for(auto& row : rows) {
             auto ite_end = row.end();
             auto ite_server_id = row.find("server_message_id");
             auto ite_client_id = row.find("client_message_id");
             auto ite_sender    = row.find("sender_account_id");
             auto ite_receiver  = row.find("receiver_account_id");
-            auto ite_short     = row.find("short_text");
             auto ite_time      = row.find("timestamp");
-            if(ite_server_id != ite_end) { record.server_message_id   = get_string(ite_server_id->second); }
-            if(ite_client_id != ite_end) { record.client_message_id   = get_string(ite_client_id->second); }
-            if(ite_sender    != ite_end) { record.sender_account_id   = get_string(ite_sender   ->second); }
-            if(ite_receiver  != ite_end) { record.receiver_account_id = get_string(ite_receiver ->second); }
-            if(ite_short     != ite_end) { record.short_text          = get_string(ite_short    ->second); }
-            if(ite_time      != ite_end) { record.timestamp           = get_string(ite_time     ->second); }
-            return {true, record};
+            auto ite_short     = row.find("short_text");
+            if(ite_server_id != ite_end) { sync_message.set_server_message_id  (get_string(ite_server_id->second)); }
+            if(ite_client_id != ite_end) { sync_message.set_client_message_id  (get_string(ite_client_id->second)); }
+            if(ite_sender    != ite_end) { sync_message.set_sender_account_id  (get_string(ite_sender   ->second)); }
+            if(ite_receiver  != ite_end) { sync_message.set_receiver_account_id(get_string(ite_receiver ->second)); }
+            // TODO:时间格式转换
+            // if(ite_time      != ite_end) { sync_message.set_timestamp          (get_string(ite_time     ->second)); }
+            if(ite_time      != ite_end) {
+                auto time_string  = get_string(ite_time->second);
+                auto system_clock = Utils::to_time_point(time_string);
+                auto protobuf_timestamp = Utils::to_timestamp(system_clock);
+                // sync_message.set_timestamp(protobuf_timestamp);
+                sync_message.mutable_timestamp()->mutable_timestamp()->CopyFrom(protobuf_timestamp);
+            }
+            if(ite_short     != ite_end) { sync_message.mutable_text()->set_short_text(get_string(ite_short    ->second)); }
+            return {true, sync_message};
         }
-        return {false, MessageRecord{}};
+        return {false, SyncMessage{}};
     }
 
     // ============================== 读数据库 ============================== //
@@ -2306,9 +2318,9 @@ private:
         }
         return {false, false};
     }
-    std::tuple<bool, MessageRecord> get_message_record(const string&server_message_id) {
+    std::tuple<bool, SyncMessage> get_message_record(const string&server_message_id) {
         if(server_message_id.empty()) {
-            return {false, MessageRecord{}};
+            return {false, SyncMessage{}};
         }
         auto sql_params = make_shared<SqlParams>();
         (*sql_params)[":server_message_id"] = server_message_id;
@@ -2316,7 +2328,7 @@ private:
         if(sql_result && sql_result->done) {
             return get_message_record(sql_result->rows);
         }
-        return {false, MessageRecord{}};
+        return {false, SyncMessage{}};
     }
     // 客户端生成的消息 ID // 同一账号生成的 ID 不重复即可认为是新消息，不需要全局唯一性校验
     // ID 存在代表消息重复发送
@@ -2633,6 +2645,7 @@ private:
             // 通知接收方有新消息（MESSAGES pts）
             // 事件 ID 使用 server_message_id，便于增量同步时直接回填完整消息明细。
             write_pts_event(receiver_account_id, Utils::Transform::to_string(SyncType::SYNC_MESSAGES), "MESSAGE_TEXT", server_message_id);
+            write_pts_event(sender_account_id  , Utils::Transform::to_string(SyncType::SYNC_MESSAGES), "MESSAGE_TEXT", server_message_id);
             return {true, true};
         }
         return {false, false};

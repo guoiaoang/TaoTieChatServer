@@ -208,7 +208,7 @@ std::tuple<grpc::Status, ContactReplyReply> ContactReply(
 // }
 
 // 发送消息测试
-std::tuple<grpc::Status, MessageReply> SendMessage(
+std::tuple<grpc::Status, MessageReply> TTCSendMessage(
     const string& request_user_id, const string& request_user_password,
     const string& target_user_id , const string& short_message, const string&client_message_id
 ) {
@@ -242,10 +242,10 @@ std::tuple<grpc::Status, MessageReply> SendMessage(
     request.set_client_message_id(client_message_id);
     // 设置目标用户 ID
     if(!target_user_id.empty()) {
-        request.set_user_id(target_user_id);
+        // request.set_user_id(target_user_id);  // TODO:user id to account id
     }
     else {
-        request.clear_user_id();  // 无效，因为 target_user_id 是 string 类型，不是 optional string 类型。
+        request.clear_account_id();  // 无效，因为 target_user_id 是 string 类型，不是 optional string 类型。
     }
     // 设置消息
     request.set_short_text(short_message);
@@ -255,7 +255,7 @@ std::tuple<grpc::Status, MessageReply> SendMessage(
 
     // 调用 SendMessage 方法
     grpc::ServerContext context;  // 模拟 gRPC 上下文
-    grpc::Status status = service.SendMessage(&context, &request, &response);
+    grpc::Status status = service.TTCSendMessage(&context, &request, &response);
     return {status, response};
 }
 
@@ -264,7 +264,7 @@ std::tuple<grpc::Status, MessageReply> SendMessage(
 // 未提供目标用户 ID，返回错误码 TARGET_ID_REQUESTED
 TEST_F(ServiceMessageSendMessage, target_user_id_empty) {
     string client_message_id = Utils::generate_message_id();
-    auto [status, response] = SendMessage("value_user_id", "value_password", "", "value_Hello", client_message_id);
+    auto [status, response] = TTCSendMessage("value_user_id", "value_password", "", "value_Hello", client_message_id);
     EXPECT_TRUE(status.ok());
     EXPECT_EQ(response.result().error_code(), ErrorCode::TARGET_ID_REQUESTED);
 }
@@ -272,14 +272,14 @@ TEST_F(ServiceMessageSendMessage, target_user_id_empty) {
 // 未提供消息内容，返回错误码 CONTEXT_REQUIRED
 TEST_F(ServiceMessageSendMessage, message_context_empty) {
     string client_message_id = Utils::generate_message_id();
-    auto [status, response] = SendMessage("value_user_id", "value_password", "value_target_user_id", "", client_message_id);
+    auto [status, response] = TTCSendMessage("value_user_id", "value_password", "value_target_user_id", "", client_message_id);
     EXPECT_TRUE(status.ok());
     EXPECT_EQ(response.result().error_code(), ErrorCode::CONTEXT_REQUIRED);
 }
 
 // 未提供客户端消息 ID，返回错误码 CLIENT_MESSAGE_ID_REQUIRED
 TEST_F(ServiceMessageSendMessage, client_message_id_missing) {
-    auto [status, response] = SendMessage("value_user_id", "value_password", "value_target_user_id", "value_Hello", "");
+    auto [status, response] = TTCSendMessage("value_user_id", "value_password", "value_target_user_id", "value_Hello", "");
     EXPECT_TRUE(status.ok());
     EXPECT_EQ(response.result().error_code(), ErrorCode::CLIENT_MESSAGE_ID_REQUIRED);
 }
@@ -287,7 +287,7 @@ TEST_F(ServiceMessageSendMessage, client_message_id_missing) {
 // 未提供认证信息，返回错误码 AUTH_INFO_NONE
 TEST_F(ServiceMessageSendMessage, auth_info_missing) {
     string client_message_id = Utils::generate_message_id();
-    auto [status, response] = SendMessage("", "", "value_target_user_id", "value_Hello", client_message_id);
+    auto [status, response] = TTCSendMessage("", "", "value_target_user_id", "value_Hello", client_message_id);
     EXPECT_TRUE(status.ok());
     EXPECT_EQ(response.result().error_code(), ErrorCode::AUTH_ID_EMPTY);
 }
@@ -295,7 +295,7 @@ TEST_F(ServiceMessageSendMessage, auth_info_missing) {
 // 错误的用户 ID(认证信息)，返回错误码 USER_ID_NOT_FOUND
 TEST_F(ServiceMessageSendMessage, auth_failed) {
     string client_message_id = Utils::generate_message_id();
-    auto [status, response] = SendMessage("value_user_id", "value_wrong_password", "value_target_user_id", "value_Hello", client_message_id);
+    auto [status, response] = TTCSendMessage("value_user_id", "value_wrong_password", "value_target_user_id", "value_Hello", client_message_id);
     EXPECT_TRUE(status.ok());
     EXPECT_EQ(response.result().error_code(), ErrorCode::USER_ID_NOT_FOUND);
 }
@@ -312,7 +312,7 @@ TEST_F(ServiceMessageSendMessage, target_user_id_not_found) {
 
     // 发送消息
     string client_message_id = Utils::generate_message_id();
-    auto [status, response] = SendMessage("value_user_id", "value_password", "value_nonexistent_user_id", "value_Hello", client_message_id);
+    auto [status, response] = TTCSendMessage("value_user_id", "value_password", "value_nonexistent_user_id", "value_Hello", client_message_id);
     EXPECT_TRUE(status.ok());
     EXPECT_EQ(response.result().error_code(), ErrorCode::TARGET_USER_ID_NOT_FOUND);
 }
@@ -337,7 +337,7 @@ TEST_F(ServiceMessageSendMessage, target_user_id_not_contact) {
 
     // 发送消息
     string client_message_id = Utils::generate_message_id();
-    auto [status, response] = SendMessage("value_user_id", "value_password", "value_receiver_user_id", "value_Hello", client_message_id);
+    auto [status, response] = TTCSendMessage("value_user_id", "value_password", "value_receiver_user_id", "value_Hello", client_message_id);
     EXPECT_TRUE(status.ok());
     EXPECT_NE(response.result().error_code(), ErrorCode::ASSOCIATED); // 不是好友关系
 }
@@ -372,7 +372,7 @@ TEST_F(ServiceMessageSendMessage, send_message_success) {
 
     // 发送消息
     string client_message_id = Utils::generate_message_id();
-    auto [status, response] = SendMessage("value_user_id", "value_password", "value_receiver_user_id", "value_Hello", client_message_id);
+    auto [status, response] = TTCSendMessage("value_user_id", "value_password", "value_receiver_user_id", "value_Hello", client_message_id);
     EXPECT_TRUE(status.ok());
     EXPECT_EQ(response.result().success_code(), SuccessCode::SUCCESS);  // 成功发送消息
 }
@@ -407,12 +407,12 @@ TEST_F(ServiceMessageSendMessage, send_message_repeat) {
 
     // 发送消息
     string client_message_id = Utils::generate_message_id();
-    auto [status, response] = SendMessage("value_user_id", "value_password", "value_receiver_user_id", "value_Hello", client_message_id);
+    auto [status, response] = TTCSendMessage("value_user_id", "value_password", "value_receiver_user_id", "value_Hello", client_message_id);
     EXPECT_TRUE(status.ok());
     EXPECT_EQ(response.result().success_code(), SuccessCode::SUCCESS);  // 成功发送消息
 
     // 再次发送消息
-    auto [status_repeat, response_repeat] = SendMessage("value_user_id", "value_password", "value_receiver_user_id", "value_Hello", client_message_id);
+    auto [status_repeat, response_repeat] = TTCSendMessage("value_user_id", "value_password", "value_receiver_user_id", "value_Hello", client_message_id);
     EXPECT_TRUE(status_repeat.ok());
     EXPECT_EQ(response_repeat.result().error_code(), ErrorCode::DUPLICATE_MESSAGE_ID); // 消息重复发送
 }

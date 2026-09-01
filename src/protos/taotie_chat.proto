@@ -526,8 +526,8 @@ message StatusReply {
 
 // 消息服务，包含发送和接收消息的接口
 service MessageService {
-  // 发送消息
-  rpc SendMessage(MessageContext) returns (MessageReply) {}
+  // 发送消息  // SendMessage 与 MSVC 中的同名函数何冲突
+  rpc TTCSendMessage(MessageContext) returns (MessageReply) {}
   // 接收消息  // 双向流式 RPC，客户端发送 MessageRequest 请求，服务器持续返回 MessageContext 消息流
   rpc ReceiveMessages(MessageRequest) returns (stream MessageContext) {}
 }
@@ -535,20 +535,21 @@ service MessageService {
 // 消息上下文  // 发送消息时不要使用列表，每条消息都进行身份验证
 message MessageContext {
   optional  AuthRequest request_user_auth = 1;  // 鉴权
-            Timestamp   timestamp         = 2;  // 客户端消息发送的时间  // 用于客户端时间校准，服务端不处理该时间戳
+            string      sender_account_id = 2;  // 消息发送者的账号 ID
             string      client_message_id = 3;  // 客户端生成的消息 ID，用于判断消息是否重复发送
+            Timestamp   timestamp         = 4;  // 客户端消息发送的时间  // 用于客户端时间校准，服务端不处理该时间戳
             // `oneof{}` 相比较与 `enum Type {...}`
             // 1. 更符合 protobuf 的设计理念。
             // 2. 仅占用一个位置。
             // 3. 语义明确，不会误设置 Type 导致混淆。
             oneof    chat_room {
-              string group_id  = 4;  // 群聊 ID
-              string user_id   = 5;  // 私聊 ID
+              string account_id = 11;  // 私聊中接收者的账号 ID
+              string group_id   = 12;  // 群聊 ID
             }
             // 消息内容均不能为空
             oneof    content {
               // 客户端需要注意不同字符串类型占用的空间大小不一致的问题
-              string short_text   = 6;  // 短文本消息内容  // [0, 8192) 个字节以内的文本消息内容
+              string short_text   = 21;  // 短文本消息内容  // [0, 8192) 个字节以内的文本消息内容
               // FileContent long_text = 6;  // 长文本消息内容  // [8192, ...) 个字节以上的文本消息内容。
               // FileContent image     = 7;  // 图片消息内容
               // FileContent audio     = 8;  // 音频消息内容
@@ -644,6 +645,7 @@ enum SyncSubTypeGroup {
 
 enum SyncSubTypeMessage {
   SYNC_MESSAGE_UNSET = 0;
+  SYNC_MESSAGE_TEXT  = 1;
 }
 
 // -------------------------------- GetLastID -------------------------------- //
@@ -685,6 +687,7 @@ message SyncReplyBody {
     // Messages     messages      = 5;  // 消息列表更新内容
     // FileEvents   file_events   = 6;  // 文件事件列表更新内容
     SyncContacts contacts = 2;  // 账号相关消息
+    SyncMessages messages = 3;  // 聊天内容消息
   }
 }
 
@@ -791,13 +794,21 @@ message SyncMessages {
 
 // 同步消息相关信息
 message SyncMessage {
-  SyncSubTypeMessage   sub_type = 1;
-  // oneof info {
-  //   SyncMessageUpdate  update   = 2;  // 个人资料更新
-  //   SyncMessageRequest request  = 3;  // 发送了好友申请
-  //   SyncMessageReply   reply    = 4;  // 回复了好友申请
-  //   SyncMessageShip    ship     = 5;  // 好友关系变更
-  // }
+  SyncSubTypeMessage   sub_type            = 1;  // 消息子类型
+  string               server_message_id   = 2;  // 服务端消息 ID
+  string               client_message_id   = 3;  // 客户端消息 ID
+  string               sender_account_id   = 4;  // 发送方账号 ID
+  string               receiver_account_id = 6;  // 接收方账号 ID
+  Timestamp            timestamp           = 7;  // 服务端落库时间
+  oneof                info {
+    SyncMessageText    text                = 8;  // 文本消息
+  }
+}
+
+message SyncMessageText {
+  oneof    info {
+    string short_text        = 1;  // 文本消息内容
+  }  
 }
 
 // ------------------------------ SyncReplyBody ------------------------------ //

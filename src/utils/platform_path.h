@@ -47,9 +47,17 @@ public:
             CoTaskMemFree(path);
             return result;
         }
-        const char* home = getenv("USERPROFILE");
-        if (home && home[0] != '\0') return std::string(home);
-        return "";
+        // const char* home = getenv("USERPROFILE");
+        // if (home && home[0] != '\0') return std::string(home);
+        // return "";
+        char* buffer = nullptr;
+        size_t size = 0;        
+        // 使用安全版本
+        if (_dupenv_s(&buffer, &size, "USERPROFILE") == 0 && buffer != nullptr) {
+            std::string result(buffer);
+            free(buffer);
+            return result;
+        }
 #elif defined(__linux__) && !defined(__ANDROID__)
         const char* home = getenv("HOME");
         if (home && home[0] != '\0') return std::string(home);
@@ -69,6 +77,7 @@ public:
 #else
         return "";
 #endif
+        return "";
     }
 
     static std::string getDocumentsDir() {

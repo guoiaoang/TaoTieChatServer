@@ -51,7 +51,6 @@
                 "CMAKE_PREFIX_PATH": "$env{QT_ROOT}",
                 "BUILD_TESTING": "ON",
                 "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
-                "CPACK_PACKAGE_FILE_NAME": "$env{PROJECT_NAME}",
                 "CMAKE_BUILD_TYPE": "$env{BUILD_TYPE}"
             }
         },
@@ -110,7 +109,6 @@
                 "BUILD_ARCH"  : "x64",
                 "HTTP_PROXY"  : "http://127.0.0.1:2080",
                 "HTTPS_PROXY" : "http://127.0.0.1:2080",
-                "PROJECT_NAME": "TaoTieChatServer",
                 "BUILD_TYPE"  : "Debug"
             }
         },

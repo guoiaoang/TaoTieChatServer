@@ -82,7 +82,7 @@
 #include <iosfwd>
 #include <iostream>
 #include <istream>
-#include <iterator>
+#include <iterator>  // std::distance(...)
 #include <limits>
 #include <list>
 #include <locale>
@@ -220,6 +220,7 @@ using stm = std::tm;
 #include <QDir>          // 遍历子目录，较老版本 // QDir::entryList()
 #include <QDirIterator>  // 遍历子目录，较新版本，单个遍历
 #include <QDirListing>   // 遍历子目录，最新版本，c++20 方式
+#include <QDomDocument>
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
@@ -294,6 +295,8 @@ using stm = std::tm;
 #include <QSplitter>
 #include <QSslCipher>
 #include <QStackedWidget>
+#include <QStandardItem>
+#include <QStandardItemModel>
 #include <QStandardPaths>
 #include <QStatusBar>
 #include <QString>
@@ -467,6 +470,7 @@ using ::TaoTieChat::SyncSubTypeContactGadget::SyncSubTypeContact;
 using ::TaoTieChat::SyncSubTypeGroupGadget::SyncSubTypeGroup;
 using ::TaoTieChat::SyncSubTypeMessageGadget::SyncSubTypeMessage;
 using ::TaoTieChat::SyncTypeGadget::SyncType;
+using ::TaoTieChat::Timestamp;
 #elif defined(ENABLE_SERVER)  // ENABLE_SERVER
 // server
 #include "taotie_chat.grpc.pb.h"
