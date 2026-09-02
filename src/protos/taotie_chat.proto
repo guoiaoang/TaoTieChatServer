@@ -532,12 +532,19 @@ service MessageService {
   rpc ReceiveMessages(MessageRequest) returns (stream MessageContext) {}
 }
 
+// 聊天消息中的消息类型
+enum MessageType {
+  SystemMessage = 0;  // 系统提示等消息
+  ChatMessage   = 1;  // 用户聊天消息
+}
+
 // 消息上下文  // 发送消息时不要使用列表，每条消息都进行身份验证
 message MessageContext {
   optional  AuthRequest request_user_auth = 1;  // 鉴权
             string      sender_account_id = 2;  // 消息发送者的账号 ID
             string      client_message_id = 3;  // 客户端生成的消息 ID，用于判断消息是否重复发送
             Timestamp   timestamp         = 4;  // 客户端消息发送的时间  // 用于客户端时间校准，服务端不处理该时间戳
+            MessageType message_type      = 5;  // 是否是系统消息
             // `oneof{}` 相比较与 `enum Type {...}`
             // 1. 更符合 protobuf 的设计理念。
             // 2. 仅占用一个位置。
@@ -574,6 +581,7 @@ message MessageReply {
             string         message           = 5;  // 可选的错误消息字段
 }
 
+// 消息请求
 message MessageRequest {
   optional  AuthRequest request_user_auth = 1;  // 鉴权
             string      target_id         = 2;  // 群聊 ID 或私聊 ID
@@ -808,7 +816,7 @@ message SyncMessage {
 message SyncMessageText {
   oneof    info {
     string short_text        = 1;  // 文本消息内容
-  }  
+  }
 }
 
 // ------------------------------ SyncReplyBody ------------------------------ //

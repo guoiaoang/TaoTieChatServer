@@ -267,15 +267,15 @@ void set_timestamp(TaoTieChat::Timestamp& timestamp, const std::chrono::system_c
 // 转换为 protobuf 中的时间戳
 google::protobuf::Timestamp to_timestamp(const time_point& tp) {
     google::protobuf::Timestamp timestamp;
-    
+
     // 计算自 Unix 纪元起经过的秒数
     auto seconds = std::chrono::duration_cast<std::chrono::seconds>(tp.time_since_epoch());
     // 计算剩余的纳秒数
     auto nanos = std::chrono::duration_cast<std::chrono::nanoseconds>(tp.time_since_epoch() - seconds);
-    
+
     timestamp.set_seconds(seconds.count());
     timestamp.set_nanos(static_cast<int32_t>(nanos.count()));
-    
+
     return timestamp;
 }
 

@@ -291,6 +291,7 @@ using stm = std::tm;
 #include <QSharedPointer>
 #include <QShortcut>
 #include <QSize>
+#include <QSortFilterProxyModel>
 #include <QSpinBox>
 #include <QSplitter>
 #include <QSslCipher>
@@ -464,6 +465,7 @@ using SyncClient    = ::TaoTieChat::SyncService::Client;
 using ::TaoTieChat::ContactReplyCodeGadget::ContactReplyCode;
 using ::TaoTieChat::ErrorCodeGadget::ErrorCode;
 using ::TaoTieChat::FileStatusCodeGadget::FileStatusCode;
+using ::TaoTieChat::MessageTypeGadget::MessageType;
 using ::TaoTieChat::PermissionCodeGadget::PermissionCode;
 using ::TaoTieChat::SuccessCodeGadget::SuccessCode;
 using ::TaoTieChat::SyncSubTypeContactGadget::SyncSubTypeContact;

@@ -481,7 +481,7 @@ public:
 //                             msg->set_event_sub_type     (sub_type                  );
 //                             continue;
 //                         }
-// 
+//
 //                         if (sub_type == "FILE_UPLOAD") {
 //                             auto [ok_file, file_metadata, file_status] = db_sqlcipher.get_file_info_interface(event_id);
 //                             if (!ok_file) {

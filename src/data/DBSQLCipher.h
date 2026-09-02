@@ -1324,7 +1324,7 @@ public:
             return success_reply<Reply>(reply, SuccessCode::SUCCESS, std::format("Write short message Successed."));
         }
         else {
-            return error_reply<Reply>(reply, ErrorCode::UNSUPPORTED, std::format("Message type is not supported."));
+            return error_reply<Reply>(reply, ErrorCode::UNSUPPORTED, std::format("Message type is not supported or not short text."));
         }
         // if(is_long_text_message(request)) {
         //     LOG_ERROR("TODO:write_long_text_message");

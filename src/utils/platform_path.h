@@ -51,7 +51,7 @@ public:
         // if (home && home[0] != '\0') return std::string(home);
         // return "";
         char* buffer = nullptr;
-        size_t size = 0;        
+        size_t size = 0;
         // 使用安全版本
         if (_dupenv_s(&buffer, &size, "USERPROFILE") == 0 && buffer != nullptr) {
             std::string result(buffer);
