@@ -124,8 +124,8 @@ std::tuple<grpc::Status, std::unique_ptr<FileUploadReply>, bool> FileUpload(cons
     // ======================================================================= //
     // =========== 准备服务器
     // 创建服务器并在内存中启动
-    auto builder = std::make_unique<Builder>();;
-    auto service = std::make_unique<Service>();;
+    auto builder = std::make_unique<Builder>();
+    auto service = std::make_unique<Service>();
     builder->RegisterService(service.get());
     auto server  = builder->BuildAndStart   ();
     auto channel = server ->InProcessChannel(grpc::ChannelArguments());
@@ -220,8 +220,8 @@ std::tuple<grpc::Status, std::unique_ptr<FileDownloadReply>> FileDownload(const 
     // ======================================================================= //
     // =========== 准备服务器
     // 创建服务器并在内存中启动
-    auto builder = std::make_unique<Builder>();;
-    auto service = std::make_unique<Service>();;
+    auto builder = std::make_unique<Builder>();
+    auto service = std::make_unique<Service>();
     builder->RegisterService(service.get());
     auto server  = builder->BuildAndStart();
     auto channel = server->InProcessChannel(grpc::ChannelArguments());

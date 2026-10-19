@@ -61,8 +61,7 @@ public:
         return Status::OK;
     }
 
-    // 添加联系人的请求
-    // TODO: 应该由联系人同意后方可完成添加
+    // 添加联系人的请求 // 联系人同意后方可完成添加
     Status ContactRequest(ServerContext* context, const ContactRequestRequest* request, ContactRequestReply* response) override {
         using Request = ContactRequestRequest;
         using Reply   = ContactRequestReply;

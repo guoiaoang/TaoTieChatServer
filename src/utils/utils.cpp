@@ -197,9 +197,109 @@ uuid to_uuid(const string& s) {
 // SQLite 中的 DATETIME 类型实际上是一个文本类型，存储格式为 "YYYY-MM-DD HH:MM:SS"(UTC)。
 // 因此在存储时需要将时间转换为 UTC 格式的字符串，在读取时需要将 UTC 格式的字符串转换为时间对象。
 
+void example_time_use() {
+    // ISO 8601 标准带 6 位（微秒）精度且带时区的字符串格式 ： `2026-10-08T11:38:22.862510+08:00`
+    // 完全的 UTC 时间格式： `2026-10-08T03:38:22.862510Z`
+    // 在标准的 ISO 8601 规范中， `Z` 和 `+08:00` 通常不共存：
+    // • Z（Zero meridian）本身就代表 UTC 零时区。
+    // • `+08:00` 代表东八区本地时间。
+    // • `...Z+08:00` 属于部分工业软件（如某些特定的分布式日志收集系统）演化出的非标格式。
+
+    // 其他使用示例
+    const auto& sys_now = std::chrono::system_clock::now();
+    const auto& sys_us  = std::chrono::floor<std::chrono::microseconds>(sys_now);
+    // sys_now : 2026-10-08 05:16:21.2859588, sys_us : 2026-10-08 05:16:21.285958
+    std::cout << "sys_now : " << sys_now << ", sys_us : " << sys_us << std::endl;
+
+    const auto& local_sys = std::chrono::current_zone()->to_local(sys_now);  // 时区转换
+    const auto& local_us  = std::chrono::floor<std::chrono::microseconds>(local_sys);
+    // local_sys : 2026-10-08 13:16:21.2859588, local_us : 2026-10-08 13:16:21.285958
+    std::cout << "local_sys : " << local_sys << ", local_us : " << local_us << std::endl;
+
+    std::string time_str1 = std::format("{:%FT%T}"            , local_sys);  // 输出含小数部分  // 未修剪精度的时间戳
+    std::string time_str2 = std::format("{:%FT%T}"            , local_us );  // 输出含小数部分
+    std::string time_str3 = std::format("{:%Y-%m-%dT%H:%M:%S}", local_us );  // 输出含小数部分
+    // time_str1 : 2026-10-08T13:16:21.2859588, time_str2 : 2026-10-08T13:16:21.285958, time_str3 : 2026-10-08T13:16:21.285958
+    std::cout << "time_str1 : " << time_str1 << ", time_str2 : " << time_str2 << ", time_str3 : " << time_str3 << std::endl;
+
+    // 输出时区需要时间戳包含时区信息
+    // %Z : UTC/GMT+8, %z : +0000/+8000, %Ez : +00:00/+08:00
+    std::chrono::zoned_time zt{ std::chrono::current_zone(), sys_us };
+    std::string time_str_utc = std::format("{:%Y-%m-%dT%H:%M:%S%Ez}", sys_us);
+    std::string time_str_gmt = std::format("{:%Y-%m-%dT%H:%M:%S%Ez}", zt);
+    // time_str_utc : 2026-10-08T05:16:21.285958+00:00, zt : 2026-10-08 13:16:21.285958 GMT+8, time_str_gmt : 2026-10-08T13:16:21.285958+08:00
+    std::cout << "time_str_utc : " << time_str_utc << ", zt : " << zt << ", time_str_gmt : " << time_str_gmt << std::endl;
+
+    // 输出时区信息
+    std::string time_str_utc2 = std::format("{:%Y-%m-%dT%H:%M:%S # %Z # %z # %Ez}", sys_us);
+    std::string time_str_gmt2 = std::format("{:%Y-%m-%dT%H:%M:%S # %Z # %z # %Ez}", zt);
+    // time_str_utc2 : 2026-10-08T05:16:21.285958 # UTC # +0000 # +00:00, time_str_gmt2 : 2026-10-08T13:16:21.285958 # GMT+8 # +0800 # +08:00
+    std::cout << "time_str_utc2 : " << time_str_utc2 << ", time_str_gmt2 : " << time_str_gmt2 << std::endl;
+
+    // 时钟分辨率
+    // period = 1/10000000
+    std::cout << "period = " << std::chrono::system_clock::period::num << "/" << std::chrono::system_clock::period::den << std::endl;
+
+    // ticket
+    const auto& sys_ticket = sys_now.time_since_epoch();
+    long long   sys_count  = std::chrono::duration_cast<std::chrono::microseconds>(sys_ticket).count();
+    // sys_ticket : 17914365812859588[1/10000000]s, sys_count : 1791436581285958
+    std::cout << "sys_ticket : " << sys_ticket << ", sys_count : " << sys_count << std::endl;
+
+    // ticket us
+    const auto& sys_now_us    = std::chrono::floor<std::chrono::microseconds>(sys_now);
+    const auto& sys_ticket_us = sys_now_us.time_since_epoch();
+    long long   sys_count_us  = std::chrono::duration_cast<std::chrono::microseconds>(sys_ticket_us).count();
+    // sys_now_us : 2026-10-08 05:16:21.285958, sys_ticket_us : 1791436581285958us, sys_count_us : 1791436581285958
+    std::cout << "sys_now_us : " << sys_now_us << ", sys_ticket_us : " << sys_ticket_us << ", sys_count_us : " << sys_count_us << std::endl;
+
+    // 高精度时间戳，无法直接使用
+    const auto& hr_now    = std::chrono::high_resolution_clock::now();
+    // hr_now : 79685298187900ns
+    std::cout << "hr_now : " << hr_now.time_since_epoch() << std::endl;
+
+    // Windows 平台特有的高精度文件时钟时间点
+    const auto& file_now = std::chrono::file_clock::now();
+    const auto& sys_now2 = std::chrono::clock_cast<std::chrono::system_clock>(file_now);
+    // file_now : 2026-10-08 05:16:21.3580998, sys_now2 : 2026-10-08 05:16:21.3580998
+    std::cout << "file_now : " << file_now << ", sys_now2 : " << sys_now2 << std::endl;
+}
+
+// 将 ISO 8601 带时区字符串解析为 system_clock::time_point
+std::chrono::system_clock::time_point parse_iso8601(const std::string& input) {
+    std::istringstream ss(input);
+
+    // 1. 定义存储解析结果的变量
+    // local_time 带有微秒精度（6位）
+    std::chrono::local_time<std::chrono::microseconds> lt;
+    // tz_offset 用于存储解析出来的时区偏移量（例如 +08:00 会被解析为 480 分钟）
+    std::chrono::minutes tz_offset{0};
+
+    // 2. 使用 std::chrono::parse 进行反向解析
+    // %Y-%m-%dT%H:%M:%S  -> 解析年月日时分秒（自动捕获小数点后6位微秒）
+    // %Ez                -> C++20 特性，能够正确识别并解析带冒号的时区（如 +08:00）
+    ss >> std::chrono::parse("%Y-%m-%dT%H:%M:%S%Ez", lt, tz_offset);
+
+    if (ss.fail()) {
+        // throw std::runtime_error("时间字符串解析失败，格式不匹配！");
+        return std::chrono::system_clock::time_point{};
+    }
+
+    // 3. 核心对齐：本地时间 - 时区偏移量 = UTC 绝对时间
+    // 例如：北京时间 11:38:22 减去 8小时（480分钟），就得到了 UTC 03:38:22
+    auto duration_since_epoch = lt.time_since_epoch() - tz_offset;
+    std::chrono::sys_time<std::chrono::microseconds> utc_time{ duration_since_epoch };
+
+    // 4. 转换为标准的 system_clock::time_point 返回
+    return std::chrono::clock_cast<std::chrono::system_clock>(utc_time);
+}
+
 // 获取当前时间点
 time_point current_time_point() {
-    return now();
+    // return now();
+
+    // 返回6位精度的时间戳
+    return std::chrono::floor<std::chrono::microseconds>(now());
 }
 
 // 获取 UTC 时间字符串，格式为 "YYYY-MM-DD HH:MM:SS"
@@ -251,7 +351,9 @@ string utc_to_local(const string& utc_str, const string& fmt) {
     return to_local_string(tp, fmt);
 }
 
-void set_timestamp(TaoTieChat::Timestamp& timestamp, const std::chrono::system_clock::time_point& time_point) {
+TaoTieChat::Timestamp to_proto_timestamp(const system_clock::time_point& time_point) {
+    TaoTieChat::Timestamp timestamp;
+
     // 1. 获取自 Unix 纪元以来的持续时间
     auto duration = time_point.time_since_epoch();
 
@@ -262,27 +364,14 @@ void set_timestamp(TaoTieChat::Timestamp& timestamp, const std::chrono::system_c
     // 3. 提取剩余的纳秒数
     auto nanos = std::chrono::duration_cast<std::chrono::nanoseconds>(duration - seconds);
     timestamp.mutable_timestamp()->set_nanos(static_cast<int32_t>(nanos.count()));
-}
-
-// 转换为 protobuf 中的时间戳
-google::protobuf::Timestamp to_timestamp(const time_point& tp) {
-    google::protobuf::Timestamp timestamp;
-
-    // 计算自 Unix 纪元起经过的秒数
-    auto seconds = std::chrono::duration_cast<std::chrono::seconds>(tp.time_since_epoch());
-    // 计算剩余的纳秒数
-    auto nanos = std::chrono::duration_cast<std::chrono::nanoseconds>(tp.time_since_epoch() - seconds);
-
-    timestamp.set_seconds(seconds.count());
-    timestamp.set_nanos(static_cast<int32_t>(nanos.count()));
 
     return timestamp;
 }
 
 // ============================== std 扩展 ============================== //
 
-vector<string> split(const string&src, const string&div) {
-    vector<string> result;
+stringlist split(const string&src, const string&div) {
+    stringlist result;
     size_t start = 0;
     while (true) {
         size_t pos = src.find(div, start);
@@ -296,7 +385,7 @@ vector<string> split(const string&src, const string&div) {
     return result;
 };
 
-const string join(vector<string>&src, const string&div) {
+string join(const stringlist&src, const string&div) {
     string result;
     for (size_t i = 0; i < src.size(); ++i) {
         result += src[i];
@@ -308,7 +397,8 @@ const string join(vector<string>&src, const string&div) {
 }
 
 // protobuf repeated string 的 join
-const string join(const google::protobuf::RepeatedPtrField<std::string>&src, const string&div) {
+// using RepeatedString = google::protobuf::RepeatedPtrField<std::string>;
+string join(const RepeatedString&src, const string&div) {
     string result;
     for (int i = 0; i < src.size(); ++i) {
         result += src.Get(i);

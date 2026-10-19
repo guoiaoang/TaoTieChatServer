@@ -237,7 +237,7 @@ std::tuple<grpc::Status, MessageReply> TTCSendMessage(
         }
     }
     // 设置时间  // 目前暂未使用到
-    Utils::set_timestamp(*request.mutable_timestamp(), std::chrono::system_clock::now());
+    request.mutable_timestamp()->CopyFrom(Utils::to_proto_timestamp(std::chrono::system_clock::now()));
     // 设置消息 ID
     request.set_client_message_id(client_message_id);
     // 设置目标用户 ID

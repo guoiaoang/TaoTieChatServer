@@ -187,7 +187,15 @@ using std::unordered_set;
 using std::variant;
 using std::vector;
 using std::visit;
+// std::ios
+using std::cout;
+using std::endl;
+using std::cerr;
 using stm = std::tm;
+// 自定义类型
+using int32 = int;
+using int64 = long long;
+using stringlist = std::vector<std::string>;
 #endif // ENABLE_HEADERS_STD
 
 // qt

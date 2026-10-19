@@ -1,36 +1,66 @@
 {
-    "[cpp]": {
-        "editor.defaultFormatter": "llvm-vs-code-extensions.vscode-clangd",
-        "editor.formatOnSave": false,
-        "editor.semanticHighlighting.enabled": true
-    },
     "[c]": {
         "editor.defaultFormatter": "ms-vscode.cpptools",
         "editor.semanticHighlighting.enabled": true
     },
+    "[cpp]": {
+        "editor.defaultFormatter": "ms-vscode.cpptools",
+        "editor.formatOnSave": false,
+        "editor.semanticHighlighting.enabled": true
+    },
+    // 设置 clangd 代码提示支持
+    "C_Cpp.default.compileCommands": "out/build/Debug/compile_commands.json",
     "C_Cpp.enhancedColorization": "disabled",
     "C_Cpp.intelliSenseEngine": "default",
-    "C_Cpp.formatting": "clangFormat",
+    "commentTranslate.hover.enabled": true,
+    "commentTranslate.multiLineMerge": true,
+    //
+    "dateTime.clipboardFormat": "YYYY-MM-DD[T]HH:mm:ss.SSS[Z]Z-E-A-x",
+    "dateTime.customFormat": "YYYY-MM-DD[T]HH:mm:ss.SSS[Z]Z-E-A-x",
+    "dateTime.locale": "zh-cn",
+    "dateTime.padDays": true,
+    "dateTime.showAMPM": true,
+    "dateTime.showDayOfMonth": true,
+    "dateTime.showDayOfWeek": true,
+    "dateTime.showMonth": true,
+    "dateTime.showSeconds": true,
+    "dateTime.timeZone": "Asia/Shanghai",
+    // 忽略空行
+    // 控制在对行注释执行切换、添加或删除操作时，是否应忽略空行。
+    "editor.comments.ignoreEmptyLines": false,
+    "editor.minimap.showSlider": "always",
+    "editor.mouseWheelZoom": true,
+    // 绘制空格
+    // 控制编辑器在空白字符上显示符号的方式。
+    "editor.renderWhitespace": "all",
+    // 文字长度提示线
+    // # 在一定数量的等宽字符后显示垂直标尺。输入多个值，显示多个标尺。若数组为空，则不绘制标尺。
+    "editor.rulers": [
+        {
+            // # 此编辑器标尺的颜色。
+            "color": "#ff000022",
+            // # 此编辑器标尺将渲染的等宽字符数。
+            "column": 120
+        },
+        {
+            "color": "#00ff0022",
+            "column": 80
+        }
+    ],
     "editor.semanticHighlighting.enabled": true,
     "files.associations": {
         "*.ERROR": "log",
         "*.INFO": "log",
         "*.json": "jsonc",
+        "*.rh": "cpp",
         "*.service": "ini",
         "*.vssettings": "xml",
         "*.WARNING": "log",
-        "iostream": "cpp",
-        "vector": "cpp",
-        "functional": "cpp",
-        "regex": "cpp",
-        "qtdebug": "cpp",
-        "qfiledialog": "cpp",
-        "qtoolbutton": "cpp",
-        "xstring": "cpp",
         "algorithm": "cpp",
         "any": "cpp",
         "array": "cpp",
         "atomic": "cpp",
+        "barrier": "cpp",
         "bit": "cpp",
         "bitset": "cpp",
         "cctype": "cpp",
@@ -59,18 +89,20 @@
         "deque": "cpp",
         "exception": "cpp",
         "expected": "cpp",
-        "resumable": "cpp",
         "filesystem": "cpp",
         "format": "cpp",
         "forward_list": "cpp",
         "fstream": "cpp",
+        "functional": "cpp",
         "future": "cpp",
         "initializer_list": "cpp",
         "iomanip": "cpp",
         "ios": "cpp",
         "iosfwd": "cpp",
+        "iostream": "cpp",
         "istream": "cpp",
         "iterator": "cpp",
+        "latch": "cpp",
         "limits": "cpp",
         "list": "cpp",
         "locale": "cpp",
@@ -79,15 +111,22 @@
         "memory_resource": "cpp",
         "mutex": "cpp",
         "new": "cpp",
+        "numbers": "cpp",
         "numeric": "cpp",
         "optional": "cpp",
         "ostream": "cpp",
+        "qfiledialog": "cpp",
+        "qtdebug": "cpp",
+        "qtoolbutton": "cpp",
         "queue": "cpp",
         "random": "cpp",
         "ranges": "cpp",
         "ratio": "cpp",
+        "regex": "cpp",
+        "resumable": "cpp",
         "semaphore": "cpp",
         "set": "cpp",
+        "shared_mutex": "cpp",
         "source_location": "cpp",
         "span": "cpp",
         "sstream": "cpp",
@@ -99,6 +138,7 @@
         "streambuf": "cpp",
         "string": "cpp",
         "strstream": "cpp",
+        "syncstream": "cpp",
         "system_error": "cpp",
         "thread": "cpp",
         "tuple": "cpp",
@@ -110,6 +150,7 @@
         "utility": "cpp",
         "valarray": "cpp",
         "variant": "cpp",
+        "vector": "cpp",
         "xfacet": "cpp",
         "xhash": "cpp",
         "xiosbase": "cpp",
@@ -121,68 +162,41 @@
         "xlocnum": "cpp",
         "xloctime": "cpp",
         "xmemory": "cpp",
+        "xstring": "cpp",
         "xtr1common": "cpp",
         "xtree": "cpp",
-        "xutility": "cpp",
-        "*.rh": "cpp",
-        "numbers": "cpp",
-        "shared_mutex": "cpp",
-        "syncstream": "cpp",
-        "barrier": "cpp",
-        "latch": "cpp"
+        "xutility": "cpp"
     },
-    // [VSCode 输出中文乱码 - Isakura 红 - 博客园](https://www.cnblogs.com/Isakura-red/p/18692383 "")
-    // 解决 cmake 插件执行 `--build` 命令时输出中文乱码的问题
-    "cmake.outputLogEncoding": "utf-8",
-    "terminal.integrated.encoding": "utf8",
-    "cmake.environment": {
-        "LANG": "en_US.UTF-8"
-    },
-    // "cmake.loggingLevel": "debug",
-    "cmake.terminal.external": true,
-    // clang 自动填充设置
-    //   需要启用 `-DCMAKE_EXPORT_COMPILE_COMMANDS=ON` 命令
-    //   添加 `compile_commands.json` 文件生成目录
-    "clangd.arguments": [
-        "--compile-commands-dir=out/build/Debug",
-        "--all-scopes-completion",
-        "--clang-tidy",
-        "--completion-style=bundled",
-        "--enable-config",
-        "--fallback-style=Google",
-        "--header-insertion-decorators",
-        "--log=verbose",
-        "--pch-storage=memory",
-        "--pretty",
-        "--ranking-model=decision_forest",
-        "-j=8"
-    ],
-    // "terminal.integrated.profiles.windows": {
-    //     "PowerShell": {
-    //         "source": "PowerShell",
-    //         "icon": "terminal-powershell",
-    //         "args": [
-    //             "-NoExit",
-    //             "chcp 65001"
-    //         ]
-    //     },
-    //     "Command Prompt": {
-    //         "path": [
-    //             "${env:windir}\\Sysnative\\cmd.exe",
-    //             "${env:windir}\\System32\\cmd.exe"
-    //         ],
-    //         "args": [
-    //             "/K",
-    //             "chcp 65001"
-    //         ],
-    //         "icon": "terminal-cmd"
-    //     },
-    //     "Git Bash": {
-    //         "source": "Git Bash"
-    //     }
-    // },
-    "clangd.onConfigChanged": "restart",
-    "commentTranslate.hover.enabled": true,
-    "commentTranslate.multiLineMerge": true,
+    // 不使用对话框
+    // 启用简单文件对话框以打开和保存文件和文件夹。简单文件对话框在启用后会替代系统文件对话框。
+    "files.simpleDialog.enable": true,
+    "git.autofetch": true,
+    "protobuf.externalLinter.enabled": true,
+    "protobuf.externalLinter.linter": "buf",
+    "telemetry.editStats.details.enabled": false,
+    "telemetry.editStats.enabled": false,
+    "telemetry.feedback.enabled": false,
+    "terminal.integrated.mouseWheelZoom": true,
+    "terminal.integrated.tabStopWidth": 4,
+    "tomjs.reload.text": "重新加载",
+    "tomjs.reload.tooltip": "重新加载窗口",
+    // 固定标签另起一行
+    // 启用后，在所有其他选项卡上方的单独行中显示固定的选项卡。如果未将 #workbench.editor.showTabs# 设置为 multiple，则会忽略此值。
+    "workbench.editor.pinnedTabsOnSeparateRow": true,
+    // 选项卡添加数字前缀
+    // 启用后，将显示选项卡索引。如果未将 #workbench.editor.showTabs# 设置为 multiple，则会忽略此值。
+    "workbench.editor.showTabIndex": true,
+    // 标签页样式
+    // Workbench › Editor: Tab Sizing  // 标签页固定宽度
+    // 控制编辑器选项卡的大小。当 "#workbench.editor.showTabs#" 处于禁用状态时，会忽略此值。
+    // # fixed: 使所有选项卡的大小相同，同时允许它们在可用空间不足以同时显示所有选项卡时变小。
+    "workbench.editor.tabSizing": "fixed", // 标签页固定宽度
+    // # 控制编辑器标题区域中用于选项卡和面包屑的滚动条的高度。
+    // # large: 增加大小，以便更轻松地通过鼠标抓取。
+    "workbench.editor.titleScrollbarSizing": "large", // 宽标签页滑动条
+    "workbench.editor.titleScrollbarVisibility": "visible",
+    // Workbench › Editor: Wrap Tabs  // 标签页换行显示
+    // <p>控制当超出可用空间时，选项卡是否应在多行之间换行，或者是否应显示滚动条。当 "#workbench.editor.showTabs#" 处于禁用状态时，将忽略此值。</p>
+    "workbench.editor.wrapTabs": true,
     "workbench.tree.renderIndentGuides": "always"
 }

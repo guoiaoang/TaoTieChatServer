@@ -64,7 +64,7 @@ enum ErrorCode {
   UNKNOWN                         = 0x00000001;  // 未知错误
   DEFAULT                         = 0x00000002;  // 未知错误
   // grpc 相关的错误码  // 0x00001001 - 0x00001FFF
-  ERROR_INIT                      = 0x00001001;  // 返回初始值
+  ERROR_INIT                      = 0x00001001;  // 初始化失败
   ERROR_CONN                      = 0x00001002;  // QT 建立连接失败，无法触发 connect 动作
   ERROR_RECV                      = 0x00001003;  // 接收到的数据不完整或解析失败
   ERROR_SEND                      = 0x00001004;  // 发送数据失败
@@ -556,18 +556,28 @@ message MessageContext {
             // 消息内容均不能为空
             oneof    content {
               // 客户端需要注意不同字符串类型占用的空间大小不一致的问题
-              string short_text   = 21;  // 短文本消息内容  // [0, 8192) 个字节以内的文本消息内容
-              // FileContent long_text = 6;  // 长文本消息内容  // [8192, ...) 个字节以上的文本消息内容。
+              string      short_text = 21;  // 短文本消息内容  // [0, 8192) 个字节以内的文本消息内容
+              FileContent long_text  = 22;  // 长文本消息内容  // [8192, ...) 个字节以上的文本消息内容。
+              string      file_id    = 24;  // 文件 ID        // 文件上传成功后才发送该消息
+              // FileContent file      = 23; // 文件消息内容
               // FileContent image     = 7;  // 图片消息内容
               // FileContent audio     = 8;  // 音频消息内容
               // FileContent video     = 9;  // 视频消息内容
-              // FileContent file      = 10;  // 文件消息内容
               // 单内容格式/多内容格式，自定义格式/使用 xml
               // 通过特殊标记来区分文本和表情等非文本内容
               // `hello[::emoji::smaile]world[::img::earth.png],listen[::audio::hi.mp3]and view[::audio::heard.mp4]`
               // [] 中的内容表示特殊消息，格式为 `::type::data`，其中 type 可以是 emoji、img、audio、video、file 等，data 则是对应的内容，如表情名称、图片文件名、音频文件名等
               // MuiltMessage muilt_message = 11;  // 混合消息
             }
+}
+
+// 文件上传下载时需要的信息
+message FileContent {
+  string         path        = 1;  // 文件路径
+  string         hash        = 2;  // 文件哈希
+  int64          total_size  = 3;  // 文件大小
+  int64          ud_size     = 4;  // 已上传/下载的大小
+  FileStatusCode file_status = 5;  // 传输状态
 }
 
 // 消息回应，返回服务端消息 ID 和时间戳，用于消息同步
@@ -654,6 +664,7 @@ enum SyncSubTypeGroup {
 enum SyncSubTypeMessage {
   SYNC_MESSAGE_UNSET = 0;
   SYNC_MESSAGE_TEXT  = 1;
+  SYNC_MESSAGE_FILE  = 2;
 }
 
 // -------------------------------- GetLastID -------------------------------- //
@@ -727,26 +738,27 @@ message SyncContact {
 
 // 账号信息更新
 message SyncContactUpdate {
-  ContactInfo contact_info = 1;
+  ContactInfo contact_update = 1;
 }
 
 // 好友申请
 message SyncContactRequest{
   ContactInfo contact_request = 1;
-  string      time            = 2;
-  string      message         = 3;
+  string      message_id      = 2;
+  Timestamp   timestamp       = 3;
+  string      message_text    = 4;
 }
 
 // 好友申请回复
 message SyncContactReply{
-  ContactInfo contact_reply   = 1;
-  string      time            = 2;
-  string      message         = 3;
+  ContactInfo contact_reply = 1;
+  Timestamp   timestamp     = 2;
+  string      message       = 3;
 }
 
 // 好友关系变更
 message SyncContactShip{
-  ContactInfo contact = 1;
+  ContactInfo contact_ship = 1;
   // ...
 }
 
@@ -775,16 +787,16 @@ message SyncGroupUpdate {
 
 // 群组申请
 message SyncGroupRequest{
-  Group  group   = 1;
-  string time    = 2;
-  string message = 3;
+  Group     group     = 1;
+  Timestamp timestamp = 2;
+  string    message   = 3;
 }
 
 // 群组申请回复
 message SyncGroupReply{
-  Group  group   = 1;
-  string time    = 2;
-  string message = 3;
+  Group     group     = 1;
+  Timestamp timestamp = 2;
+  string    message   = 3;
 }
 
 // 群组关系变更
@@ -802,21 +814,41 @@ message SyncMessages {
 
 // 同步消息相关信息
 message SyncMessage {
-  SyncSubTypeMessage   sub_type            = 1;  // 消息子类型
-  string               server_message_id   = 2;  // 服务端消息 ID
-  string               client_message_id   = 3;  // 客户端消息 ID
-  string               sender_account_id   = 4;  // 发送方账号 ID
-  string               receiver_account_id = 6;  // 接收方账号 ID
-  Timestamp            timestamp           = 7;  // 服务端落库时间
+  SyncSubTypeMessage   sub_type            = 11;  // 消息子类型
+  string               chatroom_id         = 12;  // 聊天室 ID
+  string               server_message_id   = 13;  // 服务端消息 ID
+  string               client_message_id   = 14;  // 客户端消息 ID
+  string               sender_account_id   = 16;  // 发送方账号 ID
+  string               receiver_account_id = 17;  // 接收方账号 ID
+  Timestamp            timestamp           = 18;  // 服务端落库时间
   oneof                info {
-    SyncMessageText    text                = 8;  // 文本消息
+    SyncMessageText    text                = 21;  // 文本消息
+    SyncMessageFile    file                = 22;  // 文件消息
   }
 }
 
+// 文本消息内容
 message SyncMessageText {
   oneof    info {
-    string short_text        = 1;  // 文本消息内容
+    string short_text = 1;  // 文本消息内容
   }
+}
+
+// 文件类型
+enum FileType {
+  FILE_TYPE_UNSPECIFIED = 0;
+  FILE_TYPE_IMAGE       = 1;
+  FILE_TYPE_AUDIO       = 2;
+  FILE_TYPE_VIDEO       = 3;
+};
+
+// 文件消息内容
+message SyncMessageFile {
+  string file_id     = 1;  // 文件 ID
+  string file_name   = 2;  // 文件名称
+  string file_md5    = 3;  // 文件哈希
+  int64  file_size   = 4;  // 文件大小
+  // FileType file_type = 5;  // 文件类型
 }
 
 // ------------------------------ SyncReplyBody ------------------------------ //

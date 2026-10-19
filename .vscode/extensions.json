@@ -4,7 +4,27 @@
         "ms-vscode.cpptools",
         // cmake 项目解析
         "ms-vscode.cmake-tools",
-        // Qt 调试可视化工具
-        "theqtcompany.qt-cpp"
+        // 右下角添加重新加载窗口按钮
+        "tomjs.vscode-reload",
+        // 右下角添加时间显示  // 不会不断重建进程
+        "rid9.datetime",
+        // 输出窗口内容彩色显示
+        "ibm.output-colorizer",
+        // proto3 文件彩色化及解析支持
+        "drblury.protobuf-vsc",
+        // 提供 vscode 中支持打开 SQLcipher 加密数据库文件的功能
+        "bowlerr.sqlite-intelliview-vscode",
+        // 着重显示行尾空格
+        "shardulm94.trailing-spaces",
+        // 高亮前綴空格
+        "oderwat.indent-rainbow",
+        // 高亮 TODO 注释
+        "jgclark.vscode-todo-highlight",
+        // 添加 TODO 列表
+        "fanaticpythoner.better-todo-tree",
+        // 添加书签
+        "alefragnani.bookmarks",
+        // 查看二进制数据
+        "ms-vscode.hexeditor",
     ]
 }

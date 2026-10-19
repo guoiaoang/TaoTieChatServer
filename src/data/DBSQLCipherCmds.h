@@ -13,7 +13,8 @@ namespace SQL{
         // SQL 语句模板
         // constexpr std::string_view SQL_SET_PRAGMA_KEY      = "PRAGMA key = '{}';";  // 字符串替换会导致数据库注入，但加密语句不支持数据库绑定
 
-        // SQLite 中的 DATETIME 类型实际上是一个文本类型，存储格式为 "YYYY-MM-DD HH:MM:SS"(UTC)。
+        // ~~SQLite 中的 DATETIME 类型实际上是一个文本类型，存储格式为 "YYYY-MM-DD HH:MM:SS"(UTC)。~~
+        // 由于 DATETIME 精度较低，全部替换为手动指定的时间戳。
 
         // SQLCipher 数据库相关语句
         // 不包含参数绑定的语句
@@ -129,9 +130,9 @@ namespace SQL{
                     social_links      TEXT,                  -- 建议存 JSON 数组或独立表  -- 暂定为以 `;` 划分的字符串数组
 
                     -- 时间戳
-                    register_time     DATETIME DEFAULT (datetime('now')),  -- 注册时间
-                    update_time       DATETIME DEFAULT (datetime('now')),  -- 更新时间
-                    deactivate_time   DATETIME,              -- 账号停用/冻结/注销时间
+                    register_time     TEXT NOT NULL,         -- 注册时间
+                    update_time       TEXT NOT NULL,         -- 更新时间
+                    deactivate_time   TEXT,                  -- 账号停用/冻结/注销时间
 
                     -- 安全与扩展
                     security_question    TEXT,                  -- 安全问题
@@ -150,14 +151,16 @@ namespace SQL{
                 CREATE INDEX IF NOT EXISTS idx_user_id    ON users (user_id   );
             )";
 
-            // 补充触发器：确保每次 update 记录时，update_time 都会自动变为当前时间
-            constexpr std::string_view SQL_CREATE_TRIGGER_UPDATE = R"(
-                CREATE TRIGGER IF NOT EXISTS trg_users_update_time
-                AFTER UPDATE ON users
-                BEGIN
-                    UPDATE users SET update_time = datetime('now') WHERE id = NEW.id;
-                END;
-            )";
+            // 当前触发器作用是在用户未传入更新时间参数时自动插入当前时间戳，可由具体语句执行插入传入的时间戳来代替。
+            // // 补充触发器：确保每次 update 记录时，update_time 都会自动变为当前时间
+            // constexpr std::string_view SQL_CREATE_TRIGGER_UPDATE = R"(
+            //     CREATE TRIGGER IF NOT EXISTS trg_users_update_time
+            //     AFTER UPDATE ON users
+            //     BEGIN
+            //         UPDATE users SET update_time = :update_time
+            //         WHERE id = NEW.id;
+            //     END;
+            // )";
 
             // 用户登录令牌（刷新令牌与访问令牌）
             constexpr std::string_view SQL_CREATE_TABLE_TOKENS = R"(
@@ -183,8 +186,8 @@ namespace SQL{
                     last_ip           TEXT,
 
                     -- 时间戳
-                    create_time       DATETIME DEFAULT (datetime('now')),              -- 创建时间
-                    expire_time       DATETIME DEFAULT (datetime('now', '+30 days')),  -- 过期时间
+                    create_time       TEXT NOT NULL,  -- 创建时间
+                    expire_time       TEXT NOT NULL,  -- 过期时间
 
                     -- 用于存储扩展的 JSON 配置
                     common            TEXT,
@@ -210,7 +213,7 @@ namespace SQL{
             // // 用户注销：标记用户状态为已注销，并使其所有 Token 失效
             // constexpr std::string_view SQL_USER_UNREGISTER = R"(
             //     -- 1. 标记用户注销
-            //     UPDATE users SET status = 2, unregister_time = datetime('now') WHERE account_id = :account_id;
+            //     UPDATE users SET status = 2, unregister_time = :unregister_time WHERE account_id = :account_id;
             //
             //     -- 2. 使该用户所有 Token 立即失效（逻辑清理）
             //     UPDATE user_tokens SET token_status = 2 WHERE account_id = :account_id;
@@ -235,11 +238,11 @@ namespace SQL{
                     tags              TEXT,      -- tags 好友关系的标签
                     added_source      TEXT,      -- added_source 好友关系的来源
 
-                    -- 时间戳  -- SQLite 中的 DATETIME 类型实际上是一个文本类型，存储格式为 "YYYY-MM-DD HH:MM:SS"(UTC)
-                    added_time            DATETIME DEFAULT (datetime('now')),  -- added_time 添加为好友的时间
-                    -- added_time_str     TEXT,      -- added_time 添加为好友的时间
-                    removed_time          DATETIME,  -- removed_time 删除好友的时间
-                    -- removed_time_str   TEXT,      -- removed_time 删除好友的时间
+                    -- 时间戳
+                    added_time            TEXT NOT NULL,      -- added_time 添加为好友的时间
+                    -- added_time_str     TEXT,               -- added_time 添加为好友的时间
+                    removed_time          TEXT,               -- removed_time 删除好友的时间
+                    -- removed_time_str   TEXT,               -- removed_time 删除好友的时间
 
                     -- pin            BOOLEAN,   -- pin 好友关系的置顶     -- 应当存储在聊天列表中
 
@@ -251,14 +254,14 @@ namespace SQL{
             // constexpr std::string_view SQL_CREATE_TABLE_GROUPS = R"(
             //     CREATE TABLE IF NOT EXISTS groups (
             //         id INTEGER PRIMARY KEY AUTOINCREMENT,
-            //         group_id    TEXT,  -- group_id 群 ID，唯一，注册时由系统生成，不可被用户修改，销号时不回收
-            //         name        TEXT,  -- name 群名称
-            //         avatar_id   TEXT,  -- avatar_id 群头像 ID
-            //         owner_id    TEXT,  -- owner_id 群主的账号 ID
-            //         member_ids  TEXT,  -- member_ids 群成员的账号 ID 列表，逗号分隔
-            //         create_time DATETIME DEFAULT (datetime('now')),  -- create_time 创建时间
-            //         update_time DATETIME DEFAULT (datetime('now')),  -- update_time 更新时间
-            //         common      TEXT   -- common 通用字段
+            //         group_id    TEXT NOT NULL,  -- group_id 群 ID，唯一，注册时由系统生成，不可被用户修改，销号时不回收
+            //         name        TEXT,           -- name 群名称
+            //         avatar_id   TEXT,           -- avatar_id 群头像 ID
+            //         owner_id    TEXT NOT NULL,  -- owner_id 群主的账号 ID
+            //         member_ids  TEXT,           -- member_ids 群成员的账号 ID 列表，逗号分隔
+            //         create_time TEXT NOT NULL,  -- create_time 创建时间
+            //         update_time TEXT NOT NULL,  -- update_time 更新时间
+            //         common      TEXT            -- common 通用字段
             //     );
             // )";
 
@@ -269,6 +272,9 @@ namespace SQL{
             constexpr std::string_view SQL_CREATE_TABLE_MESSAGES = R"(
                 CREATE TABLE IF NOT EXISTS messages (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+                    -- chatroom_id  聊天室 ID
+                    chatroom_id         TEXT NOT NULL,
 
                     -- server_message_id 服务端生成的全局唯一的消息 ID，可用于消息同步
                     server_message_id   TEXT NOT NULL,
@@ -282,6 +288,9 @@ namespace SQL{
                     -- receiver_account_id 接收者的账号 ID，单聊时为好友的账号 ID，群聊时为群 ID
                     receiver_account_id TEXT NOT NULL,
 
+                    -- 消息类型
+                    message_type        TEXT,
+
                     -- short_text 短文本消息内容直接存储在该字段，适用于 [0, 8192) 个字节以内的文本消息内容
                     -- 短文本内容不允许为空，为空时认为发送的是大文件或长文本消息
                     short_text          TEXT,
@@ -291,6 +300,9 @@ namespace SQL{
                     -- 适用于 [8192, ...) 个字节以上的文本消息内容或文件
                     -- 建议存储 sha 值以便去重
                     big_context_id    TEXT,
+
+                    -- 文件消息
+                    file_id           TEXT,
 
                     timestamp         TEXT NOT NULL,  -- timestamp 消息时间戳  -- 需要返回该值，以便客户端进行消息排序和去重
                     common            TEXT   -- common 通用字段
@@ -330,7 +342,7 @@ namespace SQL{
                     status             INTEGER NOT NULL,
 
                     -- timestamp 好友请求时间戳
-                    timestamp          DATETIME DEFAULT (datetime('now')),
+                    timestamp          TEXT NOT NULL,
 
                     -- message 好友请求附带的消息
                     message            TEXT,
@@ -363,7 +375,7 @@ namespace SQL{
                     file_status INTEGER DEFAULT 0,
 
                     -- upload_time 文件上传时间戳
-                    upload_time DATETIME DEFAULT (datetime('now')),
+                    upload_time TEXT NOT NULL,
 
                     -- common 通用字段
                     common      TEXT
@@ -387,7 +399,7 @@ namespace SQL{
                     permission_code INTEGER DEFAULT 0,  -- 0:无权限
 
                     -- update_time 权限更新时间戳
-                    update_time DATETIME DEFAULT (datetime('now')),
+                    update_time TEXT NOT NULL,
 
                     -- common 通用字段
                     common      TEXT,
@@ -416,7 +428,7 @@ namespace SQL{
             //         file_path   TEXT NOT NULL,
 
             //         -- update_time 更新时间戳
-            //         update_time DATETIME DEFAULT (datetime('now')),
+            //         update_time TEXT NOT NULL,
 
             //         -- common 通用字段
             //         common      TEXT
@@ -435,7 +447,7 @@ namespace SQL{
                     pts_sub_type TEXT NOT NULL DEFAULT '',            -- 事件子类型 -- 用于指明查找位置
                     pts_value    INTEGER DEFAULT 0,                   -- 事件序号   -- 自增 ID
                     pts_event_id TEXT NOT NULL DEFAULT '',            -- 事件 ID    -- 事件对应的全局唯一 ID，如消息 ID 等
-                    update_time  DATETIME DEFAULT (datetime('now')),  -- 更新时间
+                    update_time  TEXT NOT NULL,                       -- 更新时间
                     common       TEXT                                 -- common 通用字段
                 );
             )";
@@ -449,7 +461,7 @@ namespace SQL{
                     account_id  TEXT NOT NULL,                       -- 账号 ID
                     pts_type    TEXT NOT NULL,                       -- 事件类型
                     pts_value   INTEGER DEFAULT 0,                   -- 事件序号  -- 对用户的自增 ID
-                    update_time DATETIME DEFAULT (datetime('now')),  -- 更新时间
+                    update_time TEXT NOT NULL,                       -- 更新时间
                     common      TEXT,                                -- common 通用字段
                     UNIQUE(account_id, pts_type)                     -- 联合唯一：每个账号的每种类型只有一条统计记录
                 );
@@ -494,7 +506,7 @@ namespace SQL{
 
             // 通过服务端消息 ID 查询完整消息记录
             constexpr std::string_view SQL_QUERY_GET_MESSAGE_BY_SERVER_ID = R"(
-                SELECT server_message_id, client_message_id, sender_account_id, receiver_account_id, short_text, timestamp
+                SELECT *
                 FROM   messages
                 WHERE  server_message_id = :server_message_id
                 LIMIT 1;
@@ -534,6 +546,8 @@ namespace SQL{
             )";
 
             // token 登录校验
+            // 执行该语句时 `expire_time` 实际为 `current_time` 。
+            // 该情况下 `expire_time` 的 `TEXT` 可以进行这种比较。
             constexpr std::string_view SQL_QUERY_CHECK_TOKEN = R"(
                 SELECT 1
                 FROM   user_tokens
@@ -541,7 +555,7 @@ namespace SQL{
                         account_id   = :account_id     -- 传入的账号 ID
                     AND token_hash   = :token_hash     -- token_hash 匹配
                     AND token_status = 0               -- Token 未手动撤销
-                    AND expire_time  > datetime('now') -- Token 未过期
+                    AND expire_time  > :expire_time    -- Token 未过期
                 LIMIT 1;
             )";
 
@@ -565,6 +579,16 @@ namespace SQL{
                     AND friend_account_id = :friend_account_id -- 好友的账号 ID
                     -- AND status         = 1                  -- 好友关系
                 LIMIT 1;
+            )";
+
+            // 获取好友的关联信息
+            constexpr std::string_view SQL_QUERY_GET_FRIENDS_LIST = R"(
+                SELECT *
+                FROM   friends
+                WHERE
+                        account_id        = :account_id        -- 当前用户的账号 ID
+                    -- AND status         = 1                  -- 好友关系
+                ;
             )";
 
             // 获取指定账号的好友添加请求状态
@@ -627,23 +651,28 @@ namespace SQL{
 
             // 查询账号指定事件类型的最新 pts 值
             constexpr std::string_view SQL_QUERY_GET_PTS_VALUE = R"(
-                    SELECT pts_value
-                    FROM   pts_stats
-                    WHERE  account_id = :account_id
-                        AND  pts_type   = :pts_type
-                    LIMIT 1;
+                SELECT   pts_value
+                FROM     pts_stats
+                WHERE    account_id = :account_id
+                    AND  pts_type   = :pts_type
+                LIMIT 1;
             )";
 
             // 查询账号指定事件类型在区间内的明细记录
             // id_end <= 0 时表示不限制上界（同步到最新）
-            constexpr std::string_view SQL_QUERY_GET_PTS_RECORDS = R"(
-                    SELECT pts_type, pts_sub_type, pts_value, pts_event_id, update_time
-                    FROM   pts
-                    WHERE  account_id = :account_id
-                        AND  pts_type   = :pts_type
-                        AND  pts_value  > :id_start
-                        AND (:id_end <= 0 OR pts_value <= :id_end)
-                    ORDER BY pts_value ASC;
+            constexpr std::string_view SQL_QUERY_GET_PTS_RECORDS_BY_PTS_VALUE = R"(
+                SELECT   pts_type, pts_sub_type, pts_value, pts_event_id, update_time
+                FROM     pts
+                WHERE    account_id = :account_id
+                    AND  pts_type   = :pts_type
+                    AND  pts_value  > :id_start
+                    AND (:id_end <= 0 OR pts_value <= :id_end)
+                ORDER BY pts_value ASC;
+            )";
+
+            // 根据 ID 获取详情
+            constexpr std::string_view SQL_QUERY_GET_PTS_RECORD_BY_PTS_EVENT_ID = R"(
+                SELECT * FROM pts WHERE pts_event_id = :pts_event_id LIMIT 1;
             )";
 
             // 查询文件 metadata 和 MD5 匹配的记录
@@ -686,8 +715,8 @@ namespace SQL{
             )";
             // 用户注册的 SQL 语句模板，注意：SQLCipher 不支持参数绑定，所以只能使用字符串替换，这会导致数据库注入风险，但由于这是一个注册语句，且参数都是由系统生成的，不直接暴露给用户，所以风险相对较小，可以接受。
             constexpr std::string_view SQL_INSERT_USER_REGISTER = R"(
-                INSERT INTO users ( account_id,  user_id,  password_hash,  security_question,  security_answer_hash,  register_time, status)
-                VALUES            (:account_id, :user_id, :password_hash, :security_question, :security_answer_hash, :register_time, 0     );
+                INSERT INTO users ( account_id,  user_id,  password_hash,  security_question,  security_answer_hash,  register_time,  update_time, status)
+                VALUES            (:account_id, :user_id, :password_hash, :security_question, :security_answer_hash, :register_time, :update_time,      0);
             )";
             // 用户登录记录的 SQL 语句模板
             constexpr std::string_view SQL_INSERT_USER_TOKEN = R"(
@@ -697,24 +726,24 @@ namespace SQL{
 
             // 添加好友请求记录
             constexpr std::string_view SQL_INSERT_FRIEND_REQUEST = R"(
-                INSERT INTO friend_requests ( event_id,  request_account_id,  target_account_id,  status,  message, timestamp)
-                VALUES                      (:event_id, :request_account_id, :target_account_id,       0, :message, datetime('now'));
+                INSERT INTO friend_requests ( event_id,  request_account_id,  target_account_id,  status,  message,  timestamp)
+                VALUES                      (:event_id, :request_account_id, :target_account_id,       0, :message, :timestamp);
             )";
 
-            // 添加好友
-            // 事务操作：需要同时更新双方的好友关系表，确保数据一致性
-            // 1. 在自己的好友列表中添加对方，状态为已关联
-            // 2. 在对方的好友列表中添加自己，状态为已关联
-            // 3. 更新好友申请列表中的状态为已接受
-            constexpr std::string_view SQL_INSERT_FRIEND = R"(
-                INSERT INTO friends ( account_id,  friend_account_id, status, added_time     )
-                VALUES              (:account_id, :friend_account_id,      1, datetime('now'));
-             )";
+            // // 添加好友
+            // // 事务操作：需要同时更新双方的好友关系表，确保数据一致性
+            // // 1. 在自己的好友列表中添加对方，状态为已关联
+            // // 2. 在对方的好友列表中添加自己，状态为已关联
+            // // 3. 更新好友申请列表中的状态为已接受
+            // constexpr std::string_view SQL_INSERT_FRIEND = R"(
+            //     INSERT INTO friends ( account_id,  friend_account_id, status,  added_time)
+            //     VALUES              (:account_id, :friend_account_id,      1, :added_time);
+            //  )";
 
             // 幂等插入好友关系：不存在才插入，避免重复记录
             constexpr std::string_view SQL_INSERT_FRIEND_IF_ABSENT = R"(
-                INSERT INTO friends ( account_id,  friend_account_id, status, added_time    )
-                SELECT               :account_id, :friend_account_id,      1, datetime('now')
+                INSERT INTO friends ( account_id,  friend_account_id, status,  added_time)
+                SELECT               :account_id, :friend_account_id,      1, :added_time
                 WHERE NOT EXISTS (
                         SELECT 1
                         FROM   friends
@@ -725,48 +754,55 @@ namespace SQL{
 
             // 写入短消息记录
             constexpr std::string_view SQL_INSERT_SHORT_MESSAGE = R"(
-            INSERT INTO messages ( server_message_id,  client_message_id,  sender_account_id,  receiver_account_id,  short_text,  timestamp)
-            VALUES               (:server_message_id, :client_message_id, :sender_account_id, :receiver_account_id, :short_text, :timestamp);
+                INSERT INTO messages ( chatroom_id,  server_message_id,  client_message_id,  sender_account_id,  receiver_account_id,  short_text,  timestamp)
+                VALUES               (:chatroom_id, :server_message_id, :client_message_id, :sender_account_id, :receiver_account_id, :short_text, :timestamp);
+            )";
+
+            // 写入短消息记录
+            constexpr std::string_view SQL_INSERT_FILE_MESSAGE = R"(
+                INSERT INTO messages ( chatroom_id,  server_message_id,  client_message_id,  sender_account_id,  receiver_account_id,  file_id,  timestamp)
+                VALUES               (:chatroom_id, :server_message_id, :client_message_id, :sender_account_id, :receiver_account_id, :file_id, :timestamp);
             )";
 
             // pts_stats 事件计数 UPSERT：有则加 1，没有则插入初始值 1
             constexpr std::string_view SQL_UPSERT_PTS_STATS = R"(
-                INSERT INTO pts_stats (account_id, pts_type, pts_value, update_time)
-                VALUES (:account_id, :pts_type, 1, datetime('now'))
+                INSERT INTO pts_stats ( account_id,  pts_type, pts_value,  update_time)
+                VALUES                (:account_id, :pts_type,         1, :update_time)
                 ON CONFLICT(account_id, pts_type)
                 DO UPDATE SET
                     pts_value   = pts_stats.pts_value + 1,
-                    update_time = datetime('now');
+                    update_time = :update_time;
             )";
 
             // 写入单条 pts 明细事件
             constexpr std::string_view SQL_INSERT_PTS_RECORD = R"(
-                INSERT INTO pts (account_id, pts_type, pts_sub_type, pts_value, pts_event_id, update_time)
-                VALUES (:account_id, :pts_type, :pts_sub_type, :pts_value, :pts_event_id, datetime('now'));
+                INSERT INTO pts ( account_id,  pts_type,  pts_sub_type,  pts_value,  pts_event_id,  update_time)
+                VALUES          (:account_id, :pts_type, :pts_sub_type, :pts_value, :pts_event_id, :update_time);
             )";
 
             // 写入文件 metadata 记录
             constexpr std::string_view SQL_INSERT_FILE_METADATA = R"(
-                INSERT INTO file_metadatas ( file_id,  file_name,  file_size,  file_md5,  file_status, upload_time    )
-                VALUES                     (:file_id, :file_name, :file_size, :file_md5, :file_status, datetime('now'));
+                INSERT INTO file_metadatas ( file_id,  file_name,  file_size,  file_md5,  file_status,  upload_time )
+                VALUES                     (:file_id, :file_name, :file_size, :file_md5, :file_status, :upload_time );
             )";
 
             // // 保存文件 md5 与路径的映射关系
             // constexpr std::string_view SQL_INSERT_FILE_PATH = R"(
-            //     INSERT INTO file_storage ( file_md5,  file_path, update_time    )
-            //     VALUES                   (:file_md5, :file_path, datetime('now'))
+            //     INSERT INTO file_storage ( file_md5,  file_path,  update_time)
+            //     VALUES                   (:file_md5, :file_path, :update_time)
             //  )";
 
         }
 
         // 更新
         // 没有数据时执行 UPDATE 语句不会报错，但受影响的行数为 0
+        // `SET` 语句使用 `,` 不能使用 `AND` / `OR` ， `WHERE` 语句使用 `AND` / `OR` 不能使用 `,`。
         namespace UPDATE {
             // 已存在的好友关系更新为已关联
             constexpr std::string_view SQL_UPDATE_FRIEND_ASSOCIATED = R"(
                 UPDATE friends
                 SET    status            = 1,
-                       added_time        = datetime('now')
+                       added_time        = :added_time
                 WHERE  account_id        = :account_id
                   AND  friend_account_id = :friend_account_id;
             )";
@@ -789,7 +825,7 @@ namespace SQL{
                 UPDATE friend_requests
                 SET    status = :status
                 WHERE  request_account_id = :request_account_id
-                  AND  target_account_id  = :target_account_id
+                  AND  target_account_id  = :target_account_id;
             )";
 
             // 更新用户信息
@@ -805,7 +841,8 @@ namespace SQL{
                        description  = :description ,
                        phones       = :phones      ,
                        emails       = :emails      ,
-                       social_links = :social_links
+                       social_links = :social_links,
+                       update_time  = :update_time
                 WHERE  account_id   = :account_id  ;
             )";
 
@@ -824,7 +861,8 @@ namespace SQL{
             // 使用子语句校验账户 ID 的密码并更新密码哈希
             constexpr std::string_view SQL_UPDATE_USER_PASSWORD_BY_PASSWORD = R"(
                 UPDATE users
-                SET    password_hash = :new_password_hash
+                SET    password_hash = :new_password_hash,
+                       update_time   = :update_time
                 WHERE  account_id    = :account_id
                   AND  password_hash = :old_password_hash
                   AND  status        = 0; -- 确保账号状态正常，排除冻结或注销的账户
@@ -833,7 +871,8 @@ namespace SQL{
             // 使用子语句校验账户 ID 的安全问题并更新密码哈希
             constexpr std::string_view SQL_UPDATE_USER_PASSWORD_BY_SECURITY = R"(
                 UPDATE users
-                SET    password_hash = :new_password_hash
+                SET    password_hash = :new_password_hash,
+                       update_time   = :update_time
                 WHERE  account_id    = :account_id
                   AND  security_question    = :security_question
                   AND  security_answer_hash = :security_answer_hash
@@ -843,8 +882,9 @@ namespace SQL{
             // 使用子语句校验账户 ID 的安全问题并更新用户安全问题和答案
             constexpr std::string_view SQL_UPDATE_USER_SECURITY_BY_SECURITY = R"(
                 UPDATE users
-                SET    security_question    = :new_security_question,
-                       security_answer_hash = :new_security_answer_hash
+                SET    security_question    = :new_security_question   ,
+                       security_answer_hash = :new_security_answer_hash,
+                       update_time          = :update_time
                 WHERE  account_id           = :account_id
                   AND  security_question    = :old_security_question
                   AND  security_answer_hash = :old_security_answer_hash
@@ -853,12 +893,12 @@ namespace SQL{
 
             // 如果文件权限表中已经有当前文件 ID 和账号 ID 的记录，则更新权限值；如果没有，则插入新记录
             constexpr std::string_view SQL_UPDATE_FILE_PERMISSION = R"(
-                INSERT INTO file_permissions ( file_id,  account_id,  permission_code, update_time    )
-                VALUES                       (:file_id, :account_id, :permission_code, datetime('now'))
+                INSERT INTO file_permissions ( file_id,  account_id,  permission_code,  update_time)
+                VALUES                       (:file_id, :account_id, :permission_code, :update_time)
                 ON CONFLICT(file_id, account_id)
                 DO UPDATE SET
                     permission_code  = excluded.permission_code,
-                    update_time      = excluded.update_time         -- datetime('now');
+                    update_time      = excluded.update_time
              )";
 
             // 更新文件状态

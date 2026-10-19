@@ -4,7 +4,7 @@
 namespace Utils {
 
 namespace {
-    // static vector<string>     s_args{};
+    // static stringlist      s_args{};
     static string             s_product_name{"TaoTieChatServer"};
     static random_generator   s_uuid_generator;
     static std::random_device s_stduuid_random_device;
@@ -67,31 +67,30 @@ string hash_token(const string& token);  // API Token 可能会重复提供，�
 // 获取当前时间点
 time_point current_time_point();
 // 获取 UTC 时间字符串，格式为 "YYYY-MM-DD HH:MM:SS"
-string to_utc_string      (const time_point& tp, const string& fmt = "{:%Y-%m-%d %H:%M:%S}");
+string to_utc_string      (const time_point& tp, const string& fmt = "{:%Y-%m-%dT%H:%M:%S%Ez}");
 // 获取本地时间字符串，格式为 "YYYY-MM-DD HH:MM:SS"
-string to_local_string    (const time_point& tp, const string& fmt = "{:%Y-%m-%d %H:%M:%S}");
+string to_local_string    (const time_point& tp, const string& fmt = "{:%Y-%m-%dT%H:%M:%S%Ez}");
 // 获取当前 UTC 时间字符串，格式为 "YYYY-MM-DD HH:MM:SS"
-string utc_date_time_str  (                      const string& fmt = "{:%Y-%m-%d %H:%M:%S}");
+string utc_date_time_str  (                      const string& fmt = "{:%Y-%m-%dT%H:%M:%S%Ez}");
 // 获取本地时间字符串，格式为 "YYYY-MM-DD HH:MM:SS"
-string local_date_time_str(                      const string& fmt = "{:%Y-%m-%d %H:%M:%S}");
+string local_date_time_str(                      const string& fmt = "{:%Y-%m-%dT%H:%M:%S%Ez}");
 // 将 UTC 时间字符串转换为时间点
 // static time_point to_time_point(const std::string& utc_str) {
 //     return from_time_t(std::mktime(std::gmtime(&utc_str[0])));
 // }
 // 将 UTC 时间字符串转换为时间点  // 解析字符串不包含 "{" / "}"
-time_point to_time_point(const string& utc_str, const string& fmt = "%Y-%m-%d %H:%M:%S");
+time_point to_time_point(const string& utc_str, const string& fmt = "%Y-%m-%dT%H:%M:%S%Ez");
 // 将 UTC 时间字符串转换为本地时间字符串
-string utc_to_local(const string& utc_str, const string& fmt = "{:%Y-%m-%d %H:%M:%S}");
+string utc_to_local(const string& utc_str, const string& fmt = "{:%Y-%m-%dT%H:%M:%S%Ez}");
 // 将时间点设置到 Timestamp 消息中
-void set_timestamp(TaoTieChat::Timestamp& timestamp, const std::chrono::system_clock::time_point& time_point);
-// 转换为 protobuf 中的时间戳
-google::protobuf::Timestamp to_timestamp(const time_point& tp);
+TaoTieChat::Timestamp to_proto_timestamp(const system_clock::time_point& time_point);
 
 // ============================== std 扩展 ============================== //
-vector<string> split(const string&src, const string&div);
-const string join(vector<string>&src, const string&div);
+stringlist split(const string    &src, const string&div = ";");
+string     join (const stringlist&src, const string&div = ";");
 // protobuf repeated string 的 join
-const string join(const google::protobuf::RepeatedPtrField<std::string>&src, const string&div);
+using RepeatedString = google::protobuf::RepeatedPtrField<std::string>;
+string    join  (const RepeatedString&src, const string&div = ";");
 
 // ====================================================================== //
 void log_grpc_context(::grpc::ServerContext* context);

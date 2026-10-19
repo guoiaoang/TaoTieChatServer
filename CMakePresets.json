@@ -78,7 +78,7 @@
                 "VC_ENV_PATH"     : "$env{VC_ROOT}/bin/HostX64/$env{BUILD_ARCH}",
                 "VC_ENV_INCLUDE"  : "$env{VC_ROOT}/include",
                 "VC_ENV_LIB"      : "$env{VC_ROOT}/lib/$env{BUILD_ARCH}",
-                "PATH"   : "$env{VC_ENV_PATH};$env{SDK_ENV_PATH};C:/app/dev/ninja;$env{QT_ENV_PATH};$penv{PATH}",
+                "PATH"   : "$env{VC_ENV_PATH};$env{SDK_ENV_PATH};$env{QT_ENV_PATH};$env{NINJA_ROOT};$penv{PATH}",
                 "INCLUDE": "$env{VC_ENV_INCLUDE};$env{SDK_ENV_INCLUDE};$penv{INCLUDE}",
                 "LIB"    : "$env{VC_ENV_LIB};$env{SDK_ENV_LIB};$penv{LIB}"
             },

@@ -91,3 +91,4 @@ CMakeLists.txt.user*
 
 # grpc 生成的文件
 /src/protos/include/
+shell/_*

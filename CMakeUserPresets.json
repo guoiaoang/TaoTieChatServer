@@ -12,19 +12,29 @@
                 "rhs": "Windows"
             },
             "hidden": false,
+            "architecture": {
+                "value": "x64",
+                "strategy": "external"
+            },
+            "toolset": {
+                "value": "v143",
+                "strategy": "external"
+            },
             "environment": {
+                "compilerPath": "C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x64/cl.exe",
+                "SDKRCPath"   : "C:/Program Files (x86)/Windows Kits/10/bin/10.0.26100.0/x64/rc.exe",
                 "NINJA_ROOT"  : "C:/app/dev/ninja",
                 "VCPKG_ROOT"  : "C:/app/dev/vcpkg",
                 "CMAKE_ROOT"  : "C:/app/dev/Qt/Tools/CMake_64",
                 "QT_ROOT"     : "C:/app/dev/Qt/6.10.3/msvc2022_64",
-                "VCINSTALLDIR": "C:/app/dev/msvs/2022/enterprise/VC",
-                "SDK_ROOT"    : "C:/app/dev/WindowsKits/10",
+                "VCINSTALLDIR": "C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC",
+                "SDK_ROOT"    : "C:/Program Files (x86)/Windows Kits/10",
                 "VC_VERSION"  : "14.44.35207",
                 "SDK_VERSION" : "10.0.26100.0",
                 "BUILD_ARCH"  : "x64",
                 "BUILD_TYPE"  : "Debug",
-                "HTTP_PROXY"  : "http://127.0.0.1:2080",
-                "HTTPS_PROXY" : "http://127.0.0.1:2080"
+                "HTTP_PROXY"  : "http://127.0.0.1:1080",
+                "HTTPS_PROXY" : "http://127.0.0.1:1080"
             }
         }
     ]

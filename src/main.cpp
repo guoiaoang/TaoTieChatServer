@@ -238,6 +238,14 @@ int main(int argc, char** argv) {
     // 输出当前工作目录
     LOG_DEBUG("Current working directory: {}", Utils::app_dir().string());
 
+// #ifdef _WIN32
+//     // Windows 11 开启 BBR2 会导致客户端无法收到服务端消息。
+//     // 无 API，可通过 `netsh interface tcp show supplemental`
+//     //   或 `PowerShell "Get-NetTCPSetting | Select SettingName,CongestionProvider"` 获取是否开启了 BBR2
+//     LOG_WARNING("**开启 BBR2 可能导致客户端无法收到服务端的消息。**");
+//     LOG_WARNING("**Enabling BBR2 may result in the client failing to receive messages from the server.**");
+// #endif // _WIN32
+
     // 数据库路径和加密密钥
     const path db_path = Utils::data_dir() / (TOSTRING(PROJECT_NAME) ".db");
     const string encryption_key = "your_secure_encryption_key";
