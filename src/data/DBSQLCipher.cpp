@@ -2329,9 +2329,11 @@ tuple<bool, SyncMessage> DBSQLCipher::get_message_record(const SqlRows& rows) {
         if(ite_receiver     != ite_end) { sync_message.set_receiver_account_id(get_string(ite_receiver   ->second)); }
         if(ite_time         != ite_end) { sync_message.mutable_timestamp()->CopyFrom(to_proto_timestamp(ite_time->second)); }
         ;    if(ite_short   != ite_end && !get_string(ite_short->second  ).empty()) {
+            sync_message.set_sub_type(::TaoTieChat::SyncSubTypeMessage::SYNC_MESSAGE_TEXT);
             sync_message.mutable_text()->set_short_text(get_string(ite_short->second  ));
         }
         else if(ite_file_id != ite_end && !get_string(ite_file_id->second).empty()) {
+            sync_message.set_sub_type(::TaoTieChat::SyncSubTypeMessage::SYNC_MESSAGE_FILE);
             sync_message.mutable_file()->set_file_id   (get_string(ite_file_id->second));
         }
         return {true, sync_message};

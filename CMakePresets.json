@@ -51,7 +51,8 @@
                 "CMAKE_PREFIX_PATH": "$env{QT_ROOT}",
                 "BUILD_TESTING": "ON",
                 "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
-                "CMAKE_BUILD_TYPE": "$env{BUILD_TYPE}"
+                "CMAKE_BUILD_TYPE": "$env{BUILD_TYPE}",
+                "VCPKG_OVERLAY_PORTS": "${sourceDir}/vcpkg-overlays"
             }
         },
         {
@@ -168,8 +169,7 @@
                 "CMAKE_CXX_COMPILER": "/home/linuxbrew/.linuxbrew/bin/g++-15",
                 "PKG_CONFIG_EXECUTABLE": "/home/linuxbrew/.linuxbrew/bin/pkg-config",
                 "VCPKG_INSTALL_OPTIONS": "--allow-unsupported",
-                "CMAKE_MAKE_PROGRAM": "/home/linuxbrew/.linuxbrew/bin/ninja",
-                "VCPKG_OVERLAY_PORTS": "${sourceDir}/vcpkg-overlays"
+                "CMAKE_MAKE_PROGRAM": "/home/linuxbrew/.linuxbrew/bin/ninja"
             }
         },
         {

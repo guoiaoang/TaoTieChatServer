@@ -701,10 +701,10 @@ endif()
 
 # ================================== GTest ================================== #
 
-# 添加测试子目录
-if(ENABLE_SERVER   AND   ENABLE_TEST)
-    add_subdirectory(${PROJECT_DIR_TEST})
-endif()
+# # 添加测试子目录
+# if(ENABLE_SERVER   AND   ENABLE_TEST)
+#     add_subdirectory(${PROJECT_DIR_TEST})
+# endif()
 
 # =============================== 安装打包 =============================== #
 

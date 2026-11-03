@@ -443,7 +443,27 @@ void sync_service_realtime_sync(const Data::PtsInfo& pts_data) {
             // // 文本消息
             auto [success_sync_message, sync_message] = db_sqlcipher.get_message_record_interface(pts_event_id);
             if (!success_sync_message) { continue; }
-            sync_message.set_sub_type(::TaoTieChat::SyncSubTypeMessage::SYNC_MESSAGE_TEXT);
+            if (sync_message.has_text()) {
+                sync_message.set_sub_type(::TaoTieChat::SyncSubTypeMessage::SYNC_MESSAGE_TEXT);
+            }
+            else if (sync_message.has_file()) {
+                sync_message.set_sub_type(::TaoTieChat::SyncSubTypeMessage::SYNC_MESSAGE_FILE);
+                // 补充文件信息
+                if (sync_message.has_file() && !sync_message.file().file_id().empty()) {
+                    auto [success_file_info, file_info, file_code] = db_sqlcipher.get_file_info_interface(sync_message.file().file_id());
+                    if (success_file_info && file_code == TaoTieChat::FileStatusCode::FILE_STATUS_UPLOADED) {
+                        if (!file_info.file_name().empty()) {
+                            sync_message.mutable_file()->set_file_name(file_info.file_name());
+                        }
+                        if (!file_info.file_md5().empty()) {
+                            sync_message.mutable_file()->set_file_md5(file_info.file_md5());
+                        }
+                        if (file_info.file_size() >= 0) {
+                            sync_message.mutable_file()->set_file_size(file_info.file_size());
+                        }
+                    }
+                }
+            }
             body->mutable_messages()->add_message()->CopyFrom(sync_message);
         }
         SessionManager::instance().push_to_user(pts_data.account_id, body_reply);
