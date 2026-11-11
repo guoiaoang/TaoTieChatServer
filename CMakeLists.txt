@@ -725,16 +725,49 @@ install(
 
 # 复制 build 目录下生成的文件 # 复制 grpc 运行时需要的相关依赖文件
 if(WIN32)
-    # Some dependencies are copied by the IDE/toolchain into the per-config
-    # output folder (for example: out/build/.../Debug). Include them in install.
+    # # 复制 .dll / .pdb 文件到可执行文件目录
+    # install(
+    #     DIRECTORY     "${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/"
+    #     DESTINATION   "${CMAKE_INSTALL_BINDIR}"
+    #     FILES_MATCHING      # 过滤条件
+    #         PATTERN   "*.dll" # 复制 .dll 文件
+    #         PATTERN   "*.pdb" # 复制 .pdb 文件
+    # )
 
-    # 复制 .dll / .pdb 文件到可执行文件目录
-    install(
-        DIRECTORY     "${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/"
-        DESTINATION   "${CMAKE_INSTALL_BINDIR}"
-        FILES_MATCHING      # 过滤条件
-            PATTERN   "*.dll" # 复制 .dll 文件
-            PATTERN   "*.pdb" # 复制 .pdb 文件
+    # vcpkg 的 applocal deps 会在 POST_BUILD 阶段把运行依赖 DLL 复制到可执行文件所在目录。
+    # 本项目使用 Ninja 单配置生成器，binaryDir 本身已经是 out/build/<BUILD_TYPE>，
+    # 因此产物直接位于 ${CMAKE_BINARY_DIR} 顶层，并不存在 ${CMAKE_BINARY_DIR}/$<CONFIG>/ 这一层。
+    # 之前写成 install(DIRECTORY ".../$<CONFIG>/") 会展开成 out/build/Release/Release/，
+    # 该目录不存在，导致这些 DLL 完全没有被 install / CPack 打包。
+    #
+    # 这里改为在 install 阶段（此时 DLL 已由构建生成/拷贝）用 GLOB 只收集产物目录顶层的
+    # *.dll / *.pdb：既避免依赖 $<CONFIG>，也不会像 install(DIRECTORY) 那样递归把
+    # vcpkg_installed、CMakeFiles、CPack 暂存目录里的无关 DLL 一起打进包。
+    install(CODE
+        "
+        file(GLOB _runtime_files
+            \"${CMAKE_BINARY_DIR}/*.dll\"
+            \"${CMAKE_BINARY_DIR}/*.pdb\"
+        )
+        # 兼容多配置生成器（Visual Studio / Xcode）：产物位于 <binaryDir>/<Config>/ 下
+        if(DEFINED CMAKE_INSTALL_CONFIG_NAME)
+            file(GLOB _runtime_files_config
+                \"${CMAKE_BINARY_DIR}/\${CMAKE_INSTALL_CONFIG_NAME}/*.dll\"
+                \"${CMAKE_BINARY_DIR}/\${CMAKE_INSTALL_CONFIG_NAME}/*.pdb\"
+            )
+            list(APPEND _runtime_files \${_runtime_files_config})
+        endif()
+        if(_runtime_files)
+            list(REMOVE_DUPLICATES _runtime_files)
+            file(INSTALL
+                DESTINATION \"\${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}\"
+                TYPE FILE
+                FILES \${_runtime_files}
+            )
+        else()
+            message(WARNING \"No runtime DLL/PDB found in '${CMAKE_BINARY_DIR}'. Build the project before packaging.\")
+        endif()
+        "
     )
 endif()
 
@@ -890,60 +923,139 @@ if(ENABLE_CLIENT)
     output_shell_update_translations()
 endif()
 
-function(output_shell_actions_install)
-    # 1. 定义输出目录及脚本文件路径
+function(output_shell_update_qt_ui)
+    if(NOT ENABLE_CLIENT)
+        return()
+    endif()
+
+    # 1. 从源文件列表里筛出 .ui；新增界面文件后重新 configure 即可自动纳入
+    set(QT_UI_FILES "")
+    foreach(_src_file IN LISTS PROJECT_FILES_CODE)
+        if(_src_file MATCHES "\\.ui$")
+            file(TO_CMAKE_PATH "${_src_file}" _ui_path)
+            list(APPEND QT_UI_FILES "${_ui_path}")
+        endif()
+    endforeach()
+    if(NOT QT_UI_FILES)
+        message(STATUS "output_shell_update_qt_ui: no .ui files found, skip")
+        return()
+    endif()
+
+    # 2. 定位 Qt 的 uic。Qt6::uic 的路径通常按配置存在 IMPORTED_LOCATION_<CONFIG> 里
+    set(QT_UIC_EXE "")
+    if(TARGET Qt6::uic)
+        get_target_property(QT_UIC_EXE Qt6::uic IMPORTED_LOCATION)
+        if(NOT QT_UIC_EXE)
+            get_target_property(_uic_configs Qt6::uic IMPORTED_CONFIGURATIONS)
+            foreach(_uic_cfg IN LISTS _uic_configs)
+                get_target_property(_uic_loc Qt6::uic "IMPORTED_LOCATION_${_uic_cfg}")
+                if(_uic_loc)
+                    set(QT_UIC_EXE "${_uic_loc}")
+                    break()
+                endif()
+            endforeach()
+        endif()
+    endif()
+    # 回退：Qt6_DIR 为 <qt_root>/lib/cmake/Qt6，uic 在 <qt_root>/bin
+    if(NOT QT_UIC_EXE AND Qt6_DIR)
+        get_filename_component(_qt_root "${Qt6_DIR}/../../.." ABSOLUTE)
+        if(WIN32)
+            set(QT_UIC_EXE "${_qt_root}/bin/uic.exe")
+        else()
+            set(QT_UIC_EXE "${_qt_root}/bin/uic")
+        endif()
+    endif()
+    if(NOT QT_UIC_EXE OR NOT EXISTS "${QT_UIC_EXE}")
+        find_program(QT_UIC_EXE NAMES uic uic.exe)
+    endif()
+    if(NOT QT_UIC_EXE OR QT_UIC_EXE MATCHES "-NOTFOUND$")
+        message(WARNING "output_shell_update_qt_ui: uic not found, skip")
+        return()
+    endif()
+    file(TO_CMAKE_PATH "${QT_UIC_EXE}" QT_UIC_EXE)
+
+    # 3. CMAKE_AUTOUIC 的产物目录：qt_add_executable 默认 <binary>/<target>_autogen/include
+    set(QT_UI_OUT_DIR "${CMAKE_BINARY_DIR}/${PROJECT_NAME}_autogen/include")
+    file(TO_CMAKE_PATH "${QT_UI_OUT_DIR}" QT_UI_OUT_DIR)
+
+    # 4. 输出目录及脚本路径
     set(SHELL_OUTPUT_DIR "${CMAKE_SOURCE_DIR}/shell")
-    file(MAKE_DIRECTORY "${SHELL_OUTPUT_DIR}") # 确保 shell 目录存在
+    file(MAKE_DIRECTORY "${SHELL_OUTPUT_DIR}")
+
+    # 5. 逐条拼出 uic 命令。同名 .ui 会被 AUTOUIC 加 hash 后缀，这里给出提示
+    set(_qt_ui_names "")
+    set(QT_UI_COMMANDS "")
+    foreach(_ui_file IN LISTS QT_UI_FILES)
+        get_filename_component(_ui_name "${_ui_file}" NAME_WE)
+        if("${_ui_name}" IN_LIST _qt_ui_names)
+            message(WARNING "output_shell_update_qt_ui: duplicated ui name '${_ui_name}', check the generated script")
+        endif()
+        list(APPEND _qt_ui_names "${_ui_name}")
+        if(WIN32)
+            string(APPEND QT_UI_COMMANDS
+                "\"%UIC_EXE%\" \"${_ui_file}\" -o \"%UIC_OUT%/ui_${_ui_name}.h\" || exit /b 1\n")
+        else()
+            string(APPEND QT_UI_COMMANDS
+                "\"$UIC_EXE\" \"${_ui_file}\" -o \"$UIC_OUT/ui_${_ui_name}.h\"\n")
+        endif()
+    endforeach()
 
     if(WIN32)
-        set(SCRIPT_FILE "${SHELL_OUTPUT_DIR}/_actions_install.bat")
-
-        # 2. 拼接需要写入脚本的命令内容
-        # 注意：若命令中包含带空格的路径，请用 Quotes 转义
+        set(SCRIPT_FILE "${SHELL_OUTPUT_DIR}/_update_qt_ui.bat")
         set(SCRIPT_CONTENT
 "@echo off
 chcp 65001 >nul
 REM 本文件由 CMake 自动生成，请勿手动改动
+REM 只执行 uic 把 .ui 编译成 ui_*.h，不调用 cmake --build，因此不会触发任何 C++ 编译
 
-\"${CMAKE_COMMAND}\"  ^
-    --install \"${CMAKE_BINARY_DIR}\" ^
-    --prefix=\"${CMAKE_INSTALL_PREFIX}\"
+set \"UIC_EXE=${QT_UIC_EXE}\"
+set \"UIC_OUT=${QT_UI_OUT_DIR}\"
+set \"CMAKE_EXE=${CMAKE_COMMAND}\"
+\"%CMAKE_EXE%\" -E make_directory \"%UIC_OUT%\"
 
-REM echo.
-REM echo 脚本执行完成！
+${QT_UI_COMMANDS}
+echo UI 头文件已更新: %UIC_OUT%
+echo.
+echo 脚本执行完成！
 "
         )
+        # cmd.exe 对 CRLF 换行的解析最稳妥
+        string(REPLACE "\n" "\r\n" SCRIPT_CONTENT "${SCRIPT_CONTENT}")
     else()
-        set(SCRIPT_FILE "${SHELL_OUTPUT_DIR}/_actions_install.sh")
-
-        # 2. 拼接需要写入脚本的命令内容
-        # 注意：若命令中包含带空格的路径，请用 Quotes 转义
+        set(SCRIPT_FILE "${SHELL_OUTPUT_DIR}/_update_qt_ui.sh")
         set(SCRIPT_CONTENT
 "#!/usr/bin/env bash
 # 本文件由 CMake 自动生成，请勿手动改动
+# 只执行 uic 把 .ui 编译成 ui_*.h，不调用 cmake --build，因此不会触发任何 C++ 编译
+set -e
 
-\"${CMAKE_COMMAND}\" \\
-    --install \"${CMAKE_BINARY_DIR}\" \\
-    --prefix=\"${CMAKE_INSTALL_PREFIX}\"
+UIC_EXE=\"${QT_UIC_EXE}\"
+UIC_OUT=\"${QT_UI_OUT_DIR}\"
+mkdir -p \"$UIC_OUT\"
 
+${QT_UI_COMMANDS}
+echo \"UI 头文件已更新: $UIC_OUT\"
 # echo -e \"\\n脚本执行完成！\"
 "
         )
     endif()
 
-    # 3. 写入文件
+    # 6. 写入文件
     file(WRITE "${SCRIPT_FILE}" "${SCRIPT_CONTENT}")
 
-    # 4. 如果是 Unix 系统，赋予可执行权限
+    # 7. Unix 下赋予可执行权限
     if(UNIX)
         execute_process(
             COMMAND chmod +x "${SCRIPT_FILE}"
             WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
         )
     endif()
+    message(STATUS " update qt ui script : ${SCRIPT_FILE}")
 endfunction()
 
-output_shell_actions_install()
+if(ENABLE_CLIENT)
+    output_shell_update_qt_ui()
+endif()
 
 # 自动生成跨平台的 CMake Configure 脚本 (Windows .bat / Linux .sh)
 function(output_shell_actions_configure)
@@ -1013,3 +1125,58 @@ REM echo 脚本执行完成！
 endfunction()
 
 output_shell_actions_configure()
+
+function(output_shell_actions_install)
+    # 1. 定义输出目录及脚本文件路径
+    set(SHELL_OUTPUT_DIR "${CMAKE_SOURCE_DIR}/shell")
+    file(MAKE_DIRECTORY "${SHELL_OUTPUT_DIR}") # 确保 shell 目录存在
+
+    if(WIN32)
+        set(SCRIPT_FILE "${SHELL_OUTPUT_DIR}/_actions_install.bat")
+
+        # 2. 拼接需要写入脚本的命令内容
+        # 注意：若命令中包含带空格的路径，请用 Quotes 转义
+        set(SCRIPT_CONTENT
+"@echo off
+chcp 65001 >nul
+REM 本文件由 CMake 自动生成，请勿手动改动
+
+\"${CMAKE_COMMAND}\"  ^
+    --install \"${CMAKE_BINARY_DIR}\" ^
+    --prefix=\"${CMAKE_INSTALL_PREFIX}\"
+
+REM echo.
+REM echo 脚本执行完成！
+"
+        )
+    else()
+        set(SCRIPT_FILE "${SHELL_OUTPUT_DIR}/_actions_install.sh")
+
+        # 2. 拼接需要写入脚本的命令内容
+        # 注意：若命令中包含带空格的路径，请用 Quotes 转义
+        set(SCRIPT_CONTENT
+"#!/usr/bin/env bash
+# 本文件由 CMake 自动生成，请勿手动改动
+
+\"${CMAKE_COMMAND}\" \\
+    --install \"${CMAKE_BINARY_DIR}\" \\
+    --prefix=\"${CMAKE_INSTALL_PREFIX}\"
+
+# echo -e \"\\n脚本执行完成！\"
+"
+        )
+    endif()
+
+    # 3. 写入文件
+    file(WRITE "${SCRIPT_FILE}" "${SCRIPT_CONTENT}")
+
+    # 4. 如果是 Unix 系统，赋予可执行权限
+    if(UNIX)
+        execute_process(
+            COMMAND chmod +x "${SCRIPT_FILE}"
+            WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+        )
+    endif()
+endfunction()
+
+output_shell_actions_install()

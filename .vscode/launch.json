@@ -18,7 +18,14 @@
             "console": "integratedTerminal",
             // 受翻译影响，找不到 `CMake: build` 时可执行 `CMake: 生成`
             // "preLaunchTask": "CMake: build"
-            "preLaunchTask": "CMake: 生成"
+            "preLaunchTask": "CMake: 生成",
+            // C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\MSVC\14.44.35207\crt\src\vcruntime\exe_common.inl
+            "symbolSearchPath": "C:/app/dev/qt/6.10.3/msvc2022_64/bin;C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/crt/src/vcruntime",
+            "externalConsole": false,
+            "logging": {
+                "moduleLoad": false,
+                "trace": false
+            }
         },
         {
             "name": "CMake Debug (GDB / LLDB - Linux / macOS)",

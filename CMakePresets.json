@@ -162,7 +162,7 @@
                 "PKG_CONFIG_PATH": "/home/linuxbrew/.linuxbrew/opt/sqlcipher/lib/pkgconfig:$penv{PKG_CONFIG_PATH}",
                 "COMPILER_PATH": "/home/linuxbrew/.linuxbrew/opt/binutils/bin:$penv{COMPILER_PATH}",
                 "LD_LIBRARY_PATH": "/home/linuxbrew/.linuxbrew/lib/gcc/current:/home/linuxbrew/.linuxbrew/lib:$penv{LD_LIBRARY_PATH}",
-                "PROJECT_NAME": "TaoTieChatServer"
+                "PROJECT_NAME": "TaoTieChat"
             },
             "cacheVariables": {
                 "CMAKE_C_COMPILER": "/home/linuxbrew/.linuxbrew/bin/gcc-15",
