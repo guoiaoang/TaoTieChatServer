@@ -109,15 +109,15 @@ string to_string(const Result  & result);
 string to_string(const SyncType& sync_type);
 // ====================================================================== //
 // int to enum code
-ErrorCode      contact_status_to_error_code        (int result);
-ErrorCode      contact_request_status_to_error_code(int result);
-FileStatusCode file_status_to_file_status_code     (int result);
+ErrorCode      contact_status_to_error_code        (int64_t result);
+ErrorCode      contact_request_status_to_error_code(int64_t result);
+FileStatusCode file_status_to_file_status_code     (int64_t result);
 // enum code to int
-int to_int(const ContactReplyCode& code           );
-int to_int(const FileStatusCode  & file_status    );
-int to_int(const PermissionCode  & permission_code);
-int to_int(const SyncType        & sync_type      );
-SyncType to_sync_type(const int& sync_type);
+int64_t to_int64(const ContactReplyCode& code           );
+int64_t to_int64(const FileStatusCode  & file_status    );
+int64_t to_int64(const PermissionCode  & permission_code);
+int64_t to_int64(const SyncType        & sync_type      );
+SyncType to_sync_type(const int64_t& sync_type);
 SyncType to_sync_type(const string& str_sync_type);
 
 }  // namespace Utils::Transform

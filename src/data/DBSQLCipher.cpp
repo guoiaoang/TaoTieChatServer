@@ -79,12 +79,12 @@ bool get_bool(const SqlValue& v, const bool default_value) {
     return default_value;
 }
 
-int get_int(const SqlValue& v, const int default_value) {
-    if (const auto pVal = get_if<int    >(&v)) {
-        return *pVal;
-    }
-    return default_value;
-}
+// int get_int(const SqlValue& v, const int default_value) {
+//     if (const auto pVal = get_if<int    >(&v)) {
+//         return *pVal;
+//     }
+//     return default_value;
+// }
 
 int64_t get_int64(const SqlValue& v, const int64_t default_value) {
     if (const auto pVal = get_if<int64_t>(&v)) {
@@ -143,19 +143,19 @@ stringlist row_stringlist(
     return split(value, ";");
 };
 
-int row_int(
-    const SqlRow    & row,  // 要查找的行
-    const string    & key,  // 要查找的关键词
-    const int       & default_value, // 失败时的默认值
-    const function<bool(const int    &)>& func  // 条件符合时返回默认值
-) {
-    const auto& ite_end   = row.end();
-    const auto& ite_value = row.find(key);
-    if (ite_value == ite_end) { return default_value; }
-    const auto& value = get_int(ite_value->second, default_value);
-    if (func && func(value)) { return default_value; }
-    return value;
-};
+// int row_int(
+//     const SqlRow    & row,  // 要查找的行
+//     const string    & key,  // 要查找的关键词
+//     const int       & default_value, // 失败时的默认值
+//     const function<bool(const int    &)>& func  // 条件符合时返回默认值
+// ) {
+//     const auto& ite_end   = row.end();
+//     const auto& ite_value = row.find(key);
+//     if (ite_value == ite_end) { return default_value; }
+//     const auto& value = get_int(ite_value->second, default_value);
+//     if (func && func(value)) { return default_value; }
+//     return value;
+// };
 
 int64_t row_int64(
     const SqlRow    & row,  // 要查找的行
@@ -232,11 +232,11 @@ tuple<bool, string> get_first_string(const SqlRows& rows, const string& key, con
     return {true, string{}};
 }
 
-tuple<bool, int> get_first_int(const SqlRows& rows, const string& key, int default_value) {
+tuple<bool, int64_t> get_first_int64(const SqlRows &rows, const string &key, int64_t default_value) {
     // 解析获取指定 key 的值并返回
     for(const auto& row : rows) {
         if(row.contains(key)) {
-            return {true, get_int(row.find(key)->second)};
+            return {true, get_int64(row.find(key)->second)};
         }
     }
     // 调用该函数就说明执行成功，返回结果为空时是有效值
@@ -495,8 +495,9 @@ shared_ptr<SQLResult> DBSQLCipher::execute(const string_view& sql, shared_ptr<Sq
     auto bind_variant = [](sqlite3_stmt* stmt, int idx, const SqlValue& v)->void {
         visit([&](auto&& arg) {
             using T = decay_t<decltype(arg)>;
-            ;    if constexpr (is_same_v<T, int      >) sqlite3_bind_int   (stmt, idx, arg);
-            else if constexpr (is_same_v<T, int64_t  >) sqlite3_bind_int64 (stmt, idx, arg);
+            // ;    if constexpr (is_same_v<T, int      >) sqlite3_bind_int   (stmt, idx, arg);  // 是否应该注释掉以便强制使用 int64??
+            // else if constexpr (is_same_v<T, int64_t  >) sqlite3_bind_int64 (stmt, idx, arg);
+            ;    if constexpr (is_same_v<T, int64_t  >) sqlite3_bind_int64 (stmt, idx, arg);
             else if constexpr (is_same_v<T, double   >) sqlite3_bind_double(stmt, idx, arg);
             else if constexpr (is_same_v<T, string   >) sqlite3_bind_text  (stmt, idx, arg.c_str(), -1, SQLITE_TRANSIENT);
             else if constexpr (is_same_v<T, nullptr_t>) sqlite3_bind_null  (stmt, idx);
@@ -506,7 +507,7 @@ shared_ptr<SQLResult> DBSQLCipher::execute(const string_view& sql, shared_ptr<Sq
     // 辅助：从列中提取数据存入 variant
     auto extract_column = [](sqlite3_stmt* stmt, int idx)->SqlValue {
         int type = sqlite3_column_type(stmt, idx);
-        if (type == SQLITE_INTEGER) { return sqlite3_column_int   (stmt, idx); }
+        if (type == SQLITE_INTEGER) { return sqlite3_column_int64 (stmt, idx); }  // int 无法记录大文件的大小 // int64_t
         if (type == SQLITE_FLOAT  ) { return sqlite3_column_double(stmt, idx); }
         if (type == SQLITE_TEXT   ) { return string(reinterpret_cast<const char*>(sqlite3_column_text(stmt, idx))); }
         if (type == SQLITE_BLOB   ) { return string(reinterpret_cast<const char*>(sqlite3_column_blob(stmt, idx)), sqlite3_column_bytes(stmt, idx)); }
@@ -586,9 +587,12 @@ shared_ptr<SQLResult> DBSQLCipher::execute(const string_view& sql, shared_ptr<Sq
         if(rc != SQLITE_ROW) {
             break;
         }
+        // 解析转换保存
         SqlRow row;
         for (int i = 0; i < sqlite3_column_count(stmt); i++) {
-            row[sqlite3_column_name(stmt, i)] = extract_column(stmt, i);
+            auto name  = sqlite3_column_name(stmt, i);
+            auto value = extract_column(stmt, i);
+            row[name] = value;
         }
         results->rows.emplace_back(row);
     }
@@ -1984,7 +1988,7 @@ tuple<bool, bool> DBSQLCipher::update_file_status_interface(const string& file_i
     return update_file_status(file_id, file_status);
 }
 
-tuple<bool, int> DBSQLCipher::get_file_permission_interface(const string& account_id, const string& file_id) {
+tuple<bool, int64_t> DBSQLCipher::get_file_permission_interface(const string &account_id, const string &file_id) {
     return get_file_permission(account_id, file_id);
 }
 
@@ -2055,7 +2059,7 @@ shared_ptr<GetLastIDReply> DBSQLCipher::get_last_id(shared_ptr<AuthRequest> requ
         auto  ite_value = row.find("pts_value");
         if(ite_type == row.end() || ite_value == row.end()) { continue; }
         auto  pts_type_str = get_string(ite_type ->second);
-        auto  pts_value    = get_int   (ite_value->second);
+        auto  pts_value    = get_int64 (ite_value->second);
         auto* tag = reply->add_tags();
         ;    if(pts_type_str == Utils::Transform::to_string(SyncType::SYNC_CONTACTS)) { tag->set_type(SyncType::SYNC_CONTACTS); }
         else if(pts_type_str == Utils::Transform::to_string(SyncType::SYNC_GROUPS  )) { tag->set_type(SyncType::SYNC_GROUPS  ); }
@@ -2210,7 +2214,7 @@ tuple<bool, ContactInfo> DBSQLCipher::get_contact_info(const SqlRows& rows) {
         if(ite_user_id      != ite_end) { base_info->set_user_id    (get_string(ite_user_id    ->second)); }
         if(ite_avatar_id    != ite_end) { base_info->set_avatar_id  (get_string(ite_avatar_id  ->second)); }
         if(ite_nickname     != ite_end) { base_info->set_nickname   (get_string(ite_nickname   ->second)); }
-        if(ite_gender       != ite_end) { base_info->set_gender     (get_int   (ite_gender     ->second)); }
+        if(ite_gender       != ite_end) { base_info->set_gender     ((int)get_int64(ite_gender ->second)); }
         if(ite_birthday     != ite_end) { base_info->set_birthday   (get_string(ite_birthday   ->second)); }
         if(ite_signature    != ite_end) { base_info->set_signature  (get_string(ite_signature  ->second)); }
         if(ite_region       != ite_end) { base_info->set_region     (get_string(ite_region     ->second)); }
@@ -2243,9 +2247,9 @@ tuple<bool, shared_ptr<ContactInfoFriend>> DBSQLCipher::get_friend_info(const Sq
         auto ite_removed_time      = row.find("removed_time"     );  //
         auto ite_common            = row.find("common"           );  //
         if(ite_account_id   != ite_end) { friend_info->set_account_id  (get_string(ite_account_id  ->second)); }
-        if(ite_status       != ite_end) { friend_info->set_status      (get_int   (ite_status      ->second) == -1 ? 1 : get_int(ite_status ->second)); }
-        if(ite_starred      != ite_end) { friend_info->set_starred     (get_int   (ite_starred     ->second) == -1 ? 0 : get_int(ite_starred->second)); }
-        if(ite_silent       != ite_end) { friend_info->set_silent      (get_int   (ite_silent      ->second) == -1 ? 0 : get_int(ite_silent ->second)); }
+        if(ite_status       != ite_end) { friend_info->set_status      (get_int64 (ite_status      ->second) == -1 ? 1 : (int)get_int64(ite_status ->second)); }
+        if(ite_starred      != ite_end) { friend_info->set_starred     (get_int64 (ite_starred     ->second) == -1 ? 0 :      get_int64(ite_starred->second)); }
+        if(ite_silent       != ite_end) { friend_info->set_silent      (get_int64 (ite_silent      ->second) == -1 ? 0 :      get_int64(ite_silent ->second)); }
         if(ite_notes        != ite_end) { friend_info->set_notes       (get_string(ite_notes       ->second)); }
         if(ite_added_source != ite_end) { friend_info->set_added_source(get_string(ite_added_source->second)); }
         if(ite_added_time   != ite_end) { friend_info->set_added_time  (get_string(ite_added_time  ->second)); }
@@ -2261,18 +2265,18 @@ tuple<bool, shared_ptr<list_friends>> DBSQLCipher::get_friends_list(const SqlRow
     // 解析获取 account_id 并返回
     for(const auto& row : rows) {
         auto friend_info               = make_shared<Data::FriendInfo>();
-        friend_info->id                = row_int       (row, "id"               );
-        friend_info->account_id        = row_string    (row, "account_id"       );
-        friend_info->friend_account_id = row_string    (row, "friend_account_id");
-        friend_info->status            = row_int       (row, "status"           ,     1);
-        friend_info->starred           = row_bool      (row, "starred"          , false);
-        friend_info->silent            = row_bool      (row, "silent"           , false);
-        friend_info->notes             = row_string    (row, "notes"            );
-        friend_info->tags              = row_stringlist(row, "tags"             );
-        friend_info->added_source      = row_string    (row, "added_source"     );
-        friend_info->added_time        = row_string    (row, "added_time"       );
-        friend_info->removed_time      = row_string    (row, "removed_time"     );
-        friend_info->common            = row_string    (row, "common"           );
+        friend_info->id                = (int)row_int64(row, "id"               );
+        friend_info->account_id        =      row_string    (row, "account_id"       );
+        friend_info->friend_account_id =      row_string    (row, "friend_account_id");
+        friend_info->status            = (int)row_int64     (row, "status"           ,     1);
+        friend_info->starred           =      row_bool      (row, "starred"          , false);
+        friend_info->silent            =      row_bool      (row, "silent"           , false);
+        friend_info->notes             =      row_string    (row, "notes"            );
+        friend_info->tags              =      row_stringlist(row, "tags"             );
+        friend_info->added_source      =      row_string    (row, "added_source"     );
+        friend_info->added_time        =      row_string    (row, "added_time"       );
+        friend_info->removed_time      =      row_string    (row, "removed_time"     );
+        friend_info->common            =      row_string    (row, "common"           );
         if (!friends_list) { friends_list = make_shared<list_friends>(); }
         friends_list->push_back(friend_info);
     }
@@ -2296,10 +2300,10 @@ tuple<bool, FileMetadata, FileStatusCode> DBSQLCipher::get_file_info(const SqlRo
         // auto ite_common      = row.find("common"     );
         // if(ite_file_id    != ite_end) { get<1>(file_info).set_file_id    (get_string(ite_file_id    ->second)); }
         if(ite_file_name     != ite_end) { get<1>(file_info).set_file_name  (get_string(ite_file_name  ->second)); }
-        if(ite_file_size     != ite_end) { get<1>(file_info).set_file_size  (get_int   (ite_file_size  ->second)); }
+        if(ite_file_size     != ite_end) { get<1>(file_info).set_file_size  (get_int64 (ite_file_size  ->second)); }  // get_int() 会导致 2G 文件大小异常
         if(ite_file_md5      != ite_end) { get<1>(file_info).set_file_md5   (get_string(ite_file_md5   ->second)); }
-        if(ite_file_status   != ite_end) { get<2>(file_info) = file_status_to_file_status_code(get_int(ite_file_status->second)); }
-        // if(ite_file_status!= ite_end) { get<1>(file_info).set_file_status(get_int   (ite_file_status->second)); }
+        if(ite_file_status   != ite_end) { get<2>(file_info) = file_status_to_file_status_code(get_int64(ite_file_status->second)); }
+        // if(ite_file_status!= ite_end) { get<1>(file_info).set_file_status(get_int64 (ite_file_status->second)); }
         // if(ite_upload_time!= ite_end) { get<1>(file_info).set_upload_time(get_string(ite_upload_time->second)); }
         // if(ite_common     != ite_end) { get<1>(file_info).set_common     (get_string(ite_common     ->second)); }
         return file_info;  // 一次查询实际只有一条
@@ -2622,7 +2626,7 @@ tuple<bool, bool> DBSQLCipher::check_exist_file_id(const string& file_id) {
 }
 
 // 获取好友状态。0：非好友，1：好友，2：被对方拉黑了（可能没有这个状态，先预留）
-tuple<bool, int > DBSQLCipher::get_contact_status(const string& request_account_id, const string& target_account_id) {
+tuple<bool, int64_t > DBSQLCipher::get_contact_status(const string &request_account_id, const string &target_account_id) {
     // =========================== 参数校验 =========================== //
     if(request_account_id.empty() || target_account_id.empty()) {
         return {false, -1};
@@ -2640,7 +2644,7 @@ tuple<bool, int > DBSQLCipher::get_contact_status(const string& request_account_
     return {false, -1};
 }
 
-tuple<bool, int > DBSQLCipher::get_friend_request_status(const string& request_account_id, const string& target_account_id) {
+tuple<bool, int64_t > DBSQLCipher::get_friend_request_status(const string &request_account_id, const string &target_account_id) {
     // =========================== 参数校验 =========================== //
     if(request_account_id.empty() || target_account_id.empty()) {
         return {false, -1};
@@ -2653,12 +2657,12 @@ tuple<bool, int > DBSQLCipher::get_friend_request_status(const string& request_a
     auto sql_result = execute(SQL_QUERY_GET_FRIEND_REQUEST_STATUS, sql_params);
     if(sql_result && sql_result->done) {
         // 查询命令执行成功
-        return get_first_int(sql_result->rows, "status");
+        return get_first_int64(sql_result->rows, "status");
     }
     return {false, -1};
 }
 
-tuple<bool, bool> DBSQLCipher::check_active_account_security(const string& account_id, const string& question, const string& answer) {
+tuple<bool, bool> DBSQLCipher::check_active_account_security(const string &account_id, const string &question, const string &answer) {
     if(account_id.empty() || question.empty() || answer.empty()) {
         return {false, false};
     }
@@ -2677,7 +2681,7 @@ tuple<bool, bool> DBSQLCipher::check_active_account_security(const string& accou
 };
 
 // 获取已经上传文件的文件 ID
-tuple<bool, string> DBSQLCipher::get_exist_file_id(const string& file_name, int64_t file_size, const string& file_md5) {
+tuple<bool, string> DBSQLCipher::get_exist_file_id(const string &file_name, int64_t file_size, const string &file_md5) {
     // =========================== 参数校验 =========================== //
     if(file_name.empty() || file_size < 0 || file_md5.empty()) {
         return {false, string{}};
@@ -2696,7 +2700,7 @@ tuple<bool, string> DBSQLCipher::get_exist_file_id(const string& file_name, int6
     return {false, string{}};
 }
 
-tuple<bool, FileMetadata, FileStatusCode> DBSQLCipher::get_file_info(const string& file_id) {
+tuple<bool, FileMetadata, FileStatusCode> DBSQLCipher::get_file_info(const string &file_id) {
     // =========================== 参数校验 =========================== //
     if(file_id.empty()) {
         return {false, FileMetadata{}, FileStatusCode::FILE_STATUS_NONE};
@@ -2712,7 +2716,7 @@ tuple<bool, FileMetadata, FileStatusCode> DBSQLCipher::get_file_info(const strin
     return {false, FileMetadata{}, FileStatusCode::FILE_STATUS_NONE};
 }
 
-tuple<bool, int> DBSQLCipher::get_file_permission(const string& account_id, const string& file_id) {
+tuple<bool, int64_t> DBSQLCipher::get_file_permission(const string &account_id, const string &file_id) {
     // =========================== 参数校验 =========================== //
     if(file_id.empty() || account_id.empty()) {
         return {false, 0};
@@ -2724,7 +2728,7 @@ tuple<bool, int> DBSQLCipher::get_file_permission(const string& account_id, cons
     (*sql_params)[":account_id"] = account_id;
     auto sql_result = execute(SQL_QUERY_GET_FILE_PERMISSION, sql_params);
     if(sql_result && sql_result->done) {
-        auto [success, permission_code] = get_first_int(sql_result->rows, "permission_code");
+        auto [success, permission_code] = get_first_int64(sql_result->rows, "permission_code");
         if(success) {
             return {true, permission_code};
         }
@@ -2964,7 +2968,7 @@ tuple<bool, bool> DBSQLCipher::set_contact_request_status(const string& request_
     if(request_account_id.empty() || target_account_id.empty()) {
         return {false, false};
     }
-    int status = to_int(code);
+    int64_t status = to_int64(code);
     if(status == -1) {
         return {false, false};
     }
@@ -3122,7 +3126,7 @@ tuple<bool, bool> DBSQLCipher::write_file_metadata(const string& file_id, const 
     (*sql_params)[":file_name"  ] = file_name;
     (*sql_params)[":file_size"  ] = file_size;
     (*sql_params)[":file_md5"   ] = file_md5 ;
-    (*sql_params)[":file_status"] = Utils::Transform::to_int(status);
+    (*sql_params)[":file_status"] = Utils::Transform::to_int64(status);
     (*sql_params)[":upload_time"] = upload_time;
     auto sql_result = execute(SQL_INSERT_FILE_METADATA, sql_params);
     if(sql_result && sql_result->done) {
@@ -3139,15 +3143,15 @@ tuple<bool, bool> DBSQLCipher::write_file_permission(const string& account_id, c
     }
     // =========================== 执行操作 =========================== //
     // 获取权限代码
-    int permission_code = Utils::Transform::to_int(PermissionCode::PERMISSION_NONE);
-    permission_code += Utils::Transform::to_int(PermissionCode::PERMISSION_NONE   ); // =  0;  // 0000 0000 // 无权限
-    permission_code += Utils::Transform::to_int(PermissionCode::PERMISSION_CREATE ); // =  1;  // 0000 0001 //
-    permission_code += Utils::Transform::to_int(PermissionCode::PERMISSION_READ   ); // =  2;  // 0000 0010 //
-    permission_code += Utils::Transform::to_int(PermissionCode::PERMISSION_WRITE  ); // =  4;  // 0000 0100 //
-    permission_code += Utils::Transform::to_int(PermissionCode::PERMISSION_MODIFY ); // =  8;  // 0000 1000 //
-    permission_code += Utils::Transform::to_int(PermissionCode::PERMISSION_DELETE ); // = 16;  // 0001 0000 //
-    permission_code += Utils::Transform::to_int(PermissionCode::PERMISSION_SHARE  ); // = 32;  // 0010 0000 //
-    permission_code += Utils::Transform::to_int(PermissionCode::PERMISSION_EXECUTE); // = 64;  // 0100 0000 //
+    int64_t permission_code = 0;
+    permission_code += Utils::Transform::to_int64(PermissionCode::PERMISSION_NONE   ); // =  0;  // 0000 0000 // 无权限
+    permission_code += Utils::Transform::to_int64(PermissionCode::PERMISSION_CREATE ); // =  1;  // 0000 0001 //
+    permission_code += Utils::Transform::to_int64(PermissionCode::PERMISSION_READ   ); // =  2;  // 0000 0010 //
+    permission_code += Utils::Transform::to_int64(PermissionCode::PERMISSION_WRITE  ); // =  4;  // 0000 0100 //
+    permission_code += Utils::Transform::to_int64(PermissionCode::PERMISSION_MODIFY ); // =  8;  // 0000 1000 //
+    permission_code += Utils::Transform::to_int64(PermissionCode::PERMISSION_DELETE ); // = 16;  // 0001 0000 //
+    permission_code += Utils::Transform::to_int64(PermissionCode::PERMISSION_SHARE  ); // = 32;  // 0010 0000 //
+    permission_code += Utils::Transform::to_int64(PermissionCode::PERMISSION_EXECUTE); // = 64;  // 0100 0000 //
 
     // 构造参数
     auto sql_params = make_shared<SqlParams>();
@@ -3209,7 +3213,7 @@ tuple<bool, bool> DBSQLCipher::write_pts_event(const string& account_id, const s
     if(!sql_get_result || !sql_get_result->done) {
         return {false, false};
     }
-    auto [success_get_value, pts_value] = get_first_int(sql_get_result->rows, "pts_value");
+    auto [success_get_value, pts_value] = get_first_int64(sql_get_result->rows, "pts_value");
     if(!success_get_value || pts_value <= 0) {
         return {false, false};
     }
@@ -3245,7 +3249,7 @@ tuple<bool, bool> DBSQLCipher::update_file_status(const string& file_id, const F
     // 构造参数
     auto sql_params = make_shared<SqlParams>();
     (*sql_params)[":file_id"    ] = file_id;
-    (*sql_params)[":file_status"] = Utils::Transform::to_int(status);
+    (*sql_params)[":file_status"] = Utils::Transform::to_int64(status);
     auto sql_result = execute(SQL_UPDATE_FILE_STATUS, sql_params);
     if(sql_result && sql_result->done) {
         // 查询命令执行成功

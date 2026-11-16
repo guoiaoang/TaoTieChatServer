@@ -519,8 +519,8 @@ string to_string(const SyncType& sync_type) {
 // ====================================================================== //
 
 // int to enum code
-ErrorCode contact_status_to_error_code        (int result) {
-    static map<int, ErrorCode> map_status_error_codes = {
+ErrorCode contact_status_to_error_code        (int64_t result) {
+    static map<int64_t, ErrorCode> map_status_error_codes = {
         { -1, ErrorCode::DB_RECORD_NOT_FOUND },  // 好友请求未找到
         {  0, ErrorCode::PENDING             },  // 存在好友申请
         {  1, ErrorCode::ASSOCIATED          },  // 已经是好友了
@@ -533,8 +533,8 @@ ErrorCode contact_status_to_error_code        (int result) {
     return ErrorCode::DEFAULT;
 }
 
-ErrorCode contact_request_status_to_error_code(int result) {
-    static map<int, ErrorCode> map_status_error_codes = {
+ErrorCode contact_request_status_to_error_code(int64_t result) {
+    static map<int64_t, ErrorCode> map_status_error_codes = {
         { -1, ErrorCode::DB_RECORD_NOT_FOUND },  // 好友请求未找到
         {  0, ErrorCode::PENDING             },  // 好友请求待处理
         {  1, ErrorCode::ACCEPTED            },  // 同意好友申请
@@ -547,8 +547,8 @@ ErrorCode contact_request_status_to_error_code(int result) {
     return ErrorCode::DEFAULT;
 }
 
-FileStatusCode file_status_to_file_status_code(int result) {
-    static map<int, FileStatusCode> map_status_codes = {
+FileStatusCode file_status_to_file_status_code(int64_t result) {
+    static map<int64_t, FileStatusCode> map_status_codes = {
         {0, FileStatusCode::FILE_STATUS_NONE      },  // 文件状态未知，或查询失败
         {1, FileStatusCode::FILE_STATUS_UPLOADED  },  // 文件已存在，无需上传
         {2, FileStatusCode::FILE_STATUS_UPLOADING },  // 文件不存在或未完成上传，需要上传
@@ -560,8 +560,8 @@ FileStatusCode file_status_to_file_status_code(int result) {
     return FileStatusCode::FILE_STATUS_NONE;
 }
 
-int to_int(const ContactReplyCode& contact_reply_code) {
-    static map<ContactReplyCode, int> map_contact_reply_codes = {
+int64_t to_int64(const ContactReplyCode& contact_reply_code) {
+    static map<ContactReplyCode, int64_t> map_contact_reply_codes = {
         { ContactReplyCode::CONTACT_REPLY_ACCEPT, 1 },
         { ContactReplyCode::CONTACT_REPLY_REJECT, 2 },
         { ContactReplyCode::CONTACT_REPLY_IGNORE, 3 },
@@ -572,8 +572,8 @@ int to_int(const ContactReplyCode& contact_reply_code) {
     return -1;
 }
 
-int to_int(const FileStatusCode  & file_status_code) {
-    static map<FileStatusCode, int> map_file_status_codes = {
+int64_t to_int64(const FileStatusCode  & file_status_code) {
+    static map<FileStatusCode, int64_t> map_file_status_codes = {
         { FileStatusCode::FILE_STATUS_NONE     , 0 },
         { FileStatusCode::FILE_STATUS_UPLOADED , 1 },
         { FileStatusCode::FILE_STATUS_UPLOADING, 2 },
@@ -585,8 +585,8 @@ int to_int(const FileStatusCode  & file_status_code) {
     return 0;
 }
 
-int to_int(const PermissionCode& permission_code) {
-    static map<PermissionCode, int> map_permission_codes = {
+int64_t to_int64(const PermissionCode& permission_code) {
+    static map<PermissionCode, int64_t> map_permission_codes = {
         { PermissionCode::PERMISSION_NONE   ,  0 },  // 0000 0000 // 无权限
         { PermissionCode::PERMISSION_CREATE ,  1 },  // 0000 0001 //
         { PermissionCode::PERMISSION_READ   ,  2 },  // 0000 0010 //
@@ -602,8 +602,8 @@ int to_int(const PermissionCode& permission_code) {
     return 0;
 }
 
-int to_int(const SyncType& sync_type) {
-    static map<SyncType, int> map_sync_types = {
+int64_t to_int64(const SyncType &sync_type) {
+    static map<SyncType, int64_t> map_sync_types = {
         { SyncType::SYNC_UNSET   ,  1 },
         { SyncType::SYNC_CONTACTS,  1 },
         { SyncType::SYNC_GROUPS  ,  2 },
@@ -615,8 +615,8 @@ int to_int(const SyncType& sync_type) {
     return 0;
 }
 
-SyncType to_sync_type(const int& sync_type) {
-    static map<int, SyncType> map_sync_types = {
+SyncType to_sync_type(const int64_t &sync_type) {
+    static map<int64_t, SyncType> map_sync_types = {
         {  1, SyncType::SYNC_UNSET    },
         {  1, SyncType::SYNC_CONTACTS },
         {  2, SyncType::SYNC_GROUPS   },
@@ -628,7 +628,7 @@ SyncType to_sync_type(const int& sync_type) {
     return SyncType::SYNC_UNSET;
 }
 
-SyncType to_sync_type(const string& str_sync_type) {
+SyncType to_sync_type(const string &str_sync_type) {
     static map<const string, SyncType> map_sync_types = {
         { "SYNC_UNSET"   , SyncType::SYNC_UNSET    },
         { "SYNC_CONTACTS", SyncType::SYNC_CONTACTS },
@@ -644,13 +644,13 @@ SyncType to_sync_type(const string& str_sync_type) {
 }  // namespace Utils::Transform
 
 namespace Utils {
-void set_success(Result *result, const SuccessCode&code) {
+void set_success(Result *result, const SuccessCode &code) {
     if(result) {
         result->set_success_code(code);
         result->set_message(Utils::Transform::to_message(code));
     }
 }
-void set_error(Result *result, const ErrorCode&code) {
+void set_error(Result *result, const ErrorCode &code) {
     if(result) {
         result->set_error_code(code);
         result->set_message(Utils::Transform::to_message(code));

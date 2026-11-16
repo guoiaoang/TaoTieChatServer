@@ -13,7 +13,8 @@
 bool initialize_spdlog();
 
 // absl flag
-ABSL_FLAG(uint16_t, http_port , 50051, "Server port for the http service");
+ABSL_FLAG(std::string, server_addr, "0.0.0.0", "Server bind addr");
+ABSL_FLAG(int32_t    , http_port  , 50051    , "Server port for the http service");
 // ABSL_FLAG(uint16_t, https_port, 50052, "Server port for the https service");
 
 class ServerImpl {
@@ -25,8 +26,10 @@ public:
 
     int Run() {
         // 构建服务器地址
-        std::string server_address_http  = absl::StrFormat("0.0.0.0:%d", absl::GetFlag(FLAGS_http_port));
+        std::string server_address_http = absl::StrFormat("%s:%d", absl::GetFlag(FLAGS_server_addr), absl::GetFlag(FLAGS_http_port));
+        // std::string server_address_http  = absl::StrFormat("0.0.0.0:%d", absl::GetFlag(FLAGS_http_port));
         // std::string server_address_https = absl::StrFormat("0.0.0.0:%d", absl::GetFlag(FLAGS_https_port));
+        LOG_INFO("Server listening http on {}", server_address_http);
 
         // 启用 gRPC 服务器的默认健康检查服务和反射服务
         grpc::EnableDefaultHealthCheckService(true);
@@ -195,12 +198,14 @@ int RunServer() {
     grpc::reflection::InitProtoReflectionServerBuilderPlugin();
 
     // 构建服务器地址
-    std::string server_address = absl::StrFormat("0.0.0.0:%d", absl::GetFlag(FLAGS_http_port));
-    LOG_INFO("Server listening on {}", server_address);
+    std::string server_address_http = absl::StrFormat("%s:%d", absl::GetFlag(FLAGS_server_addr), absl::GetFlag(FLAGS_http_port));
+    // std::string server_address_http  = absl::StrFormat("0.0.0.0:%d", absl::GetFlag(FLAGS_http_port));
+    // std::string server_address_https = absl::StrFormat("0.0.0.0:%d", absl::GetFlag(FLAGS_https_port));
+    LOG_INFO("Server listening http on {}", server_address_http);
 
     // 构建并启动 gRPC 服务器
     ServerBuilder server_builder;
-    server_builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
+    server_builder.AddListeningPort(server_address_http, grpc::InsecureServerCredentials());
     // 注册服务
     StatusServiceImpl               service_status_checker ;
     server_builder.RegisterService(&service_status_checker);
@@ -219,16 +224,81 @@ int RunServer() {
     if (!server) {
         LOG_FATAL("gRPC server failed to start."
             " Check whether port {} is already in use and "
-            "whether service registration is valid.", server_address);
+            "whether service registration is valid.", server_address_http);
         return 1;
     }
-    LOG_INFO("gRPC server started successfully on {}", server_address);
+    LOG_INFO("gRPC server started http server successfully on {}", server_address_http);
     server->Wait();
     return 0;
 }
 
+std::string format_timestamp(const std::string &ts) {
+    // std::string ts = __TIMESTAMP__;
+    std::istringstream ss(ts);
+    std::chrono::local_seconds tp;
+    ss >> std::chrono::parse("%a %b %d %H:%M:%S %Y", tp);
+    if (ss.fail()) { return "0000-00-00 00:00:00"; }
+
+    // 将 sys_seconds（UTC）转为当前系统时区的时间
+    auto zt = std::chrono::zoned_time{std::chrono::current_zone(), tp};
+
+    // // %z 输出紧凑偏移（如 +0800），%Z 输出时区缩写（如 CST）
+    // std::cout << std::format("{:%Y-%m-%d %H:%M:%S %z}", zt) << std::endl;
+    // std::cout << std::format("{:%Y-%m-%d %H:%M:%S %Z}", zt) << std::endl;
+
+    return std::format("{:%Y-%m-%d %H:%M:%S %z}", zt);
+}
+
+std::string get_version_string() {
+    std::string build_time = format_timestamp(__TIMESTAMP__);
+
+    std::string build_type;
+#if defined(DEBUG) || defined(_DEBUG)
+    build_type = "debug";
+#else
+    build_type = "release";
+#endif // defined(DEBUG) || defined(_DEBUG)
+
+    std::string version_string;
+    version_string += std::format("build time {} ({})", build_time, build_type);
+
+    return version_string;
+}
+
+std::string get_help_string() {
+    std::string help_string;
+    help_string += "TaoTieChatServer - A chat server\n";
+    help_string += get_version_string() + "\n";
+    help_string += "  --server_addr : Server bind addr\n";
+    help_string += "  --http_port   : Server bind http port\n";
+    help_string += "  --help        : show current help info\n";
+    help_string += "  --helpfull    : show all help info\n";
+    return help_string;
+}
+
 int main(int argc, char** argv) {
-    absl::ParseCommandLine(argc, argv);
+    // 手动检查 -v 参数 // Abseil 不支持单字母短参数
+    for (int i = 1; i < argc; ++i) {
+        std::string arg = argv[i];
+        if (arg == "-v") {
+            std::cout << get_version_string() << std::endl;
+            return 0;
+        }
+        // 精确匹配才拦截
+        if (arg == "-h" || arg == "--help") {
+        // if (arg == "-h") {
+            std::cout << get_help_string() << std::endl;
+            return 0;
+        }
+    }
+
+    absl::FlagsUsageConfig config;
+    // config.contains_help_flags      = [](absl::string_view) { return true; };
+    // config.contains_helpshort_flags = config.contains_help_flags;
+    config.version_string              = [] { return get_version_string() + "\n"; };  // 配置 --version
+    absl::SetFlagsUsageConfig(config);
+    absl::SetProgramUsageMessage(get_help_string());
+    absl::ParseCommandLine(argc, argv); // 解析长参数（如 --version, --help 以及其他自定义 Flag）
 
     initialize_spdlog();
 

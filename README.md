@@ -4,4 +4,4 @@
 
 用户数据默认保存在用户文档的 `TaoTie\Chat\Server` 目录下。
 
-编译及客户端见 [TaoTieChatClient](https://github.com/guoiaoang/TaoTieChat) 。
+服务端非 QT 编写。编译及客户端见 [TaoTieChatClient](https://github.com/guoiaoang/TaoTieChat) 。

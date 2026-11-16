@@ -212,6 +212,7 @@ using stringlist = std::vector<std::string>;
 #include <QByteArrayList>
 #include <QByteArrayMatcher>
 #include <QByteArrayView>
+#include <QCamera>
 #include <QCheckBox>
 #include <QColor>
 #include <QColorDialog>
@@ -229,6 +230,7 @@ using stringlist = std::vector<std::string>;
 #include <QDirIterator>  // 遍历子目录，较新版本，单个遍历
 #include <QDirListing>   // 遍历子目录，最新版本，c++20 方式
 #include <QDomDocument>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
@@ -240,6 +242,7 @@ using stringlist = std::vector<std::string>;
 #include <QGuiApplication>
 #include <QIcon>
 #include <QImage>
+#include <QImageCapture>
 #include <QImageReader>
 #include <QImageWriter>
 #include <QJsonArray>
@@ -257,6 +260,7 @@ using stringlist = std::vector<std::string>;
 #include <QLocalSocket>
 #include <QMainWindow>
 #include <QMap>
+#include <QMediaFormat>
 #include <QMenu>
 #include <QMenuBar>
 #include <QMessageBox>
@@ -266,6 +270,7 @@ using stringlist = std::vector<std::string>;
 #include <QMovie>
 #include <QMutex>
 #include <QMutexLocker>
+#include <QNetworkAccessManager>
 #include <QObject>
 #include <QPainter>
 #include <QPainterPath>
@@ -300,6 +305,7 @@ using stringlist = std::vector<std::string>;
 #include <QShortcut>
 #include <QSize>
 #include <QSortFilterProxyModel>
+#include <QSoundEffect>
 #include <QSpinBox>
 #include <QSplitter>
 #include <QSslCipher>
@@ -432,10 +438,12 @@ using boost::uuids::uuid;
 #ifdef ENABLE_ABSL_LIB
 #include "absl/flags/flag.h"
 #include "absl/flags/parse.h"
+#include "absl/flags/usage_config.h"
+#include "absl/flags/usage.h"
 #include "absl/log/absl_log.h"
 #include "absl/log/check.h"
-#include "absl/log/initialize.h"
 #include "absl/log/globals.h"
+#include "absl/log/initialize.h"
 #include "absl/strings/str_format.h"
 #endif // ENABLE_ABSL_LIB
 

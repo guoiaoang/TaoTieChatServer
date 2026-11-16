@@ -349,6 +349,7 @@ if(ENABLE_CLIENT)
             LinguistTools
             SvgWidgets
             Svg
+            Multimedia
             Xml
             Protobuf
             ProtobufQtCoreTypes
@@ -634,6 +635,7 @@ if(ENABLE_CLIENT)
             Qt::Svg
             Qt::SvgWidgets
             Qt::Network
+            Qt::Multimedia
             Qt::Xml
             Qt::Grpc
             Qt::Protobuf

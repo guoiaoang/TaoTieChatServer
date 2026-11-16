@@ -296,7 +296,7 @@ public:
             if(!success_check_permission) {
                 return error_status<Reply, FileDownloadHeader>(response, header_reply.get(), header_reply->mutable_header(), ErrorCode::DB_CHECK, std::format("Failed to check file read permission for account_id: {}, file_id: {}", account_id, file_id));
             }
-            if(!(file_permission & Utils::Transform::to_int(PermissionCode::PERMISSION_READ))) {
+            if(!(file_permission & Utils::Transform::to_int64(PermissionCode::PERMISSION_READ))) {
                 return error_status<Reply, FileDownloadHeader>(response, header_reply.get(), header_reply->mutable_header(), ErrorCode::PERMISSION_DENIED, std::format("No read permission for account_id: {}, file_id: {}", account_id, file_id));
             }
         }

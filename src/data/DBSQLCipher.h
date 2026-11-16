@@ -64,7 +64,7 @@ struct SQLResult{
 string to_string(const SqlValue& v);
 
 bool    get_bool  (const SqlValue& v, const bool     default_value =    false);
-int     get_int   (const SqlValue& v, const int      default_value =       -1);
+// int  get_int   (const SqlValue& v, const int      default_value =       -1);
 int64_t get_int64 (const SqlValue& v, const int64_t  default_value =       -1);
 double  get_double(const SqlValue& v, const double   default_value =     -1.0);
 string  get_string(const SqlValue& v, const string & default_value = string{});
@@ -75,14 +75,14 @@ string  get_string(const SqlValue& v, const string & default_value = string{});
 // const function<bool(const string&)>& func = nullptr  // 条件符合时返回默认值
 string     row_string    (const SqlRow& row, const string& key, const string    & default_value =     string{}, const function<bool(const string &)>& func = nullptr);
 stringlist row_stringlist(const SqlRow& row, const string& key, const stringlist& default_value = stringlist{}, const function<bool(const string &)>& func = nullptr);
-int        row_int       (const SqlRow& row, const string& key, const int       & default_value =           -1, const function<bool(const int    &)>& func = nullptr);
+// int     row_int       (const SqlRow& row, const string& key, const int       & default_value =           -1, const function<bool(const int    &)>& func = nullptr);
 int64_t    row_int64     (const SqlRow& row, const string& key, const int64_t   & default_value =           -1, const function<bool(const int64_t&)>& func = nullptr);
 bool       row_bool      (const SqlRow& row, const string& key, const bool      & default_value =        false, const function<bool(const bool   &)>& func = nullptr);
 
 tuple<bool, bool> check_not_empty(const SqlRows& rows);
 // tuple<bool, string> get_string   (const SqlRow & row , const string& key, const string default_value = string{});
-tuple<bool, string> get_first_string(const SqlRows& rows, const string& key, const string default_value = string{});
-tuple<bool, int   > get_first_int   (const SqlRows& rows, const string& key,       int    default_value =       -1);
+tuple<bool, string > get_first_string(const SqlRows& rows, const string& key, const string  default_value = string{});
+tuple<bool, int64_t> get_first_int64 (const SqlRows& rows, const string& key,       int64_t default_value =       -1);
 
 class DBSQLCipher {
     using list_friends = list<shared_ptr<Data::FriendInfo>>;
@@ -165,14 +165,14 @@ public:
     //    2. 文件状态判断用户是否需要上传；
     //    3. 文件大小用来防止用户上传文件异常，便于截断，防止撑爆服务器；
     //    4. 文件 md5 用来判断上传的文件是否正确。
-    tuple<bool, bool                          > update_file_status_interface     (const string& file_id           , FileStatusCode file_status     );
-    tuple<bool, int                           > get_file_permission_interface    (const string& account_id        , const string& file_id          );
-    tuple<bool, SyncMessage                   > get_message_record_interface     (const string& server_message_id                                  );
-    tuple<bool, ContactInfo                   > get_active_account_info_interface(const string& account_id                                         );
-    tuple<bool, FileMetadata , FileStatusCode > get_file_info_interface          (const string& file_id                                            );
-    tuple<bool, shared_ptr<ContactInfoFriend >> get_friend_info_interface        (const string& self_account_id   , const string& friend_account_id);
-    // tuple<bool, bool                       > record_file_path_interface       (const string& file_md5          , const string& file_path        );
-    // tuple<bool, string                     > get_file_path_interface          (const string& file_md5                                           );
+    tuple<bool, bool                          > update_file_status_interface     (const string &file_id           , FileStatusCode file_status     );
+    tuple<bool, int64_t                       > get_file_permission_interface    (const string &account_id        , const string &file_id          );
+    tuple<bool, SyncMessage                   > get_message_record_interface     (const string &server_message_id                                  );
+    tuple<bool, ContactInfo                   > get_active_account_info_interface(const string &account_id                                         );
+    tuple<bool, FileMetadata , FileStatusCode > get_file_info_interface          (const string &file_id                                            );
+    tuple<bool, shared_ptr<ContactInfoFriend >> get_friend_info_interface        (const string &self_account_id   , const string &friend_account_id);
+    // tuple<bool, bool                       > record_file_path_interface       (const string &file_md5          , const string &file_path        );
+    // tuple<bool, string                     > get_file_path_interface          (const string &file_md5                                           );
 
     // 获取指定账号各事件类型的最新 PTS 值（用于客户端同步）
     shared_ptr<GetLastIDReply> get_last_id(shared_ptr<AuthRequest> request);
@@ -230,47 +230,47 @@ private:
     // 检查文件 ID 是否已经存在
     tuple<bool, bool> check_exist_file_id(const string& file_id);
     // 获取好友状态。0：非好友，1：好友，2：被对方拉黑了（可能没有这个状态，先预留）
-    tuple<bool, int > get_contact_status(const string& request_account_id, const string& target_account_id);
-    tuple<bool, int > get_friend_request_status(const string& request_account_id, const string& target_account_id);
+    tuple<bool, int64_t > get_contact_status(const string& request_account_id, const string& target_account_id);
+    tuple<bool, int64_t > get_friend_request_status(const string& request_account_id, const string& target_account_id);
     tuple<bool, bool> check_active_account_security(const string& account_id, const string& question, const string& answer);
     // 获取已经上传文件的文件 ID
     tuple<bool, string> get_exist_file_id(const string& file_name, int64_t file_size, const string& file_md5);
     tuple<bool, FileMetadata, FileStatusCode> get_file_info(const string& file_id);
-    tuple<bool, int> get_file_permission(const string& account_id, const string& file_id);
+    tuple<bool, int64_t> get_file_permission(const string &account_id, const string &file_id);
     // tuple<bool, string> get_file_path(const string& file_md5);
 
     // ============================== 写数据库 ============================== //
 
     tuple<bool, bool> write_meta_table  ();
     tuple<bool, bool> write_meta_version();
-    tuple<bool, bool> write_token    (const string& account_id, const string& token);
-    tuple<bool, string> user_register(const string& user_id   , const string& password          , const string& security_question, const string& security_answer);
-    tuple<bool, bool> contact_request(const string& event_id  , const string& request_account_id, const string& target_account_id, const string& message = string{});
-    tuple<bool, bool> contact_add    (const string& request_account_id, const string& target_account_id);
+    tuple<bool, bool> write_token    (const string &account_id, const string &token);
+    tuple<bool, string> user_register(const string &user_id   , const string &password          , const string &security_question, const string &security_answer);
+    tuple<bool, bool> contact_request(const string &event_id  , const string &request_account_id, const string &target_account_id, const string &message = string{});
+    tuple<bool, bool> contact_add    (const string &request_account_id, const string &target_account_id);
     // 记录文本消息到数据库
-    tuple<bool, bool> write_short_message(const string& chatroom_id ,
-        const string& server_message_id, const string& client_message_id  ,
-        const string& sender_account_id, const string& receiver_account_id,
-        const string& short_text       , const string& timestamp
+    tuple<bool, bool> write_short_message(const string &chatroom_id ,
+        const string &server_message_id, const string &client_message_id  ,
+        const string &sender_account_id, const string &receiver_account_id,
+        const string &short_text       , const string &timestamp
     );
     // 记录文件消息到数据库
-    tuple<bool, bool> write_file_message(const string& chatroom_id ,
-        const string& server_message_id, const string& client_message_id  ,
-        const string& sender_account_id, const string& receiver_account_id,
-        const string& file_id          , const string& timestamp
+    tuple<bool, bool> write_file_message(const string &chatroom_id ,
+        const string &server_message_id, const string &client_message_id  ,
+        const string &sender_account_id, const string &receiver_account_id,
+        const string &file_id          , const string &timestamp
     );
     // 设置好友请求的状态为同意/拒绝/忽略
-    tuple<bool, bool> set_contact_request_status(const string& request_account_id, const string& target_account_id, const ContactReplyCode& code);
+    tuple<bool, bool> set_contact_request_status(const string &request_account_id, const string &target_account_id, const ContactReplyCode &code);
     // 更新用户个人的非安全信息
-    tuple<bool, bool> update_self_profile                (const string& account_id, const ContactInfoBase& self_base_info);
+    tuple<bool, bool> update_self_profile                (const string &account_id, const ContactInfoBase &self_base_info);
     // 更新好友信息
-    tuple<bool, bool> update_friend_profile              (const string& account_id, const ContactInfoFriend& friend_info);
+    tuple<bool, bool> update_friend_profile              (const string &account_id, const ContactInfoFriend &friend_info);
     // 通过验证账号的旧密码来更新新的密码
-    tuple<bool, bool> update_account_password_by_password(const string& account_id, const string& old_password, const string& new_password);
+    tuple<bool, bool> update_account_password_by_password(const string &account_id, const string &old_password, const string &new_password);
     // 通过验证账号的安全问题来更新新的密码
-    tuple<bool, bool> update_account_password_by_security(const string& account_id, const string& question, const string& answer, const string& password);
+    tuple<bool, bool> update_account_password_by_security(const string &account_id, const string &question, const string &answer, const string &password);
     // 通过验证账号的安全问题来更新新的安全问题和答案
-    tuple<bool, bool> update_account_security_by_security(const string& account_id,
+    tuple<bool, bool> update_account_security_by_security(const string &account_id,
         const string& old_question, const string& old_answer,
         const string& new_question, const string& new_answer
     );
